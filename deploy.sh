@@ -58,9 +58,21 @@ php artisan migrate --force
 echo -e "${GREEN}✓${NC} 数据库迁移完成"
 echo ""
 
-# 步骤4：清除和重建缓存
-echo -e "${YELLOW}步骤 4/8: 清除和重建缓存${NC}"
+# 步骤4：创建缓存目录和重建缓存
+echo -e "${YELLOW}步骤 4/8: 创建缓存目录和重建缓存${NC}"
+
+# 确保所有必要的缓存目录存在
+mkdir -p ${BACKEND_DIR}/storage/
+
+
+mkdir -p ${BACKEND_DIR}/storage/framework/sessions
+mkdir -p ${BACKEND_DIR}/storage/
+
+mkdir -p ${BACKEND_DIR}/storage/logs
+mkdir -p ${BACKEND_DIR}/bootstrap/cache
+
 php artisan config:clear
+
 php artisan route:clear
 php artisan view:clear
 php artisan cache:clear
