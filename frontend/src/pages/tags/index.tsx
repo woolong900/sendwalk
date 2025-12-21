@@ -57,7 +57,7 @@ export default function TagsPage() {
   const queryClient = useQueryClient()
 
   // 获取标签列表和系统保留标签
-  const { data: tagsData, isLoading, isFetching } = useQuery<TagsResponse>({
+  const { data: tagsData, isLoading } = useQuery<TagsResponse>({
     queryKey: ['tags'],
     queryFn: async () => {
       const response = await api.get('/tags')

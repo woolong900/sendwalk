@@ -58,7 +58,7 @@ export default function ListsPage() {
   const queryClient = useQueryClient()
 
   // 获取列表
-  const { data: lists, isLoading, isFetching } = useQuery<MailingList[]>({
+  const { data: lists, isLoading } = useQuery<MailingList[]>({
     queryKey: ['lists'],
     queryFn: async () => {
       const response = await api.get('/lists')

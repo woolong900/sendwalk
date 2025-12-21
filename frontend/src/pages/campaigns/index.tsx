@@ -111,7 +111,7 @@ export default function CampaignsPage() {
     }
   }
 
-  const { data: campaigns, isLoading, isFetching } = useQuery<Campaign[]>({
+  const { data: campaigns, isLoading } = useQuery<Campaign[]>({
     queryKey: ['campaigns'],
     queryFn: async () => {
       const response = await api.get('/campaigns')
