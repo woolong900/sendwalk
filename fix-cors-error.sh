@@ -54,13 +54,22 @@ fi
 sed -i.bak 's|FRONTEND_URL=.*|FRONTEND_URL=https://edm.sendwalk.com|' .env
 echo "✓ 更新 FRONTEND_URL"
 
-# 更新 SANCTUM_STATEFUL_DOMAINS
-sed -i.bak 's|SANCTUM_STATEFUL_DOMAINS=.*|SANCTUM_STATEFUL_DOMAINS=edm.sendwalk.com|' .env
+# 更新 SANCTUM_STATEFUL_DOMAINS（添加 localhost 用于开发）
+sed -i.bak 's|SANCTUM_STATEFUL_DOMAINS=.*|SANCTUM_STATEFUL_DOMAINS=edm.sendwalk.com,localhost,localhost:5173,127.0.0.1:5173|' .env
 echo "✓ 更新 SANCTUM_STATEFUL_DOMAINS"
 
 # 更新 SESSION_DOMAIN
 sed -i.bak 's|SESSION_DOMAIN=.*|SESSION_DOMAIN=.sendwalk.com|' .env
 echo "✓ 更新 SESSION_DOMAIN"
+
+# 确保 APP_URL 正确
+if ! grep -q "APP_URL=" .env; then
+    echo "APP_URL=https://api.sendwalk.com" >> .env
+    echo "✓ 添加 APP_URL"
+else
+    sed -i.bak 's|APP_URL=.*|APP_URL=https://api.sendwalk.com|' .env
+    echo "✓ 更新 APP_URL"
+fi
 
 echo ""
 echo "🧹 清除配置缓存..."
