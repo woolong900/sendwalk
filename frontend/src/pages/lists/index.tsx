@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Edit, Trash2, Users, Search, ListFilter, Clock } from 'lucide-react'
@@ -163,15 +164,6 @@ export default function ListsPage() {
     totalUnsubscribed: lists?.reduce((sum, list) => sum + (list.unsubscribed_count || 0), 0) || 0,
   }
 
-  // 只在首次加载时显示全屏加载
-  if (isLoading && !lists) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">加载中...</p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       {/* 页头 */}
@@ -249,7 +241,33 @@ export default function ListsPage() {
       )}
 
       {/* 列表表格 */}
-      {lists && lists.length === 0 ? (
+      {isLoading || !lists ? (
+        // 加载中显示骨架屏
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]">ID</TableHead>
+                <TableHead className="w-[200px]">标题</TableHead>
+                <TableHead className="text-center w-[120px]">订阅者</TableHead>
+                <TableHead className="w-[180px]">创建时间</TableHead>
+                <TableHead className="text-right w-[150px]">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...Array(5)].map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      ) : lists.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Users className="w-12 h-12 text-muted-foreground mb-4" />

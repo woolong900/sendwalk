@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Search, Mail, Trash2, Upload, CheckCircle, List, RefreshCw, Loader } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -122,7 +123,6 @@ export default function SubscribersPage() {
       return response.data
     },
     enabled: !!listId,
-    staleTime: 0, // 立即过期，每次都重新获取最新数据
   })
 
   // 创建订阅者
@@ -287,15 +287,6 @@ export default function SubscribersPage() {
     )
   }
 
-  // 只在首次加载时显示全屏加载
-  if (isLoading && !subscribersData) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">加载中...</p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       {/* 页头 */}
@@ -384,7 +375,35 @@ export default function SubscribersPage() {
       </div>
 
       {/* 订阅者表格 */}
-      {subscribersData && subscribersData.data.length === 0 ? (
+      {isLoading || !subscribersData ? (
+        // 加载中显示骨架屏
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]">ID</TableHead>
+                <TableHead>邮箱</TableHead>
+                <TableHead>姓名</TableHead>
+                <TableHead className="text-center w-[100px]">状态</TableHead>
+                <TableHead className="w-[180px]">订阅时间</TableHead>
+                <TableHead className="text-right w-[100px]">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...Array(5)].map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-6 w-16 mx-auto" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      ) : subscribersData.data.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Mail className="w-12 h-12 text-muted-foreground mb-4" />

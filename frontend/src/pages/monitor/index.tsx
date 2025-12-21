@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { XCircle, Loader, RefreshCw, Pause, Play, Terminal, Trash2 } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -345,15 +346,6 @@ export default function SendMonitorPage() {
       queryClient.invalidateQueries({ queryKey: ['send-logs-latest'] })
     }
   }
-  
-  if (logsLoading || statsLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader className="w-8 h-8 animate-spin text-primary" />
-        <p className="ml-3 text-muted-foreground">加载中...</p>
-      </div>
-    )
-  }
 
   if (logsError || statsError) {
     return (
@@ -488,53 +480,69 @@ export default function SendMonitorPage() {
       </Card>
 
       {/* 统计卡片 */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                总数
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.total}</div>
-            </CardContent>
-          </Card>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {statsLoading || !stats ? (
+          // 加载中显示骨架屏
+          <>
+            {[...Array(4)].map((_, i) => (
+              <Card key={i}>
+                <CardHeader className="pb-3">
+                  <Skeleton className="h-4 w-16" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-20" />
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        ) : (
+          <>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  总数
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.total}</div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-green-500">
-                成功
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.sent}</div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-green-500">
+                  成功
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{stats.sent}</div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-red-500">
-                失败
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.failed}</div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-red-500">
+                  失败
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{stats.failed}</div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-blue-500">
-                成功率
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.success_rate}%</div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-blue-500">
+                  成功率
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">{stats.success_rate}%</div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
 
       {/* 发送日志 */}
       <Card className="overflow-hidden">
@@ -591,11 +599,20 @@ export default function SendMonitorPage() {
                 }}
               >
             {logsLoading && displayLogs.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-slate-500">
-                <div className="text-center">
-                  <Loader className="w-12 h-12 mx-auto mb-3 opacity-50 animate-spin" />
-                  <p>加载日志中...</p>
-                </div>
+              // 加载中显示骨架屏样式的日志行
+              <div className="p-4 space-y-1">
+                {[...Array(10)].map((_, i) => (
+                  <div key={i} className="py-1.5 px-2 rounded">
+                    <div className="flex items-start gap-3">
+                      <Skeleton className="h-3 w-32 bg-slate-800" />
+                      <Skeleton className="h-3 w-4 bg-slate-800" />
+                      <div className="flex-1 space-y-1">
+                        <Skeleton className="h-3 w-full bg-slate-800" />
+                        <Skeleton className="h-3 w-3/4 bg-slate-800" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : displayLogs && displayLogs.length > 0 ? (
               <div className="p-4 space-y-1">

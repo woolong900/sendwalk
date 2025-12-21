@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Send, Copy, Trash2, Edit, Filter, Search, Mail, XCircle, Eye, Pause, Play } from 'lucide-react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -344,15 +345,6 @@ export default function CampaignsPage() {
     )
   }
 
-  // 只在首次加载时显示全屏加载
-  if (isLoading && !campaigns) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">加载中...</p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       {/* 页头 */}
@@ -404,8 +396,38 @@ export default function CampaignsPage() {
         </CardContent>
       </Card>
 
-      {/* 空状态 */}
-      {campaigns && campaigns.length === 0 ? (
+      {/* 空状态或加载状态 */}
+      {isLoading || !campaigns ? (
+        // 加载中显示骨架屏
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[60px]">ID</TableHead>
+                <TableHead className="w-[180px]">标题</TableHead>
+                <TableHead className="text-center w-20">状态</TableHead>
+                <TableHead>目标列表</TableHead>
+                <TableHead>发送进度</TableHead>
+                <TableHead className="w-[180px]">预定发送时间</TableHead>
+                <TableHead className="text-right w-[140px]">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...Array(5)].map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                  <TableCell><Skeleton className="h-6 w-16 mx-auto" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      ) : campaigns.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Send className="w-12 h-12 text-muted-foreground mb-4" />

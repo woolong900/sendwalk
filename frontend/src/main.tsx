@@ -10,9 +10,9 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       retry: 1,
-      staleTime: 0, // 数据立即过期，每次都重新获取
-      gcTime: 0, // 不缓存数据（垃圾回收时间为0）
-      refetchOnMount: true, // 每次组件挂载时都重新获取
+      staleTime: 0, // 不缓存，保证数据实时性
+      gcTime: 0,
+      refetchOnMount: true, // 每次都获取最新数据
     },
   },
 })

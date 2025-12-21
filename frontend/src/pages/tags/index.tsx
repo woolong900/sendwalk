@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Tag as TagIcon, Edit, Trash2, Zap, Copy } from 'lucide-react'
 import { toast } from 'sonner'
@@ -170,15 +171,6 @@ export default function TagsPage() {
     toast.success('已复制到剪贴板')
   }
 
-  // 只在首次加载时显示全屏加载
-  if (isLoading && !tagsData) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">加载中...</p>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       {/* 页头 */}
@@ -218,7 +210,35 @@ export default function TagsPage() {
       </Card>
 
       {/* 标签列表 */}
-      {tags && tags.length === 0 ? (
+      {isLoading || !tags ? (
+        // 加载中显示骨架屏
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]">ID</TableHead>
+                <TableHead className="w-[180px]">标签名称</TableHead>
+                <TableHead>占位符</TableHead>
+                <TableHead>值</TableHead>
+                <TableHead className="w-[180px]">创建时间</TableHead>
+                <TableHead className="text-right w-[120px]">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...Array(5)].map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      ) : tags.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <TagIcon className="w-12 h-12 text-muted-foreground mb-4" />
