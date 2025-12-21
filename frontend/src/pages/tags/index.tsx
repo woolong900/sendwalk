@@ -57,7 +57,7 @@ export default function TagsPage() {
   const queryClient = useQueryClient()
 
   // 获取标签列表和系统保留标签
-  const { data: tagsData, isLoading } = useQuery<TagsResponse>({
+  const { data: tagsData, isLoading, isFetching } = useQuery<TagsResponse>({
     queryKey: ['tags'],
     queryFn: async () => {
       const response = await api.get('/tags')
@@ -170,7 +170,8 @@ export default function TagsPage() {
     toast.success('已复制到剪贴板')
   }
 
-  if (isLoading) {
+  // 只在首次加载时显示全屏加载
+  if (isLoading && !tagsData) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-muted-foreground">加载中...</p>

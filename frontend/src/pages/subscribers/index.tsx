@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, Mail, Trash2, Upload, CheckCircle, List, RefreshCw } from 'lucide-react'
+import { Plus, Search, Mail, Trash2, Upload, CheckCircle, List, RefreshCw, Loader } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -107,7 +107,7 @@ export default function SubscribersPage() {
   })
 
   // 获取订阅者
-  const { data: subscribersData, isLoading, refetch } = useQuery<PaginatedResponse>({
+  const { data: subscribersData, isLoading, isFetching, refetch } = useQuery<PaginatedResponse>({
     queryKey: ['subscribers', listId, currentPage, searchTerm, statusFilter],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -287,7 +287,8 @@ export default function SubscribersPage() {
     )
   }
 
-  if (isLoading) {
+  // 只在首次加载时显示全屏加载
+  if (isLoading && !subscribersData) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-muted-foreground">加载中...</p>
@@ -356,8 +357,11 @@ export default function SubscribersPage() {
               setSearchTerm(e.target.value)
               setCurrentPage(1)
             }}
-            className="pl-9"
+            className="pl-9 pr-9"
           />
+          {isFetching && (
+            <Loader className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-spin" />
+          )}
         </div>
         <Select
           value={statusFilter}

@@ -58,7 +58,7 @@ export default function ListsPage() {
   const queryClient = useQueryClient()
 
   // 获取列表
-  const { data: lists, isLoading } = useQuery<MailingList[]>({
+  const { data: lists, isLoading, isFetching } = useQuery<MailingList[]>({
     queryKey: ['lists'],
     queryFn: async () => {
       const response = await api.get('/lists')
@@ -163,7 +163,8 @@ export default function ListsPage() {
     totalUnsubscribed: lists?.reduce((sum, list) => sum + (list.unsubscribed_count || 0), 0) || 0,
   }
 
-  if (isLoading) {
+  // 只在首次加载时显示全屏加载
+  if (isLoading && !lists) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-muted-foreground">加载中...</p>

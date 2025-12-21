@@ -111,7 +111,7 @@ export default function CampaignsPage() {
     }
   }
 
-  const { data: campaigns, isLoading } = useQuery<Campaign[]>({
+  const { data: campaigns, isLoading, isFetching } = useQuery<Campaign[]>({
     queryKey: ['campaigns'],
     queryFn: async () => {
       const response = await api.get('/campaigns')
@@ -344,7 +344,8 @@ export default function CampaignsPage() {
     )
   }
 
-  if (isLoading) {
+  // 只在首次加载时显示全屏加载
+  if (isLoading && !campaigns) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-muted-foreground">加载中...</p>
