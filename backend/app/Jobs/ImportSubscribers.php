@@ -50,13 +50,38 @@ class ImportSubscribers implements ShouldQueue
             if (($handle = fopen($this->filePath, 'r')) !== false) {
                 $header = fgetcsv($handle);
                 
+                // 记录表头信息
+                Log::info('导入CSV - 读取表头', [
+                    'import_id' => $this->importId,
+                    'header' => $header,
+                    'file_path' => $this->filePath,
+                ]);
+                
                 if (!$header || !in_array('email', $header)) {
-                    throw new \Exception('文件格式错误：必须包含 email 列');
+                    // 尝试将表头转换为小写再检查
+                    $headerLower = array_map('strtolower', $header ?? []);
+                    if (!in_array('email', $headerLower)) {
+                        Log::error('CSV格式错误', [
+                            'import_id' => $this->importId,
+                            'header' => $header,
+                            'header_lower' => $headerLower,
+                        ]);
+                        throw new \Exception('文件格式错误：必须包含 email 列（当前表头：' . implode(', ', $header ?? []) . '）');
+                    }
+                    // 如果找到了小写的email，使用小写表头
+                    $header = $headerLower;
                 }
 
                 $emailIndex = array_search('email', $header);
                 $firstNameIndex = array_search('first_name', $header);
                 $lastNameIndex = array_search('last_name', $header);
+                
+                Log::info('CSV列索引', [
+                    'import_id' => $this->importId,
+                    'email_index' => $emailIndex,
+                    'first_name_index' => $firstNameIndex,
+                    'last_name_index' => $lastNameIndex,
+                ]);
 
                 // 先统计总行数
                 while (fgetcsv($handle) !== false) {
@@ -70,8 +95,22 @@ class ImportSubscribers implements ShouldQueue
                 $batchSize = 500;
                 $processed = 0;
 
+                $sampleRows = [];
+                $rowNumber = 0;
+                
                 while (($row = fgetcsv($handle)) !== false) {
+                    $rowNumber++;
                     $email = $row[$emailIndex] ?? '';
+                    
+                    // 记录前5行的样例数据
+                    if ($rowNumber <= 5) {
+                        $sampleRows[] = [
+                            'row' => $rowNumber,
+                            'raw_data' => $row,
+                            'email' => $email,
+                            'valid' => filter_var($email, FILTER_VALIDATE_EMAIL) !== false,
+                        ];
+                    }
                     
                     if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                         $skipped++;
@@ -109,6 +148,13 @@ class ImportSubscribers implements ShouldQueue
                 }
 
                 fclose($handle);
+                
+                // 记录样例数据
+                Log::info('CSV数据样例', [
+                    'import_id' => $this->importId,
+                    'sample_rows' => $sampleRows,
+                    'total_rows' => $totalRows,
+                ]);
             }
 
             // 更新列表的订阅者计数
@@ -117,6 +163,13 @@ class ImportSubscribers implements ShouldQueue
 
             // 设置完成状态
             $this->updateProgress(100, $imported, $skipped, $processed, 'completed');
+            
+            Log::info('导入完成', [
+                'import_id' => $this->importId,
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'total_rows' => $totalRows,
+            ]);
 
             // 删除临时文件
             if (file_exists($this->filePath)) {
@@ -145,6 +198,7 @@ class ImportSubscribers implements ShouldQueue
     {
         $imported = 0;
         $skipped = 0;
+        $skipReasons = [];
 
         foreach ($batch as $data) {
             try {
@@ -153,6 +207,9 @@ class ImportSubscribers implements ShouldQueue
                 
                 if ($isBlacklisted) {
                     $skipped++;
+                    if (count($skipReasons) < 5) {
+                        $skipReasons[] = ['email' => $data['email'], 'reason' => '在黑名单中'];
+                    }
                     continue;
                 }
 
@@ -165,6 +222,9 @@ class ImportSubscribers implements ShouldQueue
                     // If subscriber is blacklisted, skip
                     if ($subscriber->status === 'blacklisted') {
                         $skipped++;
+                        if (count($skipReasons) < 5) {
+                            $skipReasons[] = ['email' => $data['email'], 'reason' => '订阅者状态为黑名单'];
+                        }
                         continue;
                     }
                     
@@ -207,6 +267,9 @@ class ImportSubscribers implements ShouldQueue
                         'unsubscribed_at' => null,
                     ]);
                     $skipped++;
+                    if (count($skipReasons) < 5) {
+                        $skipReasons[] = ['email' => $data['email'], 'reason' => '已在列表中'];
+                    }
                 }
             } catch (\Exception $e) {
                 Log::warning('导入订阅者失败', [
@@ -214,7 +277,20 @@ class ImportSubscribers implements ShouldQueue
                     'error' => $e->getMessage(),
                 ]);
                 $skipped++;
+                if (count($skipReasons) < 5) {
+                    $skipReasons[] = ['email' => $data['email'], 'reason' => '异常: ' . $e->getMessage()];
+                }
             }
+        }
+        
+        // 记录跳过原因样例
+        if (!empty($skipReasons)) {
+            Log::info('批次处理 - 跳过原因样例', [
+                'import_id' => $this->importId,
+                'skip_reasons' => $skipReasons,
+                'imported' => $imported,
+                'skipped' => $skipped,
+            ]);
         }
 
         return [
