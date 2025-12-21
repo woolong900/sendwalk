@@ -1,0 +1,14 @@
+# Favicon 相关文件说明
+# 
+# ⚠️ 注意：以下脚本会覆盖自定义的 favicon 文件，请勿使用：
+#
+# - generate-favicon.sh         (从 SVG 生成 ICO)
+# - generate-from-ico.sh        (从 ICO 生成其他尺寸)
+# - test-favicon-positions.html (测试工具)
+#
+# 如果需要更新 favicon，请：
+# 1. 手动编辑 frontend/public/ 中的文件
+# 2. 或在 dist 测试后运行 ./sync-icons-to-public.sh
+#
+# 详细说明：cat Favicon自定义文件保护说明.md
+
