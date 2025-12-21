@@ -323,6 +323,33 @@ class ImportSubscribers implements ShouldQueue
             $data['error'] = $error;
         }
 
-        Cache::put("import_progress:{$this->importId}", $data, 3600); // 缓存 1 小时
+        $cacheKey = "import_progress:{$this->importId}";
+        
+        try {
+            Cache::put($cacheKey, $data, 3600); // 缓存 1 小时
+            
+            // 验证缓存是否写入成功
+            $cached = Cache::get($cacheKey);
+            if ($cached) {
+                Log::info('进度缓存更新成功', [
+                    'import_id' => $this->importId,
+                    'cache_key' => $cacheKey,
+                    'data' => $data,
+                ]);
+            } else {
+                Log::error('进度缓存写入后无法读取', [
+                    'import_id' => $this->importId,
+                    'cache_key' => $cacheKey,
+                    'data' => $data,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('进度缓存更新失败', [
+                'import_id' => $this->importId,
+                'cache_key' => $cacheKey,
+                'error' => $e->getMessage(),
+                'data' => $data,
+            ]);
+        }
     }
 }

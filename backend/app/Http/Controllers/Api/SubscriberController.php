@@ -226,14 +226,27 @@ class SubscriberController extends Controller
         $file->move($directory, basename($tempPath));
 
         // 初始化进度缓存
-        \Illuminate\Support\Facades\Cache::put("import_progress:{$importId}", [
+        $cacheKey = "import_progress:{$importId}";
+        $initialData = [
             'progress' => 0,
             'imported' => 0,
             'skipped' => 0,
             'processed' => 0,
             'status' => 'queued',
             'started_at' => now()->toIso8601String(),
-        ], 3600);
+        ];
+        
+        \Illuminate\Support\Facades\Cache::put($cacheKey, $initialData, 3600);
+        
+        // 记录初始化日志
+        \Illuminate\Support\Facades\Log::info('创建导入任务', [
+            'import_id' => $importId,
+            'list_id' => $listId,
+            'user_id' => $request->user()->id,
+            'file_path' => $tempPath,
+            'cache_key' => $cacheKey,
+            'initial_data' => $initialData,
+        ]);
 
         // 分发异步导入任务
         \App\Jobs\ImportSubscribers::dispatch(
@@ -257,9 +270,32 @@ class SubscriberController extends Controller
      */
     public function getImportProgress(Request $request, string $importId)
     {
-        $progress = \Illuminate\Support\Facades\Cache::get("import_progress:{$importId}");
+        $cacheKey = "import_progress:{$importId}";
+        $progress = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        
+        // 记录查询日志（只记录前5次）
+        static $queryCount = [];
+        if (!isset($queryCount[$importId])) {
+            $queryCount[$importId] = 0;
+        }
+        $queryCount[$importId]++;
+        
+        if ($queryCount[$importId] <= 5) {
+            \Illuminate\Support\Facades\Log::info('查询导入进度', [
+                'import_id' => $importId,
+                'cache_key' => $cacheKey,
+                'query_count' => $queryCount[$importId],
+                'progress_found' => $progress !== null,
+                'progress_data' => $progress,
+            ]);
+        }
         
         if (!$progress) {
+            \Illuminate\Support\Facades\Log::warning('导入进度不存在', [
+                'import_id' => $importId,
+                'cache_key' => $cacheKey,
+            ]);
+            
             return response()->json([
                 'message' => '导入任务不存在或已过期'
             ], 404);
