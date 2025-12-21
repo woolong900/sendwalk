@@ -22,6 +22,14 @@ use App\Http\Controllers\UnsubscribeController;
 |--------------------------------------------------------------------------
 */
 
+// Health check (public)
+Route::get('health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'timestamp' => now()->toIso8601String(),
+    ]);
+});
+
 // Public routes
 Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register']);
