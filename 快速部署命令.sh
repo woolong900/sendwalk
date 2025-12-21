@@ -2,7 +2,7 @@
 
 # SendWalk 快速部署命令参考
 # 部署路径: /data/www/sendwalk
-# 域名: edm.sendwalk.com / api.edm.sendwalk.com
+# 域名: edm.sendwalk.com / api.sendwalk.com
 
 cat << 'EOF'
 ====================================== 
@@ -17,11 +17,11 @@ cat << 'EOF'
 
 类型   主机记录    记录值
 A      edm        1.2.3.4
-A      api.edm    1.2.3.4
+A      api        1.2.3.4
 
 验证 DNS 生效:
 ping edm.sendwalk.com
-ping api.edm.sendwalk.com
+ping api.sendwalk.com
 
 
 【1. 创建项目目录】
@@ -57,7 +57,7 @@ sudo chmod -R 775 storage bootstrap/cache
 cd /data/www/sendwalk/frontend
 npm install
 cp .env.example .env
-# 编辑 .env 设置 VITE_API_URL=https://api.edm.sendwalk.com
+# 编辑 .env 设置 VITE_API_URL=https://api.sendwalk.com
 npm run build
 
 
@@ -157,8 +157,8 @@ tail -50 /var/log/nginx/sendwalk-api-error.log
 tail -50 /var/log/nginx/sendwalk-frontend-error.log
 
 # 测试 API
-curl https://api.edm.sendwalk.com/api/health
-curl http://api.edm.sendwalk.com/api/health
+curl https://api.sendwalk.com/api/health
+curl http://api.sendwalk.com/api/health
 
 
 【权限问题】

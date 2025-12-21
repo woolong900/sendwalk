@@ -49,7 +49,7 @@ server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name api.edm.sendwalk.com;
+    server_name api.sendwalk.com;
     
     # SSL 证书配置
     ssl_certificate /data/www/ca/sendwalk.pem;
@@ -61,7 +61,7 @@ server {
 # HTTP 自动重定向到 HTTPS
 server {
     listen 80;
-    server_name api.edm.sendwalk.com;
+    server_name api.sendwalk.com;
     return 301 https://$server_name$request_uri;
 }
 ```
@@ -141,7 +141,7 @@ sudo systemctl status nginx
 curl -I https://edm.sendwalk.com
 
 # 测试 API HTTPS
-curl -I https://api.edm.sendwalk.com/api/health
+curl -I https://api.sendwalk.com/api/health
 
 # 测试 HTTP 自动重定向
 curl -I http://edm.sendwalk.com
@@ -432,7 +432,7 @@ openssl x509 -in /data/www/ca/sendwalk.pem -text -noout
 # 查看证书支持的域名
 openssl x509 -in /data/www/ca/sendwalk.pem -noout -text | grep -A1 "Subject Alternative Name"
 
-# 确认证书包含 edm.sendwalk.com 和 api.edm.sendwalk.com
+# 确认证书包含 edm.sendwalk.com 和 api.sendwalk.com
 ```
 
 ### 问题 3: Nginx 启动失败
@@ -485,7 +485,7 @@ grep -r "http://" /data/www/sendwalk/frontend/dist/assets/
 - [ ] 证书文件权限正确（644）
 - [ ] 私钥文件权限正确（600）
 - [ ] 证书和私钥匹配
-- [ ] 证书包含正确的域名（edm.sendwalk.com, api.edm.sendwalk.com）
+- [ ] 证书包含正确的域名（edm.sendwalk.com, api.sendwalk.com）
 - [ ] 证书未过期，有效期充足
 - [ ] Nginx 配置已更新
 - [ ] Nginx 配置测试通过（nginx -t）

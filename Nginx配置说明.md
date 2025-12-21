@@ -256,7 +256,7 @@ sudo systemctl restart nginx
 
 ### API 配置 (`sendwalk-api.conf`)
 
-- **域名**: `api.edm.sendwalk.com`
+- **域名**: `api.sendwalk.com`
 - **端口**: 80 (HTTP), 443 (HTTPS)
 - **Root**: `/data/www/sendwalk/backend/public`
 - **PHP**: FastCGI 连接到 `php8.3-fpm.sock`
@@ -299,7 +299,7 @@ sudo systemctl restart nginx
 - [ ] Nginx 配置测试通过（`nginx -t`）
 - [ ] Nginx 已重启并运行正常
 - [ ] 可以访问前端（https://edm.sendwalk.com）
-- [ ] 可以访问 API（https://api.edm.sendwalk.com/api/health）
+- [ ] 可以访问 API（https://api.sendwalk.com/api/health）
 - [ ] HTTP 自动重定向到 HTTPS
 - [ ] SSL 证书正常工作
 
