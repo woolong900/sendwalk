@@ -1,0 +1,68 @@
+================================================================================
+                            日志文件速查表
+================================================================================
+
+📂 日志目录: storage/logs/
+
+📊 日志类型:
+
+  1. 按天滚动（自动清理）
+     ├─ laravel-YYYY-MM-DD.log      主应用日志
+     ├─ worker-YYYY-MM-DD.log       Worker 进程日志
+     ├─ email-YYYY-MM-DD.log        邮件发送日志
+     └─ scheduler-YYYY-MM-DD.log    调度器日志
+     
+  2. 实时输出（手动清理）
+     ├─ manager.log                 Worker 管理器
+     ├─ scheduler.log               任务调度器
+     └─ campaign_XX-worker-X.log    活动 Worker
+
+================================================================================
+
+📖 查看日志:
+
+  # 按天滚动日志（推荐）
+  tail -f storage/logs/laravel-$(date +%Y-%m-%d).log
+  tail -f storage/logs/worker-$(date +%Y-%m-%d).log
+  tail -f storage/logs/email-$(date +%Y-%m-%d).log
+  
+  # 实时输出日志
+  tail -f storage/logs/manager.log
+  tail -f storage/logs/campaign_25-worker-*.log
+
+================================================================================
+
+🧹 清理日志:
+
+  # 自动清理（按天滚动，保留30天）
+  php artisan logs:cleanup
+  
+  # 手动清理（实时输出）
+  rm storage/logs/manager.log
+  rm storage/logs/scheduler.log
+  rm storage/logs/campaign_*-worker-*.log
+
+================================================================================
+
+💻 代码中使用:
+
+  # 默认日志
+  Log::info('message');
+  
+  # Worker 日志
+  Log::channel('worker')->info('message');
+  
+  # 邮件日志
+  Log::channel('email')->error('message');
+  
+  # 调度器日志
+  Log::channel('scheduler')->info('message');
+
+================================================================================
+
+✅ 状态: 已完成日志目录整理
+   - queue 子目录已删除
+   - 所有日志文件统一在 logs/ 目录
+   - 代码中的引用已全部更新
+
+================================================================================
