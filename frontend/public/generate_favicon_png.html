@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate Favicon PNG</title>
+</head>
+<body>
+    <h2>Favicon 生成器</h2>
+    <canvas id="canvas32" width="32" height="32"></canvas>
+    <canvas id="canvas16" width="16" height="16"></canvas>
+    <br><br>
+    <a id="download32" download="favicon-32x32.png">下载 32x32 PNG</a><br>
+    <a id="download16" download="favicon-16x16.png">下载 16x16 PNG</a>
+
+    <script>
+        function drawFavicon(canvas, size) {
+            const ctx = canvas.getContext('2d');
+            
+            // 蓝色背景（圆角）
+            ctx.fillStyle = '#2563eb';
+            ctx.beginPath();
+            ctx.roundRect(0, 0, size, size, size * 0.2);
+            ctx.fill();
+            
+            // 白色 S 字母
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${size * 0.65}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('S', size / 2, size / 2);
+        }
+
+        // 生成 32x32
+        const canvas32 = document.getElementById('canvas32');
+        drawFavicon(canvas32, 32);
+        document.getElementById('download32').href = canvas32.toDataURL('image/png');
+
+        // 生成 16x16
+        const canvas16 = document.getElementById('canvas16');
+        drawFavicon(canvas16, 16);
+        document.getElementById('download16').href = canvas16.toDataURL('image/png');
+    </script>
+</body>
+</html>
+
