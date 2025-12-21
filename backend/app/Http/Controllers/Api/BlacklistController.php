@@ -107,7 +107,9 @@ class BlacklistController extends Controller
         return response()->json([
             'message' => '批量上传完成',
             'added' => $result['added'],
-            'skipped' => $result['skipped'],
+            'already_exists' => $result['already_exists'],
+            'invalid' => $result['invalid'],
+            'skipped' => $result['skipped'], // 为向后兼容保留
             'subscribers_updated' => $result['subscribers_updated'],
         ]);
     }

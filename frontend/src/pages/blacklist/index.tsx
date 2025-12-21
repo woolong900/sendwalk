@@ -109,10 +109,25 @@ export default function BlacklistPage() {
     },
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['blacklist'] })
-      const { added, skipped, subscribers_updated } = response.data
-      toast.success(
-        `批量上传完成：新增 ${added} 个，跳过 ${skipped} 个，更新订阅者 ${subscribers_updated} 个`
-      )
+      const { 
+        added, 
+        already_exists, 
+        invalid, 
+        subscribers_updated 
+      } = response.data
+      
+      // 构建更详细的提示信息
+      const messages = []
+      if (added > 0) messages.push(`新增 ${added} 个`)
+      if (already_exists > 0) messages.push(`已存在 ${already_exists} 个`)
+      if (invalid > 0) messages.push(`无效 ${invalid} 个`)
+      
+      const summary = messages.join('，')
+      const subscriberInfo = subscribers_updated > 0 
+        ? `，更新订阅者 ${subscribers_updated} 个` 
+        : ''
+      
+      toast.success(`批量上传完成：${summary}${subscriberInfo}`)
       setIsBatchUploadOpen(false)
       setBatchFormData({ emails: '', reason: '' })
       setSelectedFile(null)

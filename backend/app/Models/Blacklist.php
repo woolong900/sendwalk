@@ -38,32 +38,62 @@ class Blacklist extends Model
     public static function addBatch(int $userId, array $emails, ?string $reason = null): array
     {
         $added = 0;
-        $skipped = 0;
-        $updated = 0;
+        $alreadyExists = 0;
+        $invalid = 0;
+        $totalUpdated = 0;
+        
+        // 添加调试信息
+        \Log::info('开始批量添加黑名单', [
+            'user_id' => $userId,
+            'total_emails' => count($emails),
+            'first_5_emails' => array_slice($emails, 0, 5),
+        ]);
 
-        foreach ($emails as $email) {
+        $sampleInvalid = [];
+        $sampleAlreadyExists = [];
+        
+        foreach ($emails as $index => $email) {
+            $originalEmail = $email;
             $email = strtolower(trim($email));
             
-            if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $skipped++;
+            // 检查是否为空或格式无效
+            if (empty($email)) {
+                $invalid++;
+                if (count($sampleInvalid) < 5) {
+                    $sampleInvalid[] = "空邮箱 (原始: '" . $originalEmail . "')";
+                }
+                continue;
+            }
+            
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $invalid++;
+                if (count($sampleInvalid) < 5) {
+                    $sampleInvalid[] = "格式无效: " . $email;
+                }
                 continue;
             }
 
-            // Add to blacklist (skip if already exists)
-            $blacklistEntry = self::firstOrCreate(
-                ['user_id' => $userId, 'email' => $email],
-                ['reason' => $reason]
-            );
+            // Add to blacklist (or get existing entry)
+            try {
+                $blacklistEntry = self::firstOrCreate(
+                    ['user_id' => $userId, 'email' => $email],
+                    ['reason' => $reason]
+                );
 
-            if ($blacklistEntry->wasRecentlyCreated) {
-                $added++;
+                if ($blacklistEntry->wasRecentlyCreated) {
+                    $added++;
+                } else {
+                    $alreadyExists++;
+                    if (count($sampleAlreadyExists) < 5) {
+                        $sampleAlreadyExists[] = $email;
+                    }
+                }
                 
-                // Update all subscribers with this email to blacklisted status
+                // 无论是新增还是已存在，都更新相关订阅者状态
                 $updatedCount = Subscriber::where('email', $email)
                     ->where('status', '!=', 'blacklisted')
                     ->update(['status' => 'blacklisted']);
                     
-                // Update list_subscriber pivot table status to blacklisted
                 $subscriber = Subscriber::where('email', $email)->first();
                 if ($subscriber) {
                     \DB::table('list_subscriber')
@@ -72,16 +102,34 @@ class Blacklist extends Model
                         ->update(['status' => 'blacklisted']);
                 }
                     
-                $updated += $updatedCount;
-            } else {
-                $skipped++;
+                $totalUpdated += $updatedCount;
+            } catch (\Exception $e) {
+                \Log::error('添加黑名单失败', [
+                    'email' => $email,
+                    'user_id' => $userId,
+                    'error' => $e->getMessage(),
+                ]);
+                $invalid++;
             }
         }
+        
+        // 记录详细结果
+        \Log::info('批量添加黑名单完成', [
+            'user_id' => $userId,
+            'added' => $added,
+            'already_exists' => $alreadyExists,
+            'invalid' => $invalid,
+            'subscribers_updated' => $totalUpdated,
+            'sample_invalid' => $sampleInvalid,
+            'sample_already_exists' => $sampleAlreadyExists,
+        ]);
 
         return [
             'added' => $added,
-            'skipped' => $skipped,
-            'subscribers_updated' => $updated,
+            'already_exists' => $alreadyExists,
+            'invalid' => $invalid,
+            'subscribers_updated' => $totalUpdated,
+            'skipped' => $invalid,
         ];
     }
 }
