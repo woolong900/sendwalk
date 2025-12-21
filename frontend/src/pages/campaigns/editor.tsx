@@ -200,12 +200,15 @@ export default function CampaignEditorPage() {
       }
       return api.post(`/campaigns/${campaignId}/send`)
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
-      if (variables.scheduledAt) {
-        toast.success('活动已定时发送')
+      
+      // 如果是编辑模式，统一显示"活动已更新"
+      if (isEditing) {
+        toast.success('活动已更新')
       } else {
-        toast.success('活动已加入发送队列')
+        // 如果是创建新活动，保持原有提示
+        toast.success('活动已创建')
       }
       navigate('/campaigns')
     },
