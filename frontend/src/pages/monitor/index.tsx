@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Activity, CheckCircle, XCircle, Clock, Loader, RefreshCw, Pause, Play, Terminal, Trash2 } from 'lucide-react'
+import { XCircle, Loader, RefreshCw, Pause, Play, Terminal, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -54,7 +54,6 @@ export default function SendMonitorPage() {
   const [hasMore, setHasMore] = useState(true)
   const [allLogs, setAllLogs] = useState<SendLog[]>([]) // 当前窗口的日志（最多100条）
   const [lastLogId, setLastLogId] = useState<number | null>(null)
-  const [oldestLogId, setOldestLogId] = useState<number | null>(null) // 当前窗口最旧的日志ID
   const logContainerRef = useRef<HTMLDivElement>(null)
   const isLoadingMoreRef = useRef(false)
   const initialLoadDone = useRef(false)
@@ -89,7 +88,6 @@ export default function SendMonitorPage() {
       setNextPageToLoad(2)
       setHasMore(true)
       setLastLogId(null)
-      setOldestLogId(null)
       setAutoScroll(true)
       
       queryClient.invalidateQueries({ queryKey: ['send-logs-paginated'] })
@@ -133,7 +131,6 @@ export default function SendMonitorPage() {
         
         if (reversedData.length > 0) {
           // 记录窗口边界
-          setOldestLogId(reversedData[0].id) // 最旧的日志
           setLastLogId(reversedData[reversedData.length - 1].id) // 最新的日志
           
           // 首次加载后滚动到底部
@@ -184,10 +181,6 @@ export default function SendMonitorPage() {
         // 如果用户正在查看历史记录（不在底部），不删除任何数据
         if (autoScroll && newLogs.length > maxDisplayLogs) {
           const trimmedLogs = newLogs.slice(-maxDisplayLogs)
-          // 更新最旧日志ID
-          if (trimmedLogs.length > 0) {
-            setOldestLogId(trimmedLogs[0].id)
-          }
           return trimmedLogs
         }
         return newLogs
@@ -270,11 +263,6 @@ export default function SendMonitorPage() {
           return newLogs
         })
         
-        // 更新最旧日志ID（窗口顶部）
-        if (reversedData.length > 0) {
-          setOldestLogId(reversedData[0].id)
-        }
-        
         setNextPageToLoad(prev => prev + 1) // 准备加载下一页
         const stillHasMore = data.meta.current_page < data.meta.last_page
         setHasMore(stillHasMore)
@@ -347,7 +335,6 @@ export default function SendMonitorPage() {
     setAllLogs([])
     setHasMore(true)
     setLastLogId(null)
-    setOldestLogId(null)
     setAutoScroll(true)
   }, [selectedServer, selectedStatus, selectedTimeRange])
   
@@ -359,19 +346,6 @@ export default function SendMonitorPage() {
     }
   }
   
-  // 完整重载（重新加载所有数据）
-  const handleFullReload = () => {
-    initialLoadDone.current = false
-    setNextPageToLoad(2)
-    setAllLogs([])
-    setHasMore(true)
-    setLastLogId(null)
-    setOldestLogId(null)
-    setAutoScroll(true)
-    queryClient.invalidateQueries({ queryKey: ['send-logs-paginated'] })
-    queryClient.invalidateQueries({ queryKey: ['send-stats'] })
-  }
-
   if (logsLoading || statsLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -394,31 +368,12 @@ export default function SendMonitorPage() {
     )
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'sent':
-        return <CheckCircle className="w-4 h-4 text-green-500" />
-      case 'failed':
-        return <XCircle className="w-4 h-4 text-red-500" />
-      default:
-        return null
-    }
-  }
-
   const getStatusText = (status: string) => {
     const labels = {
       sent: '成功',
       failed: '失败',
     }
     return labels[status as keyof typeof labels] || status
-  }
-
-  const getStatusColor = (status: string) => {
-    const colors = {
-      sent: 'text-green-600 bg-green-100',
-      failed: 'text-red-600 bg-red-100',
-    }
-    return colors[status as keyof typeof colors] || 'text-gray-600 bg-gray-100'
   }
 
   return (
@@ -662,7 +617,7 @@ export default function SendMonitorPage() {
                   </div>
                 )}
                 
-                {displayLogs.map((log, index) => {
+                {displayLogs.map((log) => {
                   const date = new Date(log.created_at)
                   const year = date.getFullYear()
                   const month = String(date.getMonth() + 1).padStart(2, '0')

@@ -14,18 +14,9 @@ function Calendar({
   showOutsideDays = true,
   ...props
 }: CalendarProps) {
-  // 配置中文 locale，明确设置从星期一开始
-  const zhCNLocale = {
-    ...zhCN,
-    options: {
-      ...zhCN.options,
-      weekStartsOn: 1,
-    },
-  }
-
   return (
     <DayPicker
-      locale={zhCNLocale}
+      locale={zhCN}
       weekStartsOn={1}
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
@@ -64,8 +55,12 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
-        IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
+        Chevron: ({ orientation }) => {
+          if (orientation === 'left') {
+            return <ChevronLeft className="h-4 w-4" />
+          }
+          return <ChevronRight className="h-4 w-4" />
+        },
       }}
       {...props}
     />

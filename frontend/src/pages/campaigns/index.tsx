@@ -7,9 +7,6 @@ import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -36,7 +33,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { api } from '@/lib/api'
-import { formatDateTime } from '@/lib/utils'
 import { useConfirm } from '@/hooks/use-confirm'
 import { SendLogsDialog, EmailOpensDialog } from './analytics-dialogs'
 
@@ -86,7 +82,6 @@ export default function CampaignsPage() {
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('table')
   const [previewCampaign, setPreviewCampaign] = useState<Campaign | null>(null)
   const [previewUnsubscribeUrl, setPreviewUnsubscribeUrl] = useState<string>('')
   const [previewSubscriberEmail, setPreviewSubscriberEmail] = useState<string>('')
@@ -163,17 +158,6 @@ export default function CampaignsPage() {
     // onError 已由全局拦截器处理
   })
 
-  const cancelScheduleMutation = useMutation({
-    mutationFn: async (id: number) => {
-      return api.post(`/campaigns/${id}/cancel-schedule`)
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaigns'] })
-      toast.success('已取消定时发送')
-    },
-    // onError 已由全局拦截器处理
-  })
-
   const cancelMutation = useMutation({
     mutationFn: async (id: number) => {
       return api.post(`/campaigns/${id}/cancel`)
@@ -219,19 +203,6 @@ export default function CampaignsPage() {
     })
     if (confirmed) {
       deleteMutation.mutate(id)
-    }
-  }
-
-  const handleCancelSchedule = async (id: number, name: string) => {
-    const confirmed = await confirm({
-      title: '取消定时发送',
-      description: `确定要取消"${name}"的定时发送吗？活动将恢复为草稿状态。`,
-      confirmText: '取消发送',
-      cancelText: '返回',
-      variant: 'destructive',
-    })
-    if (confirmed) {
-      cancelScheduleMutation.mutate(id)
     }
   }
 
@@ -371,18 +342,6 @@ export default function CampaignsPage() {
         {config.label}
       </Badge>
     )
-  }
-
-  const getStatusColor = (status: string) => {
-    const colors = {
-      draft: 'text-gray-600',
-      scheduled: 'text-blue-600',
-      sending: 'text-yellow-600',
-      sent: 'text-green-600',
-      paused: 'text-orange-600',
-      cancelled: 'text-red-600',
-    }
-    return colors[status as keyof typeof colors] || 'text-gray-600'
   }
 
   if (isLoading) {

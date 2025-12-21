@@ -2,7 +2,6 @@ import { Outlet, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Mail,
-  Users,
   List,
   Activity,
   Server,
