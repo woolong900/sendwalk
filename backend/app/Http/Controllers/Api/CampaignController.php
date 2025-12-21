@@ -240,7 +240,19 @@ class CampaignController extends Controller
         }
 
         $newCampaign = $campaign->replicate();
-        $newCampaign->name = $campaign->name . ' (副本)';
+        
+        // 智能命名：如果标题以 #数字 结尾，则数字加1；否则加上 #1
+        $originalName = $campaign->name;
+        if (preg_match('/#(\d+)$/', $originalName, $matches)) {
+            // 标题以 #数字 结尾，提取数字并加1
+            $number = (int)$matches[1];
+            $newNumber = $number + 1;
+            $newCampaign->name = preg_replace('/#(\d+)$/', '#' . $newNumber, $originalName);
+        } else {
+            // 标题不以 #数字 结尾，加上 #1
+            $newCampaign->name = $originalName . '#1';
+        }
+        
         $newCampaign->status = 'draft';
         $newCampaign->scheduled_at = null;
         $newCampaign->sent_at = null;
