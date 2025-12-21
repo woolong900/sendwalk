@@ -81,21 +81,30 @@ class AbuseController extends Controller
                 'email' => 'required|email',
             ]);
 
-            $email = $request->input('email');
+            $email = strtolower(trim($request->input('email')));
 
-            // 查找订阅者
+            // 查找订阅者（可能存在也可能不存在）
             $subscriber = Subscriber::where('email', $email)->first();
 
-            if (!$subscriber) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Email address not found.',
-                ], 404);
+            // 获取 user_id（如果订阅者存在则使用其 user_id，否则使用默认值）
+            $userId = $subscriber ? $subscriber->user_id : null;
+
+            // 如果找不到订阅者，尝试从其他已有的黑名单记录中获取 user_id
+            if (!$userId) {
+                $existingBlacklist = Blacklist::where('email', $email)->first();
+                if ($existingBlacklist) {
+                    $userId = $existingBlacklist->user_id;
+                }
+            }
+
+            // 如果还是找不到 user_id，使用第一个用户的 ID 作为默认值
+            if (!$userId) {
+                $userId = \App\Models\User::first()->id ?? 1;
             }
 
             // 检查是否已在黑名单中
             $existingBlacklist = Blacklist::where('email', $email)
-                ->where('user_id', $subscriber->user_id)
+                ->where('user_id', $userId)
                 ->first();
 
             if ($existingBlacklist) {
@@ -107,25 +116,33 @@ class AbuseController extends Controller
 
             // 添加到黑名单
             Blacklist::create([
-                'user_id' => $subscriber->user_id,
+                'user_id' => $userId,
                 'email' => $email,
                 'reason' => 'User requested block via X-EBS',
             ]);
 
-            // 更新订阅者状态
-            $subscriber->update(['status' => 'blacklisted']);
+            // 如果订阅者存在，更新订阅者状态
+            if ($subscriber) {
+                $subscriber->update(['status' => 'blacklisted']);
 
-            // 更新所有列表中的状态
-            \DB::table('list_subscriber')
-                ->where('subscriber_id', $subscriber->id)
-                ->update(['status' => 'blacklisted']);
+                // 更新所有列表中的状态
+                \DB::table('list_subscriber')
+                    ->where('subscriber_id', $subscriber->id)
+                    ->update(['status' => 'blacklisted']);
 
-            Log::info('Email address blocked via X-EBS', [
-                'email' => $email,
-                'subscriber_id' => $subscriber->id,
-                'user_id' => $subscriber->user_id,
-                'ip' => $request->ip(),
-            ]);
+                Log::info('Email address blocked via X-EBS', [
+                    'email' => $email,
+                    'subscriber_id' => $subscriber->id,
+                    'user_id' => $userId,
+                    'ip' => $request->ip(),
+                ]);
+            } else {
+                Log::info('Email address blocked via X-EBS (no subscriber found)', [
+                    'email' => $email,
+                    'user_id' => $userId,
+                    'ip' => $request->ip(),
+                ]);
+            }
 
             return response()->json([
                 'success' => true,
@@ -136,6 +153,7 @@ class AbuseController extends Controller
             Log::error('Failed to block email address', [
                 'email' => $request->input('email'),
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
 
             return response()->json([

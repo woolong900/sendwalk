@@ -72,6 +72,7 @@ export default function CampaignEditorPage() {
   const [sendMode, setSendMode] = useState<'draft' | 'now' | 'schedule'>('draft')
   const [scheduledDateTime, setScheduledDateTime] = useState<Date | undefined>()
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false)
+  const [isSaveBeforeSend, setIsSaveBeforeSend] = useState(false) // 标记是否是"保存后发送"操作
   const subjectInputRef = useRef<HTMLInputElement>(null)
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -161,6 +162,12 @@ export default function CampaignEditorPage() {
         queryClient.invalidateQueries({ queryKey: ['campaign', id] })
       }
       
+      // 如果是"保存后发送"操作，不显示提示（由 sendMutation 统一提示）
+      if (isSaveBeforeSend) {
+        setIsSaveBeforeSend(false)
+        return
+      }
+      
       // 如果是创建新活动且选择了发送，则自动发送
       if (!isEditing && sendMode !== 'draft') {
         const newCampaignId = response.data.data.id
@@ -234,12 +241,14 @@ export default function CampaignEditorPage() {
     // 先保存修改
     try {
       if (isEditing) {
+        setIsSaveBeforeSend(true) // 标记为"保存后发送"，不显示保存成功提示
         await saveMutation.mutateAsync(formData)
       }
       
       sendMutation.mutate({ campaignId: parseInt(id) })
     } catch (error) {
       // 保存失败，不继续发送
+      setIsSaveBeforeSend(false)
       console.error('保存失败:', error)
     }
   }
@@ -257,6 +266,7 @@ export default function CampaignEditorPage() {
     // 先保存修改
     try {
       if (isEditing) {
+        setIsSaveBeforeSend(true) // 标记为"保存后发送"，不显示保存成功提示
         await saveMutation.mutateAsync(formData)
       }
       
@@ -265,6 +275,7 @@ export default function CampaignEditorPage() {
       setIsSendDialogOpen(false)
     } catch (error) {
       // 保存失败，不继续定时发送
+      setIsSaveBeforeSend(false)
       console.error('保存失败:', error)
     }
   }

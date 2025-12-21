@@ -78,15 +78,15 @@ class EmailService
                     $message->getHeaders()->addTextHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
                 }
 
-                // Add X-Report-Abuse header for abuse reporting
+                // Add X-Report-Abuse header for abuse reporting (points to frontend page)
                 if ($campaignId && $subscriberId) {
-                    $reportAbuseUrl = config('app.url') . "/api/abuse/report/{$campaignId}/{$subscriberId}";
+                    $reportAbuseUrl = config('app.frontend_url') . "/abuse/report/{$campaignId}/{$subscriberId}";
                     $message->getHeaders()->addTextHeader('X-Report-Abuse', $reportAbuseUrl);
                 }
 
-                // Add X-EBS header for email blocking system
+                // Add X-EBS header for email blocking system (points to frontend page)
                 if ($to) {
-                    $blockUrl = config('app.url') . "/api/abuse/block?email=" . urlencode($to);
+                    $blockUrl = config('app.frontend_url') . "/abuse/block?email=" . urlencode($to);
                     $message->getHeaders()->addTextHeader('X-EBS', $blockUrl);
                 }
             });
