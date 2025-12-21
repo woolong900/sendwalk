@@ -208,7 +208,7 @@ export default function SubscribersPage() {
           queryClient.invalidateQueries({ queryKey: ['subscribers'] })
           queryClient.invalidateQueries({ queryKey: ['list', listId] })
           
-          toast.success(`导入完成！成功: ${progress.imported}, 跳过: ${progress.skipped}`)
+          toast.success(`成功导入 ${progress.imported} 个订阅者，跳过 ${progress.skipped} 个`)
           
           setTimeout(() => {
             setIsImportOpen(false)
@@ -575,8 +575,7 @@ export default function SubscribersPage() {
                 <div className="flex items-start gap-3">
                   <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
                   <div className="flex-1">
-                    <p className="font-medium text-green-900">导入成功！</p>
-                    <p className="text-sm text-green-700 mt-1">
+                    <p className="font-medium text-green-900">
                       成功导入 {importResult.imported} 个订阅者
                       {importResult.skipped > 0 && `，跳过 ${importResult.skipped} 个`}
                     </p>
