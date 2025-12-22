@@ -39,6 +39,7 @@ interface SmtpServer {
   type: string
   is_default: boolean
   is_active: boolean
+  sender_emails?: string
 }
 
 interface CustomTag {
@@ -298,9 +299,27 @@ export default function CampaignEditorPage() {
       ?.name || '示例服务器'
     
     // 提取发件人域名
-    const senderDomain = formData.from_email 
-      ? formData.from_email.split('@')[1] || 'example.com'
-      : 'example.com'
+    let senderDomain = 'example.com'
+    
+    // 优先使用活动的 from_email
+    if (formData.from_email) {
+      const parts = formData.from_email.split('@')
+      senderDomain = parts[1] || 'example.com'
+    } else if (formData.smtp_server_id) {
+      // 如果活动没有设置发件人，尝试从选中的服务器的 sender_emails 中获取第一个
+      const selectedServer = smtpServers?.find(s => s.id.toString() === formData.smtp_server_id)
+      if (selectedServer?.sender_emails) {
+        const senderEmails = selectedServer.sender_emails
+          .split('\n')
+          .map(email => email.trim())
+          .filter(email => email && email.includes('@'))
+        
+        if (senderEmails.length > 0) {
+          const parts = senderEmails[0].split('@')
+          senderDomain = parts[1] || 'example.com'
+        }
+      }
+    }
     
     const exampleEmail = 'user@example.com'
     const unsubscribeUrl = 'https://example.com/unsubscribe/abc123'

@@ -65,6 +65,7 @@ interface Campaign {
   smtp_server?: {
     id: number
     name: string
+    sender_emails?: string
   }
   total_recipients: number
   total_sent: number
@@ -245,10 +246,26 @@ export default function CampaignsPage() {
 
     // 提取发件人域名
     const getSenderDomain = () => {
+      // 优先使用活动的 from_email
       if (campaign.from_email) {
         const parts = campaign.from_email.split('@')
         return parts[1] || 'example.com'
       }
+      
+      // 如果活动没有设置发件人，尝试从服务器的 sender_emails 中获取第一个
+      if (campaign.smtp_server?.sender_emails) {
+        const senderEmails = campaign.smtp_server.sender_emails
+          .split('\n')
+          .map(email => email.trim())
+          .filter(email => email && email.includes('@'))
+        
+        if (senderEmails.length > 0) {
+          const parts = senderEmails[0].split('@')
+          return parts[1] || 'example.com'
+        }
+      }
+      
+      // 如果都没有，使用默认值
       return 'example.com'
     }
 
