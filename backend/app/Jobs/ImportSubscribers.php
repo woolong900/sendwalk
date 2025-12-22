@@ -92,7 +92,7 @@ class ImportSubscribers implements ShouldQueue
 
                 // 批量处理
                 $batch = [];
-                $batchSize = 500;
+                $batchSize = 1000;
                 $processed = 0;
 
                 $sampleRows = [];

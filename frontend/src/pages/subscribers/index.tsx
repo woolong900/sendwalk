@@ -208,7 +208,10 @@ export default function SubscribersPage() {
           queryClient.invalidateQueries({ queryKey: ['subscribers'] })
           queryClient.invalidateQueries({ queryKey: ['list', listId] })
           
-          toast.success(`成功导入 ${progress.imported} 个订阅者，跳过 ${progress.skipped} 个`)
+          // 只有当导入人数大于0时才显示提示
+          if (progress.imported > 0) {
+            toast.success(`成功导入 ${progress.imported} 个订阅者，跳过 ${progress.skipped} 个`)
+          }
           
           setTimeout(() => {
             setIsImportOpen(false)
