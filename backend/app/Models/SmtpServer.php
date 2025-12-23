@@ -154,14 +154,33 @@ class SmtpServer extends Model
      */
     private function countInSlidingWindow(string $period, int $duration): int
     {
+        $queryStart = microtime(true);
+        
         // 计算时间窗口的起始时间
         $startTime = now()->subSeconds($duration);
         
+        \Log::debug('[SmtpServer] Counting sliding window', [
+            'server_id' => $this->id,
+            'period' => $period,
+            'duration_seconds' => $duration,
+            'start_time' => $startTime->toDateTimeString(),
+        ]);
+        
         // 从 SendLog 表查询此服务器在时间窗口内的发送尝试数（包括成功和失败）
-        return \App\Models\SendLog::where('smtp_server_id', $this->id)
+        $count = \App\Models\SendLog::where('smtp_server_id', $this->id)
             ->whereIn('status', ['sent', 'failed'])
             ->where('created_at', '>=', $startTime)
             ->count();
+        
+        $queryTime = (microtime(true) - $queryStart) * 1000;
+        \Log::debug('[SmtpServer] Sliding window count completed', [
+            'server_id' => $this->id,
+            'period' => $period,
+            'count' => $count,
+            'time_ms' => round($queryTime, 2),
+        ]);
+        
+        return $count;
     }
 
     /**
@@ -169,6 +188,12 @@ class SmtpServer extends Model
      */
     public function getRateLimitStatus(): array
     {
+        $methodStart = microtime(true);
+        \Log::debug('[SmtpServer] getRateLimitStatus started', [
+            'server_id' => $this->id,
+            'server_name' => $this->name,
+        ]);
+        
         // Use sliding window counts for accurate rate limiting
         $periods = [
             'second' => $this->countInSlidingWindow('second', 1),
@@ -176,6 +201,13 @@ class SmtpServer extends Model
             'hour' => $this->countInSlidingWindow('hour', 3600),
             'day' => $this->emails_sent_today,
         ];
+        
+        $countingTime = (microtime(true) - $methodStart) * 1000;
+        \Log::debug('[SmtpServer] Counting periods completed', [
+            'server_id' => $this->id,
+            'time_ms' => round($countingTime, 2),
+            'counts' => $periods,
+        ]);
 
         $status = [];
         $mostRestrictive = null;
@@ -203,6 +235,12 @@ class SmtpServer extends Model
 
         // Add overall check
         $limitCheck = $this->checkRateLimits();
+
+        $totalTime = (microtime(true) - $methodStart) * 1000;
+        \Log::debug('[SmtpServer] getRateLimitStatus completed', [
+            'server_id' => $this->id,
+            'total_time_ms' => round($totalTime, 2),
+        ]);
 
         return [
             'periods' => $status,
