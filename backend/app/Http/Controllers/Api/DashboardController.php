@@ -18,75 +18,78 @@ class DashboardController extends Controller
     {
         $userId = $request->user()->id;
 
-        $totalSubscribers = Subscriber::whereHas('lists', function ($query) use ($userId) {
-            $query->where('user_id', $userId);
-        })->count();
-
-        $totalCampaigns = Campaign::where('user_id', $userId)->count();
+        // 使用缓存（5秒过期，减轻数据库压力）
+        $cacheKey = "dashboard_stats_{$userId}";
         
-        $totalSent = Campaign::where('user_id', $userId)->sum('total_sent');
-
-        $campaigns = Campaign::where('user_id', $userId)
-            ->where('total_delivered', '>', 0)
-            ->get();
-
-        $avgOpenRate = $campaigns->count() > 0 
-            ? $campaigns->avg('open_rate') 
-            : 0;
-
-        // 获取发送统计数据（最近不同时间段）
-        $sendStats = $this->getSendStats($userId);
-
-        // 获取队列长度
-        $queueLength = $this->getQueueLength();
-        
-        // 获取活动状态统计
-        $campaignStatusStats = $this->getCampaignStatusStats($userId);
-        
-        // 获取SMTP服务器状态
-        $smtpServerStats = $this->getSmtpServerStats($userId);
-        
-        // 获取发送速率（邮件/分钟）
-        $sendingRate = $this->getSendingRate($userId);
-        
-        // 获取当前 Worker 数量
-        $workerCount = $this->getWorkerCount();
-        
-        // 获取调度器状态
-        $schedulerRunning = $this->getSchedulerStatus();
-
         return response()->json([
-            'data' => [
-                'total_subscribers' => $totalSubscribers,
-                'total_campaigns' => $totalCampaigns,
-                'total_sent' => $totalSent,
-                'avg_open_rate' => round($avgOpenRate, 2),
-                'send_stats' => $sendStats,
-                'queue_length' => $queueLength,
-                'campaign_status_stats' => $campaignStatusStats,
-                'smtp_server_stats' => $smtpServerStats,
-                'sending_rate' => $sendingRate,
-                'worker_count' => $workerCount,
-                'scheduler_running' => $schedulerRunning,
-            ],
+            'data' => \Cache::remember($cacheKey, 5, function () use ($userId) {
+                // 优化1: 使用 JOIN 查询订阅者，避免 whereHas 的性能问题
+                $totalSubscribers = DB::table('subscribers')
+                    ->join('list_subscriber', 'subscribers.id', '=', 'list_subscriber.subscriber_id')
+                    ->join('lists', 'list_subscriber.list_id', '=', 'lists.id')
+                    ->where('lists.user_id', $userId)
+                    ->whereNull('subscribers.deleted_at')
+                    ->distinct('subscribers.id')
+                    ->count('subscribers.id');
+
+                // 优化2: 合并活动统计查询（1次查询代替5次）
+                $campaignStats = Campaign::where('user_id', $userId)
+                    ->selectRaw('
+                        COUNT(*) as total_campaigns,
+                        SUM(total_sent) as total_sent,
+                        SUM(total_delivered) as total_delivered,
+                        SUM(total_opened) as total_opened,
+                        SUM(CASE WHEN status = "sending" THEN 1 ELSE 0 END) as sending_count,
+                        SUM(CASE WHEN status = "scheduled" THEN 1 ELSE 0 END) as scheduled_count,
+                        SUM(CASE WHEN status = "sent" THEN 1 ELSE 0 END) as completed_count,
+                        SUM(CASE WHEN status = "draft" THEN 1 ELSE 0 END) as draft_count
+                    ')
+                    ->first();
+
+                $avgOpenRate = $campaignStats->total_delivered > 0 
+                    ? ($campaignStats->total_opened / $campaignStats->total_delivered) * 100 
+                    : 0;
+
+                return [
+                    'total_subscribers' => $totalSubscribers,
+                    'total_campaigns' => $campaignStats->total_campaigns,
+                    'total_sent' => $campaignStats->total_sent,
+                    'avg_open_rate' => round($avgOpenRate, 2),
+                    'send_stats' => $this->getSendStatsOptimized($userId),
+                    'queue_length' => $this->getQueueLength(),
+                    'campaign_status_stats' => [
+                        'sending' => $campaignStats->sending_count,
+                        'scheduled' => $campaignStats->scheduled_count,
+                        'completed' => $campaignStats->completed_count,
+                        'draft' => $campaignStats->draft_count,
+                    ],
+                    'smtp_server_stats' => $this->getSmtpServerStatsOptimized($userId),
+                    'sending_rate' => $this->getSendingRateOptimized($userId),
+                    'worker_count' => $this->getWorkerCount(),
+                    'scheduler_running' => $this->getSchedulerStatus(),
+                ];
+            }),
         ]);
     }
     
+    // 此方法已被优化，合并到主查询中
     private function getCampaignStatusStats($userId)
     {
+        // 已废弃 - 现在在 stats() 方法中直接查询
+        $result = Campaign::where('user_id', $userId)
+            ->selectRaw('
+                SUM(CASE WHEN status = "sending" THEN 1 ELSE 0 END) as sending,
+                SUM(CASE WHEN status = "scheduled" THEN 1 ELSE 0 END) as scheduled,
+                SUM(CASE WHEN status = "sent" THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN status = "draft" THEN 1 ELSE 0 END) as draft
+            ')
+            ->first();
+            
         return [
-            'sending' => Campaign::where('user_id', $userId)
-                ->where('status', 'sending')
-                ->count(),
-            'scheduled' => Campaign::where('user_id', $userId)
-                ->where('status', 'scheduled')
-                ->count(),
-            'completed' => Campaign::where('user_id', $userId)
-                ->where('status', 'sent')
-                ->count(),
-            'draft' => Campaign::where('user_id', $userId)
-                ->where('status', 'draft')
-                ->count(),
+            'sending' => $result->sending ?? 0,
+            'scheduled' => $result->scheduled ?? 0,
+            'completed' => $result->completed ?? 0,
+            'draft' => $result->draft ?? 0,
         ];
     }
     
@@ -101,6 +104,24 @@ class DashboardController extends Controller
         ];
     }
     
+    // 优化版本：使用单次查询
+    private function getSmtpServerStatsOptimized($userId)
+    {
+        $result = \App\Models\SmtpServer::where('user_id', $userId)
+            ->selectRaw('
+                COUNT(*) as total,
+                SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active,
+                SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as inactive
+            ')
+            ->first();
+        
+        return [
+            'total' => $result->total ?? 0,
+            'active' => $result->active ?? 0,
+            'inactive' => $result->inactive ?? 0,
+        ];
+    }
+    
     private function getSendingRate($userId)
     {
         // 获取最近1分钟的发送数量
@@ -112,6 +133,18 @@ class DashboardController extends Controller
             ->count();
         
         return $sentLast1Min; // 邮件/分钟
+    }
+    
+    // 优化版本：使用 JOIN 避免子查询
+    private function getSendingRateOptimized($userId)
+    {
+        $sentLast1Min = SendLog::join('campaigns', 'send_logs.campaign_id', '=', 'campaigns.id')
+            ->where('campaigns.user_id', $userId)
+            ->where('send_logs.status', 'sent')
+            ->where('send_logs.created_at', '>=', now()->subMinute())
+            ->count();
+        
+        return $sentLast1Min;
     }
 
     private function getSendStats($userId)
@@ -148,6 +181,70 @@ class DashboardController extends Controller
         }
 
         return $stats;
+    }
+    
+    // 优化版本：使用 JOIN 和单次查询获取所有时间段的数据
+    private function getSendStatsOptimized($userId)
+    {
+        $timeRanges = [
+            '1min' => now()->subMinute(),
+            '10min' => now()->subMinutes(10),
+            '30min' => now()->subMinutes(30),
+            '1hour' => now()->subHour(),
+            '1day' => now()->subDay(),
+        ];
+
+        // 使用单次查询获取所有时间段的统计
+        $result = DB::table('send_logs')
+            ->join('campaigns', 'send_logs.campaign_id', '=', 'campaigns.id')
+            ->where('campaigns.user_id', $userId)
+            ->selectRaw("
+                SUM(CASE WHEN send_logs.status = 'sent' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as sent_1min,
+                SUM(CASE WHEN send_logs.status = 'failed' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as failed_1min,
+                SUM(CASE WHEN send_logs.status = 'sent' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as sent_10min,
+                SUM(CASE WHEN send_logs.status = 'failed' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as failed_10min,
+                SUM(CASE WHEN send_logs.status = 'sent' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as sent_30min,
+                SUM(CASE WHEN send_logs.status = 'failed' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as failed_30min,
+                SUM(CASE WHEN send_logs.status = 'sent' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as sent_1hour,
+                SUM(CASE WHEN send_logs.status = 'failed' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as failed_1hour,
+                SUM(CASE WHEN send_logs.status = 'sent' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as sent_1day,
+                SUM(CASE WHEN send_logs.status = 'failed' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as failed_1day
+            ", [
+                $timeRanges['1min'], $timeRanges['1min'],
+                $timeRanges['10min'], $timeRanges['10min'],
+                $timeRanges['30min'], $timeRanges['30min'],
+                $timeRanges['1hour'], $timeRanges['1hour'],
+                $timeRanges['1day'], $timeRanges['1day'],
+            ])
+            ->first();
+
+        return [
+            '1min' => [
+                'sent' => $result->sent_1min ?? 0,
+                'failed' => $result->failed_1min ?? 0,
+                'total' => ($result->sent_1min ?? 0) + ($result->failed_1min ?? 0),
+            ],
+            '10min' => [
+                'sent' => $result->sent_10min ?? 0,
+                'failed' => $result->failed_10min ?? 0,
+                'total' => ($result->sent_10min ?? 0) + ($result->failed_10min ?? 0),
+            ],
+            '30min' => [
+                'sent' => $result->sent_30min ?? 0,
+                'failed' => $result->failed_30min ?? 0,
+                'total' => ($result->sent_30min ?? 0) + ($result->failed_30min ?? 0),
+            ],
+            '1hour' => [
+                'sent' => $result->sent_1hour ?? 0,
+                'failed' => $result->failed_1hour ?? 0,
+                'total' => ($result->sent_1hour ?? 0) + ($result->failed_1hour ?? 0),
+            ],
+            '1day' => [
+                'sent' => $result->sent_1day ?? 0,
+                'failed' => $result->failed_1day ?? 0,
+                'total' => ($result->sent_1day ?? 0) + ($result->failed_1day ?? 0),
+            ],
+        ];
     }
 
     private function getQueueLength()
