@@ -12,31 +12,46 @@ return new class extends Migration
     public function up(): void
     {
         // 1. send_logs 表添加复合索引（用于仪表盘发送统计）
-        Schema::table('send_logs', function (Blueprint $table) {
-            // 复合索引：campaign_id + created_at + status
-            // 用于: WHERE campaign_id IN (...) AND created_at >= ? AND status = ?
-            $table->index(['campaign_id', 'created_at', 'status'], 'idx_sendlogs_campaign_time_status');
-        });
-
-        // 2. campaigns 表添加 user_id 索引（如果还没有）
-        // 检查索引是否存在
-        $campaignIndexes = Schema::getConnection()
-            ->getDoctrineSchemaManager()
-            ->listTableIndexes('campaigns');
-        
-        if (!isset($campaignIndexes['campaigns_user_id_index']) && 
-            !isset($campaignIndexes['idx_campaigns_user_id'])) {
-            Schema::table('campaigns', function (Blueprint $table) {
-                $table->index('user_id', 'idx_campaigns_user_id');
+        // 使用 try-catch 避免重复创建索引的错误
+        try {
+            Schema::table('send_logs', function (Blueprint $table) {
+                // 复合索引：campaign_id + created_at + status
+                // 用于: WHERE campaign_id IN (...) AND created_at >= ? AND status = ?
+                $table->index(['campaign_id', 'created_at', 'status'], 'idx_sendlogs_campaign_time_status');
             });
+        } catch (\Exception $e) {
+            // 索引可能已存在，跳过
+            if (!str_contains($e->getMessage(), 'Duplicate key name')) {
+                throw $e;
+            }
         }
 
-        // 3. list_subscriber 表优化（用于订阅者统计）
-        Schema::table('list_subscriber', function (Blueprint $table) {
-            // 复合索引：list_id + subscriber_id
-            // 这个可能已经存在（unique约束），但我们确保有索引
-            // 由于有 unique(['list_id', 'subscriber_id'])，这个索引应该已存在
-        });
+        // 2. campaigns 表添加 user_id 索引（如果还没有）
+        // 使用原始 SQL 检查索引是否存在
+        $indexExists = \DB::select("
+            SELECT COUNT(*) as count 
+            FROM information_schema.statistics 
+            WHERE table_schema = DATABASE() 
+            AND table_name = 'campaigns' 
+            AND index_name = 'idx_campaigns_user_id'
+        ");
+        
+        if ($indexExists[0]->count == 0) {
+            // 检查是否有外键自动创建的索引
+            $fkIndexExists = \DB::select("
+                SELECT COUNT(*) as count 
+                FROM information_schema.statistics 
+                WHERE table_schema = DATABASE() 
+                AND table_name = 'campaigns' 
+                AND column_name = 'user_id'
+            ");
+            
+            if ($fkIndexExists[0]->count == 0) {
+                Schema::table('campaigns', function (Blueprint $table) {
+                    $table->index('user_id', 'idx_campaigns_user_id');
+                });
+            }
+        }
     }
 
     /**
@@ -44,16 +59,25 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('send_logs', function (Blueprint $table) {
-            $table->dropIndex('idx_sendlogs_campaign_time_status');
-        });
+        // 删除 send_logs 索引
+        try {
+            Schema::table('send_logs', function (Blueprint $table) {
+                $table->dropIndex('idx_sendlogs_campaign_time_status');
+            });
+        } catch (\Exception $e) {
+            // 索引可能不存在，跳过
+        }
 
-        // 只删除我们创建的索引
-        $campaignIndexes = Schema::getConnection()
-            ->getDoctrineSchemaManager()
-            ->listTableIndexes('campaigns');
+        // 删除 campaigns 索引（如果存在）
+        $indexExists = \DB::select("
+            SELECT COUNT(*) as count 
+            FROM information_schema.statistics 
+            WHERE table_schema = DATABASE() 
+            AND table_name = 'campaigns' 
+            AND index_name = 'idx_campaigns_user_id'
+        ");
         
-        if (isset($campaignIndexes['idx_campaigns_user_id'])) {
+        if ($indexExists[0]->count > 0) {
             Schema::table('campaigns', function (Blueprint $table) {
                 $table->dropIndex('idx_campaigns_user_id');
             });
