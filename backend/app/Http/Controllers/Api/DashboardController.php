@@ -18,27 +18,14 @@ class DashboardController extends Controller
     {
         $userId = $request->user()->id;
 
-        // 使用缓存（5秒过期，减轻数据库压力）
+        // 使用缓存（60秒过期，减轻数据库压力）
         $cacheKey = "dashboard_stats_{$userId}";
         
         return response()->json([
-            'data' => \Cache::remember($cacheKey, 5, function () use ($userId) {
-                // 优化1: 使用 JOIN 查询订阅者，避免 whereHas 的性能问题
-                $totalSubscribers = DB::table('subscribers')
-                    ->join('list_subscriber', 'subscribers.id', '=', 'list_subscriber.subscriber_id')
-                    ->join('lists', 'list_subscriber.list_id', '=', 'lists.id')
-                    ->where('lists.user_id', $userId)
-                    ->whereNull('subscribers.deleted_at')
-                    ->distinct('subscribers.id')
-                    ->count('subscribers.id');
-
-                // 优化2: 合并活动统计查询（1次查询代替5次）
+            'data' => \Cache::remember($cacheKey, 60, function () use ($userId) {
+                // 只查询活动状态统计（用于显示活动状态卡片）
                 $campaignStats = Campaign::where('user_id', $userId)
                     ->selectRaw('
-                        COUNT(*) as total_campaigns,
-                        SUM(total_sent) as total_sent,
-                        SUM(total_delivered) as total_delivered,
-                        SUM(total_opened) as total_opened,
                         SUM(CASE WHEN status = "sending" THEN 1 ELSE 0 END) as sending_count,
                         SUM(CASE WHEN status = "scheduled" THEN 1 ELSE 0 END) as scheduled_count,
                         SUM(CASE WHEN status = "sent" THEN 1 ELSE 0 END) as completed_count,
@@ -46,22 +33,20 @@ class DashboardController extends Controller
                     ')
                     ->first();
 
-                $avgOpenRate = $campaignStats->total_delivered > 0 
-                    ? ($campaignStats->total_opened / $campaignStats->total_delivered) * 100 
-                    : 0;
-
                 return [
-                    'total_subscribers' => $totalSubscribers,
-                    'total_campaigns' => $campaignStats->total_campaigns,
-                    'total_sent' => $campaignStats->total_sent,
-                    'avg_open_rate' => round($avgOpenRate, 2),
+                    // 前端不再需要这些字段，但为了兼容性保留（返回0）
+                    'total_subscribers' => 0,
+                    'total_campaigns' => 0,
+                    'total_sent' => 0,
+                    'avg_open_rate' => 0,
+                    // 以下是仍然需要的数据
                     'send_stats' => $this->getSendStatsOptimized($userId),
                     'queue_length' => $this->getQueueLength(),
                     'campaign_status_stats' => [
-                        'sending' => $campaignStats->sending_count,
-                        'scheduled' => $campaignStats->scheduled_count,
-                        'completed' => $campaignStats->completed_count,
-                        'draft' => $campaignStats->draft_count,
+                        'sending' => $campaignStats->sending_count ?? 0,
+                        'scheduled' => $campaignStats->scheduled_count ?? 0,
+                        'completed' => $campaignStats->completed_count ?? 0,
+                        'draft' => $campaignStats->draft_count ?? 0,
                     ],
                     'smtp_server_stats' => $this->getSmtpServerStatsOptimized($userId),
                     'sending_rate' => $this->getSendingRateOptimized($userId),
@@ -136,6 +121,7 @@ class DashboardController extends Controller
     }
     
     // 优化版本：使用 JOIN 避免子查询
+    // 这个查询已经限制在最近1分钟，性能良好
     private function getSendingRateOptimized($userId)
     {
         $sentLast1Min = SendLog::join('campaigns', 'send_logs.campaign_id', '=', 'campaigns.id')
@@ -195,6 +181,7 @@ class DashboardController extends Controller
         ];
 
         // 使用单次查询获取所有时间段的统计
+        // 查询全部数据，依靠索引和缓存提升性能
         $result = DB::table('send_logs')
             ->join('campaigns', 'send_logs.campaign_id', '=', 'campaigns.id')
             ->where('campaigns.user_id', $userId)

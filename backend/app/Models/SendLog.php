@@ -14,6 +14,7 @@ class SendLog extends Model
         'subscriber_id',
         'smtp_server_id',
         'campaign_name',
+        'from_email',
         'smtp_server_name',
         'email',
         'status',

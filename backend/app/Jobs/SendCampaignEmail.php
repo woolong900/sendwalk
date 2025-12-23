@@ -232,6 +232,7 @@ class SendCampaignEmail implements ShouldQueue
                 'subscriber_id' => $this->subscriber->id,
                 'smtp_server_id' => $smtpServer->id,
                 'campaign_name' => $this->campaign->name,
+                'from_email' => $this->fromEmail,  // 记录实际发件人邮箱
                 'smtp_server_name' => $smtpServer->name,
                 'email' => $this->subscriber->email,
                 'status' => 'sent',
@@ -307,6 +308,7 @@ class SendCampaignEmail implements ShouldQueue
                 'subscriber_id' => $this->subscriber->id,
                 'smtp_server_id' => $smtpServer->id ?? null,
                 'campaign_name' => $this->campaign->name,
+                'from_email' => $this->fromEmail ?? $this->campaign->from_email,  // 记录实际发件人邮箱
                 'smtp_server_name' => $smtpServer->name ?? 'Unknown',
                 'email' => $this->subscriber->email,
                 'status' => 'failed',
@@ -501,6 +503,7 @@ class SendCampaignEmail implements ShouldQueue
             'subscriber_id' => $this->subscriber->id,
             'smtp_server_id' => $this->campaign->smtp_server_id,
             'campaign_name' => $this->campaign->name,
+            'from_email' => $this->fromEmail ?? $this->campaign->from_email,  // 记录实际发件人邮箱
             'smtp_server_name' => $this->campaign->smtpServer->name ?? 'Unknown',
             'email' => $this->subscriber->email,
             'status' => 'failed',
