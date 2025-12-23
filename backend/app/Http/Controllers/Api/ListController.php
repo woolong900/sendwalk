@@ -10,14 +10,16 @@ class ListController extends Controller
 {
     public function index(Request $request)
     {
+        // 直接使用缓存的计数字段，避免复杂的关联查询
         $lists = MailingList::where('user_id', $request->user()->id)
-            ->withCount([
-                'subscribers as subscribers_count' => function ($query) {
-                    $query->where('list_subscriber.status', 'active');
-                },
-                'subscribers as unsubscribed_count' => function ($query) {
-                    $query->where('list_subscriber.status', 'unsubscribed');
-                }
+            ->select([
+                'id',
+                'name',
+                'description',
+                'subscribers_count',
+                'unsubscribed_count',
+                'created_at',
+                'updated_at',
             ])
             ->latest()
             ->paginate(15);
@@ -60,16 +62,7 @@ class ListController extends Controller
             return response()->json(['message' => '无权访问'], 403);
         }
 
-        // 只加载订阅者计数，不加载所有订阅者（避免内存耗尽）
-        $list->loadCount([
-            'subscribers as subscribers_count' => function ($query) {
-                $query->where('list_subscriber.status', 'active');
-            },
-            'subscribers as unsubscribed_count' => function ($query) {
-                $query->where('list_subscriber.status', 'unsubscribed');
-            }
-        ]);
-
+        // 直接使用缓存的计数字段，无需额外查询
         return response()->json([
             'data' => $list,
         ]);

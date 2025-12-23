@@ -18,6 +18,7 @@ class MailingList extends Model
         'description',
         'custom_fields',
         'subscribers_count',
+        'unsubscribed_count',
     ];
 
     protected $casts = [
@@ -32,7 +33,8 @@ class MailingList extends Model
     public function subscribers()
     {
         return $this->belongsToMany(Subscriber::class, 'list_subscriber', 'list_id', 'subscriber_id')
-            ->withPivot('status', 'subscribed_at')
+            ->using(ListSubscriber::class)
+            ->withPivot('status', 'subscribed_at', 'unsubscribed_at')
             ->withTimestamps();
     }
 

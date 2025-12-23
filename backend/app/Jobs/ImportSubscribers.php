@@ -157,9 +157,7 @@ class ImportSubscribers implements ShouldQueue
                 ]);
             }
 
-            // 更新列表的订阅者计数
-            $list->subscribers_count = $list->subscribers()->wherePivot('status', 'active')->count();
-            $list->save();
+            // 注意：订阅者计数由 ListSubscriberObserver 自动维护，无需手动更新
 
             // 设置完成状态
             $this->updateProgress(100, $imported, $skipped, $processed, 'completed');

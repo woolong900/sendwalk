@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\ListSubscriber;
+use App\Observers\ListSubscriberObserver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,7 +21,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // 注册观察者
+        ListSubscriber::observe(ListSubscriberObserver::class);
     }
 }
 
