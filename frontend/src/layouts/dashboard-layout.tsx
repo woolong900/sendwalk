@@ -11,6 +11,7 @@ import {
   Ban,
   Menu,
   X,
+  FileText,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
@@ -21,6 +22,7 @@ const navigation = [
   { name: '邮件列表', href: '/lists', icon: List },
   { name: '黑名单', href: '/blacklist', icon: Ban },
   { name: '邮件活动', href: '/campaigns', icon: Mail },
+  { name: '邮件模板', href: '/templates', icon: FileText },
   { name: '发送服务器', href: '/smtp-servers', icon: Server },
   { name: '自定义标签', href: '/tags', icon: Tag },
   { name: '发送监控', href: '/monitor', icon: Activity },
@@ -81,7 +83,11 @@ export default function DashboardLayout() {
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
-              const isActive = location.pathname === item.href
+              // 改进的激活状态判断：首页精确匹配，其他页面前缀匹配
+              const isActive = item.href === '/' 
+                ? location.pathname === '/'
+                : location.pathname.startsWith(item.href)
+              
               return (
                 <Link
                   key={item.name}

@@ -9,6 +9,7 @@ use App\Models\SmtpServer;
 use App\Models\SendLog;
 use App\Models\Tag;
 use App\Services\EmailService;
+use App\Services\BounceHandler;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -317,6 +318,25 @@ class SendCampaignEmail implements ShouldQueue
                 'completed_at' => now(),
             ]);
 
+            // 🔥 处理退信：自动检测并加入黑名单
+            try {
+                $bounceHandler = app(BounceHandler::class);
+                $bounceHandler->handleBounce(
+                    $this->subscriber->email,
+                    $this->subscriber->id,
+                    $this->campaign->id,
+                    $e->getMessage(),
+                    null // SMTP response (如果有的话可以传入)
+                );
+            } catch (\Exception $bounceException) {
+                // 退信处理失败不影响主流程
+                Log::error('Failed to handle bounce', [
+                    'campaign_id' => $this->campaign->id,
+                    'subscriber_id' => $this->subscriber->id,
+                    'error' => $bounceException->getMessage(),
+                ]);
+            }
+
             // Laravel 数据库队列会自动删除失败的任务（达到重试次数后）
             throw $e;
         }
@@ -523,6 +543,25 @@ class SendCampaignEmail implements ShouldQueue
                 'failed_at' => now(),
             ]
         );
+
+        // 🔥 处理退信：自动检测并加入黑名单
+        try {
+            $bounceHandler = app(BounceHandler::class);
+            $bounceHandler->handleBounce(
+                $this->subscriber->email,
+                $this->subscriber->id,
+                $this->campaign->id,
+                $exception->getMessage(),
+                null
+            );
+        } catch (\Exception $bounceException) {
+            // 退信处理失败不影响主流程
+            Log::error('Failed to handle bounce in failed()', [
+                'campaign_id' => $this->campaign->id,
+                'subscriber_id' => $this->subscriber->id,
+                'error' => $bounceException->getMessage(),
+            ]);
+        }
     }
     
     /**

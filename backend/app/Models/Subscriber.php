@@ -20,12 +20,15 @@ class Subscriber extends Model
         'unsubscribed_at',
         'ip_address',
         'source',
+        'bounce_count',
+        'last_bounce_at',
     ];
 
     protected $casts = [
         'custom_fields' => 'array',
         'subscribed_at' => 'datetime',
         'unsubscribed_at' => 'datetime',
+        'last_bounce_at' => 'datetime',
     ];
 
     public function lists()

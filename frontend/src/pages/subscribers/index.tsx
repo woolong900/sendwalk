@@ -57,6 +57,8 @@ interface MailingList {
   id: number
   name: string
   description: string
+
+  
   subscribers_count: number
 }
 

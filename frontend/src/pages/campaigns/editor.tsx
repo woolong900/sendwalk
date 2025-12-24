@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Save, Send, Code, Eye, Clock, Tag, Mail, X } from 'lucide-react'
+import { Save, Send, Code, Eye, Clock, Tag, Mail, X, FileText } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
@@ -51,6 +51,14 @@ interface CustomTag {
   values_count: number
 }
 
+interface Template {
+  id: number
+  name: string
+  category: string
+  description: string | null
+  html_content: string
+}
+
 export default function CampaignEditorPage() {
   const navigate = useNavigate()
   const { id } = useParams()
@@ -73,6 +81,7 @@ export default function CampaignEditorPage() {
   const [sendMode, setSendMode] = useState<'draft' | 'now' | 'schedule'>('draft')
   const [scheduledDateTime, setScheduledDateTime] = useState<Date | undefined>()
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false)
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false)
   const [isSaveBeforeSend, setIsSaveBeforeSend] = useState(false) // 标记是否是"保存后发送"操作
   const subjectInputRef = useRef<HTMLInputElement>(null)
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null)
@@ -82,6 +91,15 @@ export default function CampaignEditorPage() {
     queryKey: ['tags'],
     queryFn: async () => {
       const response = await api.get('/tags')
+      return response.data.data
+    },
+  })
+
+  // 获取邮件模板
+  const { data: templates } = useQuery<Template[]>({
+    queryKey: ['templates-for-campaign'],
+    queryFn: async () => {
+      const response = await api.get('/templates?active_only=true')
       return response.data.data
     },
   })
@@ -373,6 +391,13 @@ export default function CampaignEditorPage() {
     }
   }
 
+  // 应用模板
+  const applyTemplate = (template: Template) => {
+    setFormData({ ...formData, html_content: template.html_content })
+    setIsTemplateDialogOpen(false)
+    toast.success(`已应用模板"${template.name}"`)
+  }
+
   return (
     <div className="space-y-6">
       {/* 页头 */}
@@ -583,6 +608,15 @@ export default function CampaignEditorPage() {
             <div className="flex items-center justify-between">
               <CardTitle>邮件内容</CardTitle>
               <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsTemplateDialogOpen(true)}
+                >
+                  <FileText className="w-4 h-4 mr-1" />
+                  使用模板
+                </Button>
                 <Button
                   type="button"
                   variant={viewMode === 'code' ? 'default' : 'outline'}
@@ -1056,6 +1090,69 @@ export default function CampaignEditorPage() {
                 {sendMutation.isPending ? '发送中...' : sendMode === 'now' ? '立即发送' : '定时发送'}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 模板选择Dialog */}
+      <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>选择邮件模板</DialogTitle>
+            <DialogDescription>
+              选择一个模板作为邮件内容的起点，您可以在应用后继续编辑
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+            {templates && templates.length > 0 ? (
+              templates.map((template) => (
+                <Card 
+                  key={template.id} 
+                  className="cursor-pointer hover:border-primary transition-colors"
+                  onClick={() => applyTemplate(template)}
+                >
+                  <CardHeader>
+                    <CardTitle className="text-base">{template.name}</CardTitle>
+                    <CardDescription className="line-clamp-2">
+                      {template.description || '暂无描述'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <Badge variant="secondary">
+                        {template.category}
+                      </Badge>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          applyTemplate(template)
+                        }}
+                      >
+                        使用此模板
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="col-span-2 flex flex-col items-center justify-center py-12">
+                <FileText className="w-12 h-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-4">
+                  还没有可用的模板
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsTemplateDialogOpen(false)
+                    navigate('/templates/create')
+                  }}
+                >
+                  创建模板
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

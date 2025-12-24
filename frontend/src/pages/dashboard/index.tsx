@@ -114,13 +114,15 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl md:text-2xl font-bold">仪表盘</h1>
-        <p className="text-muted-foreground mt-2">
-          欢迎回来，查看您的邮件营销数据
-          <Badge variant="outline" className="ml-2 text-xs">
+        <div className="flex items-center gap-2 mt-2">
+          <p className="text-muted-foreground">
+            欢迎回来，查看您的邮件营销数据
+          </p>
+          <Badge variant="outline" className="text-xs">
             <Activity className="w-3 h-3 mr-1" />
             实时更新
           </Badge>
-        </p>
+        </div>
       </div>
 
       {/* 实时状态 */}

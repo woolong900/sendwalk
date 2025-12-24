@@ -15,6 +15,7 @@ class Blacklist extends Model
         'user_id',
         'email',
         'reason',
+        'notes',
     ];
 
     public function user()

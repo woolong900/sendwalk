@@ -18,6 +18,8 @@ import SubscribersPage from '@/pages/subscribers'
 import CampaignsPage from '@/pages/campaigns'
 import CampaignEditorPage from '@/pages/campaigns/editor'
 import TagsPage from '@/pages/tags'
+import TemplatesPage from '@/pages/templates'
+import TemplateEditorPage from '@/pages/templates/editor'
 import SmtpServersPage from '@/pages/settings'
 import SendMonitorPage from '@/pages/monitor'
 
@@ -68,6 +70,9 @@ function App() {
           <Route path="campaigns/create" element={<CampaignEditorPage />} />
           <Route path="campaigns/:id/edit" element={<CampaignEditorPage />} />
           <Route path="tags" element={<TagsPage />} />
+          <Route path="templates" element={<TemplatesPage />} />
+          <Route path="templates/create" element={<TemplateEditorPage />} />
+          <Route path="templates/:id/edit" element={<TemplateEditorPage />} />
           <Route path="monitor" element={<SendMonitorPage />} />
           <Route path="smtp-servers" element={<SmtpServersPage />} />
         </Route>

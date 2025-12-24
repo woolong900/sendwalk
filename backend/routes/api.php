@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\SmtpServerController;
 use App\Http\Controllers\Api\TrackingController;
 use App\Http\Controllers\Api\SendMonitorController;
 use App\Http\Controllers\Api\TagController;
+use App\Http\Controllers\Api\TemplateController;
 use App\Http\Controllers\UnsubscribeController;
 
 /*
@@ -70,6 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('blacklist', [\App\Http\Controllers\Api\BlacklistController::class, 'index']);
     Route::post('blacklist', [\App\Http\Controllers\Api\BlacklistController::class, 'store']);
     Route::post('blacklist/batch-upload', [\App\Http\Controllers\Api\BlacklistController::class, 'batchUpload']);
+    Route::get('blacklist/import-progress/{taskId}', [\App\Http\Controllers\Api\BlacklistController::class, 'importProgress']);
     Route::post('blacklist/check', [\App\Http\Controllers\Api\BlacklistController::class, 'check']);
     Route::delete('blacklist/{blacklist}', [\App\Http\Controllers\Api\BlacklistController::class, 'destroy']);
     Route::post('blacklist/batch-delete', [\App\Http\Controllers\Api\BlacklistController::class, 'batchDestroy']);
@@ -108,6 +110,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Tags
     Route::apiResource('tags', TagController::class);
     Route::post('tags/{tag}/test', [TagController::class, 'test']);
+
+    // Templates
+    Route::get('templates/categories', [TemplateController::class, 'categories']);
+    Route::apiResource('templates', TemplateController::class);
+    Route::post('templates/{template}/duplicate', [TemplateController::class, 'duplicate']);
+    Route::get('templates/{template}/preview', [TemplateController::class, 'preview']);
 
     // Send Monitor
     Route::prefix('monitor')->group(function () {
