@@ -491,7 +491,7 @@ export default function SettingsPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">发送服务器</h1>
+          <h1 className="text-xl md:text-2xl font-bold">发送服务器</h1>
           <p className="text-muted-foreground mt-2">配置和管理邮件发送服务器</p>
         </div>
       </div>
@@ -538,45 +538,45 @@ export default function SettingsPage() {
             {servers?.map((server) => (
               <Card key={server.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
+                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
                         server.is_active ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'
                       }`}>
                         <Server className="w-5 h-5" />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <CardTitle className="text-lg">{server.name}</CardTitle>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <CardTitle className="text-base md:text-lg">{server.name}</CardTitle>
                           {server.is_default && (
-                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded whitespace-nowrap">
                               默认
                             </span>
                           )}
                           {server.is_active ? (
-                            <span className="px-2.5 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full flex items-center gap-1">
-                              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                              运行中
+                            <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded whitespace-nowrap">
+                              已启用
                             </span>
                           ) : (
-                            <span className="px-2.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded whitespace-nowrap">
                               已禁用
                             </span>
                           )}
                         </div>
-                        <CardDescription className="mt-1">
+                        <CardDescription className="mt-1 text-xs md:text-sm">
                           {serverTypes.find((t) => t.value === server.type)?.label}
                           {server.type === 'smtp' && ` • ${server.host}:${server.port}`}
                         </CardDescription>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleEdit(server)}
+                        className="text-xs md:text-sm"
                       >
-                        <Edit className="w-4 h-4 mr-1.5" />
+                        <Edit className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                         编辑
                       </Button>
                       <Button
@@ -587,15 +587,16 @@ export default function SettingsPage() {
                           is_active: !server.is_active 
                         })}
                         disabled={toggleMutation.isPending}
+                        className="text-xs md:text-sm"
                       >
                         {server.is_active ? (
                           <>
-                            <X className="w-4 h-4 mr-1.5" />
+                            <X className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                             禁用
                           </>
                         ) : (
                           <>
-                            <Check className="w-4 h-4 mr-1.5" />
+                            <Check className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                             启用
                           </>
                         )}
@@ -605,8 +606,9 @@ export default function SettingsPage() {
                         size="sm"
                         onClick={() => testMutation.mutate(server.id)}
                         disabled={testMutation.isPending}
+                        className="text-xs md:text-sm"
                       >
-                        <Zap className="w-4 h-4 mr-1.5" />
+                        <Zap className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                         测试
                       </Button>
                       <Button
@@ -625,27 +627,27 @@ export default function SettingsPage() {
                           }
                         }}
                         disabled={deleteMutation.isPending || server.is_default}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-xs md:text-sm text-red-600 hover:text-red-700 hover:bg-red-50"
                         title={server.is_default ? '默认服务器不能删除' : '删除服务器'}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3 h-3 md:w-4 md:h-4" />
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   {/* 速率限制 */}
-                  <div className="grid grid-cols-4 gap-3">
-                    <div className="p-3 bg-blue-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-muted-foreground">每秒限额</span>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="p-2 md:p-3 bg-blue-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-1 md:mb-2">
+                        <span className="text-xs text-muted-foreground">每秒</span>
                         {server.rate_limit_second && (
                           <span className="text-xs font-medium text-blue-600">
                             {server.rate_limit_status?.second?.current || 0}/{server.rate_limit_second}
                           </span>
                         )}
                       </div>
-                      <div className="text-2xl font-bold text-blue-600">
+                      <div className="text-lg md:text-2xl font-bold text-blue-600">
                         {server.rate_limit_second || '∞'}
                       </div>
                       {server.rate_limit_second && (
@@ -659,16 +661,16 @@ export default function SettingsPage() {
                         </div>
                       )}
                     </div>
-                    <div className="p-3 bg-green-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-muted-foreground">每分钟限额</span>
+                    <div className="p-2 md:p-3 bg-green-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-1 md:mb-2">
+                        <span className="text-xs text-muted-foreground">每分钟</span>
                         {server.rate_limit_minute && (
                           <span className="text-xs font-medium text-green-600">
                             {server.rate_limit_status?.minute?.current || 0}/{server.rate_limit_minute}
                           </span>
                         )}
                       </div>
-                      <div className="text-2xl font-bold text-green-600">
+                      <div className="text-lg md:text-2xl font-bold text-green-600">
                         {server.rate_limit_minute || '∞'}
                       </div>
                       {server.rate_limit_minute && (
@@ -682,16 +684,16 @@ export default function SettingsPage() {
                         </div>
                       )}
                     </div>
-                    <div className="p-3 bg-purple-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-muted-foreground">每小时限额</span>
+                    <div className="p-2 md:p-3 bg-purple-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-1 md:mb-2">
+                        <span className="text-xs text-muted-foreground">每小时</span>
                         {server.rate_limit_hour && (
                           <span className="text-xs font-medium text-purple-600">
                             {server.rate_limit_status?.hour?.current || 0}/{server.rate_limit_hour}
                           </span>
                         )}
                       </div>
-                      <div className="text-2xl font-bold text-purple-600">
+                      <div className="text-lg md:text-2xl font-bold text-purple-600">
                         {server.rate_limit_hour || '∞'}
                       </div>
                       {server.rate_limit_hour && (
@@ -705,21 +707,21 @@ export default function SettingsPage() {
                         </div>
                       )}
                     </div>
-                    <div className="p-3 bg-orange-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-muted-foreground">每天限额</span>
+                    <div className="p-2 md:p-3 bg-orange-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-1 md:mb-2">
+                        <span className="text-xs text-muted-foreground">每天</span>
                         {server.rate_limit_day && (
                           <span className="text-xs font-medium text-orange-600">
                             {server.rate_limit_status?.day?.current || 0}/{server.rate_limit_day}
                           </span>
                         )}
                       </div>
-                      <div className="text-2xl font-bold text-orange-600">
+                      <div className="text-lg md:text-2xl font-bold text-orange-600">
                         {server.rate_limit_day ? `${server.rate_limit_day - server.emails_sent_today}` : '∞'}
                       </div>
                       {server.rate_limit_day ? (
                         <>
-                          <div className="text-xs text-muted-foreground mt-0.5">剩余额度</div>
+                          <div className="text-xs text-muted-foreground mt-0.5 md:mt-1">剩余</div>
                           <div className="mt-2">
                             <div className="w-full bg-orange-200 rounded-full h-1.5">
                               <div

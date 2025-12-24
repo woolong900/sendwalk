@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { Mail, Users, TrendingUp, Eye, CheckCircle, XCircle, Clock, Layers, Activity, Zap, PlayCircle, Calendar, FileText, Power, PowerOff, Trash2 } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Layers, Activity, Zap, PlayCircle, Calendar, FileText, Power, PowerOff, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { fetcher, api } from '@/lib/api'
 import { formatNumber } from '@/lib/utils'
@@ -102,41 +102,6 @@ export default function DashboardPage() {
     },
   })
 
-  const statCards = [
-    {
-      title: '总订阅者',
-      value: formatNumber(stats?.total_subscribers || 0),
-      icon: Users,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100',
-      description: '所有邮件列表',
-    },
-    {
-      title: '邮件活动',
-      value: formatNumber(stats?.total_campaigns || 0),
-      icon: Mail,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100',
-      description: '总创建活动数',
-    },
-    {
-      title: '已发送邮件',
-      value: formatNumber(stats?.total_sent || 0),
-      icon: TrendingUp,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-100',
-      description: '累计发送总数',
-    },
-    {
-      title: '平均打开率',
-      value: `${stats?.avg_open_rate?.toFixed(1) || 0}%`,
-      icon: Eye,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-100',
-      description: '邮件打开率',
-    },
-  ]
-
   const timeRanges = [
     { key: '1min' as const, label: '1分钟', icon: Clock },
     { key: '10min' as const, label: '10分钟', icon: Clock },
@@ -148,7 +113,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">仪表盘</h1>
+        <h1 className="text-xl md:text-2xl font-bold">仪表盘</h1>
         <p className="text-muted-foreground mt-2">
           欢迎回来，查看您的邮件营销数据
           <Badge variant="outline" className="ml-2 text-xs">
@@ -156,28 +121,6 @@ export default function DashboardPage() {
             实时更新
           </Badge>
         </p>
-      </div>
-
-      {/* 核心统计 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((stat) => (
-          <Card key={stat.title}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                <stat.icon className={`w-4 h-4 ${stat.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stat.description}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
       </div>
 
       {/* 实时状态 */}

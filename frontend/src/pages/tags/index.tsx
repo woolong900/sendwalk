@@ -176,7 +176,7 @@ export default function TagsPage() {
       {/* 页头 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">自定义标签</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">自定义标签</h1>
           <p className="text-muted-foreground mt-2">
             创建和管理邮件模板中的自定义变量
           </p>
@@ -213,8 +213,9 @@ export default function TagsPage() {
       {isLoading || !tags ? (
         // 加载中显示骨架屏
         <Card>
-          <Table>
-            <TableHeader>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[600px]">
+              <TableHeader>
               <TableRow>
                 <TableHead className="w-[50px]">ID</TableHead>
                 <TableHead className="w-[180px]">标签名称</TableHead>
@@ -236,7 +237,8 @@ export default function TagsPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </Card>
       ) : tags.length === 0 ? (
         <Card>
@@ -252,8 +254,9 @@ export default function TagsPage() {
         </Card>
       ) : (
         <Card>
-          <Table>
-            <TableHeader>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[600px]">
+              <TableHeader>
               <TableRow>
                 <TableHead>标签名称</TableHead>
                 <TableHead>占位符</TableHead>
@@ -322,7 +325,8 @@ export default function TagsPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </Card>
       )}
 

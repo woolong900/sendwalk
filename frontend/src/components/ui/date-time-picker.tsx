@@ -146,7 +146,7 @@ export function DateTimePicker({ date, setDate, disabled }: DateTimePickerProps)
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
           {date ? (
-            format(date, "yyyy-MM-dd HH:mm")
+            format(date, "yyyy/MM/dd HH:mm")
           ) : (
             <span>选择日期和时间</span>
           )}

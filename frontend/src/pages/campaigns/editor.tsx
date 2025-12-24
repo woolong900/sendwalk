@@ -387,7 +387,7 @@ export default function CampaignEditorPage() {
             {isEditing ? '编辑活动' : '创建活动'}
           </span>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-xl md:text-2xl font-bold tracking-tight">
           {isEditing ? '编辑活动' : '创建新活动'}
         </h1>
         <p className="text-muted-foreground mt-2">

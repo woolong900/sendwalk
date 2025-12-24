@@ -169,7 +169,7 @@ export default function ListsPage() {
       {/* 页头 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">邮件列表</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">邮件列表</h1>
           <p className="text-muted-foreground mt-2">管理您的订阅者列表</p>
         </div>
         <Button onClick={handleCreate}>
@@ -244,8 +244,9 @@ export default function ListsPage() {
       {isLoading || !lists ? (
         // 加载中显示骨架屏
         <Card>
-          <Table>
-            <TableHeader>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[700px]">
+              <TableHeader>
               <TableRow>
                 <TableHead className="w-[50px]">ID</TableHead>
                 <TableHead className="w-[200px]">标题</TableHead>
@@ -265,7 +266,8 @@ export default function ListsPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </Card>
       ) : lists.length === 0 ? (
         <Card>
@@ -281,8 +283,9 @@ export default function ListsPage() {
         </Card>
       ) : (
         <Card>
-          <Table>
-            <TableHeader>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[700px]">
+              <TableHeader>
               <TableRow>
                 <TableHead className="w-[50px]">ID</TableHead>
                 <TableHead className="w-[200px]">标题</TableHead>
@@ -344,7 +347,8 @@ export default function ListsPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </Card>
       )}
 

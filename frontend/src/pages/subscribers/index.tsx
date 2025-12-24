@@ -221,6 +221,7 @@ export default function SubscribersPage() {
           queryClient.invalidateQueries({ queryKey: ['subscribers'] })
           queryClient.invalidateQueries({ queryKey: ['list', listId] })
           
+<<<<<<< HEAD
           // 3秒后自动关闭对话框
           setTimeout(() => {
             setIsImportOpen(false)
@@ -228,6 +229,9 @@ export default function SubscribersPage() {
             setUploadProgress(0)
             setImportResult(null)
           }, 3000)
+=======
+          // 导入完成，不自动关闭，让用户手动点击关闭按钮
+>>>>>>> 1f70e0e (fix)
         } else if (progress.status === 'failed') {
           clearInterval(pollInterval)
           setIsUploading(false)
@@ -312,7 +316,7 @@ export default function SubscribersPage() {
             <span>/</span>
             <span className="text-foreground font-medium">{mailingList?.name || '订阅者'}</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight">订阅者管理</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">订阅者管理</h1>
           <p className="text-muted-foreground mt-2">管理和组织您的订阅者</p>
         </div>
         <div className="flex gap-2">
@@ -390,8 +394,9 @@ export default function SubscribersPage() {
       {isLoading || !subscribersData ? (
         // 加载中显示骨架屏
         <Card>
-          <Table>
-            <TableHeader>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[800px]">
+              <TableHeader>
               <TableRow>
                 <TableHead className="w-[50px]">ID</TableHead>
                 <TableHead>邮箱</TableHead>
@@ -413,7 +418,8 @@ export default function SubscribersPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </Card>
       ) : subscribersData.data.length === 0 ? (
         <Card>
@@ -436,8 +442,9 @@ export default function SubscribersPage() {
       ) : (
         <>
           <Card>
-            <Table>
-              <TableHeader>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[800px]">
+                <TableHeader>
                 <TableRow>
                   <TableHead className="w-[50px]">ID</TableHead>
                   <TableHead>邮箱</TableHead>
@@ -483,7 +490,8 @@ export default function SubscribersPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           </Card>
 
           {/* 分页 */}
@@ -596,24 +604,51 @@ export default function SubscribersPage() {
             </div>
 
             {isUploading && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>上传进度</span>
-                  <span>{uploadProgress}%</span>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>导入进度</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} />
                 </div>
-                <Progress value={uploadProgress} />
+                {importResult && (
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <span>成功导入: <span className="font-medium text-green-600">{importResult.imported}</span> 个</span>
+                    <span>跳过: <span className="font-medium text-orange-600">{importResult.skipped}</span> 个</span>
+                  </div>
+                )}
               </div>
             )}
 
-            {importResult && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            {importResult && importResult.status === 'completed' && (importResult.imported > 0 || importResult.skipped > 0) && (
+              <div className={`rounded-lg p-4 border ${
+                importResult.imported > 0 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-yellow-50 border-yellow-200'
+              }`}>
                 <div className="flex items-start gap-3">
-                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                  <CheckCircle className={`w-5 h-5 mt-0.5 ${
+                    importResult.imported > 0 
+                      ? 'text-green-600' 
+                      : 'text-yellow-600'
+                  }`} />
                   <div className="flex-1">
-                    <p className="font-medium text-green-900">
-                      成功导入 {importResult.imported} 个订阅者
-                      {importResult.skipped > 0 && `，跳过 ${importResult.skipped} 个`}
-                    </p>
+                    {importResult.imported > 0 ? (
+                      <p className="font-medium text-green-900">
+                        成功导入 {importResult.imported} 个订阅者
+                        {importResult.skipped > 0 && `，跳过 ${importResult.skipped} 个`}
+                      </p>
+                    ) : (
+                      <div>
+                        <p className="font-medium text-yellow-900 mb-1">
+                          导入完成，但所有数据都被跳过了
+                        </p>
+                        <p className="text-sm text-yellow-800">
+                          跳过 {importResult.skipped} 个订阅者。可能原因：已在列表中、在黑名单中、或邮箱格式无效。
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -633,12 +668,14 @@ export default function SubscribersPage() {
               >
                 {importResult ? '关闭' : '取消'}
               </Button>
-              <Button
-                onClick={handleImport}
-                disabled={!selectedFile || isUploading || !!importResult}
-              >
-                {isUploading ? '导入中...' : '开始导入'}
-              </Button>
+              {!importResult && (
+                <Button
+                  onClick={handleImport}
+                  disabled={!selectedFile || isUploading}
+                >
+                  {isUploading ? '导入中...' : '开始导入'}
+                </Button>
+              )}
             </div>
           </div>
         </DialogContent>

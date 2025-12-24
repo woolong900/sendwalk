@@ -102,13 +102,13 @@ export default function CampaignsPage() {
   // 格式化日期时间为两行显示
   const formatDateTimeTwoLines = (dateString: string) => {
     const date = new Date(dateString)
-    const year = date.getFullYear().toString().slice(-2)
+    const year = date.getFullYear()
     const month = (date.getMonth() + 1).toString().padStart(2, '0')
     const day = date.getDate().toString().padStart(2, '0')
     const hour = date.getHours().toString().padStart(2, '0')
     const minute = date.getMinutes().toString().padStart(2, '0')
     return {
-      date: `${year}年${month}月${day}日`,
+      date: `${year}/${month}/${day}`,
       time: `${hour}:${minute}`
     }
   }
@@ -367,7 +367,7 @@ export default function CampaignsPage() {
       {/* 页头 */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">邮件活动</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">邮件活动</h1>
           <p className="text-muted-foreground mt-2">创建和管理邮件营销活动</p>
         </div>
         <Button onClick={() => navigate('/campaigns/create')} size="default">
@@ -417,8 +417,9 @@ export default function CampaignsPage() {
       {isLoading || !campaigns ? (
         // 加载中显示骨架屏
         <Card>
-          <Table>
-            <TableHeader>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[900px]">
+              <TableHeader>
               <TableRow>
                 <TableHead className="w-[60px]">ID</TableHead>
                 <TableHead className="w-[180px]">标题</TableHead>
@@ -442,7 +443,8 @@ export default function CampaignsPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </Card>
       ) : campaigns.length === 0 ? (
         <Card>
@@ -472,8 +474,9 @@ export default function CampaignsPage() {
         </Card>
       ) : (
         <Card>
-          <Table>
-            <TableHeader>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[900px]">
+              <TableHeader>
               <TableRow>
                 <TableHead className="w-[60px]">ID</TableHead>
                 <TableHead className="w-[180px]">标题</TableHead>
@@ -651,7 +654,8 @@ export default function CampaignsPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </Card>
       )}
 

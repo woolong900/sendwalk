@@ -133,7 +133,7 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
         </div>
 
         <div className="flex-1 overflow-auto border rounded-lg">
-          <Table>
+          <Table className="min-w-[700px]">
             <TableHeader>
               <TableRow>
                 <TableHead className="min-w-[200px] max-w-[280px]">邮箱地址</TableHead>
@@ -356,7 +356,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
         </div>
 
         <div className="flex-1 overflow-auto border rounded-lg">
-          <Table>
+          <Table className="min-w-[800px]">
             <TableHeader>
               <TableRow>
                 <TableHead className="min-w-[220px] max-w-[280px]">邮箱地址</TableHead>

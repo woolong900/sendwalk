@@ -242,9 +242,9 @@ export default function BlacklistPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">黑名单管理</h1>
+          <h1 className="text-xl md:text-2xl font-bold">黑名单</h1>
           <p className="text-muted-foreground mt-1">
-            管理不允许接收邮件的邮箱地址
+            管理黑名单列表
           </p>
         </div>
         <div className="flex gap-2">
@@ -417,8 +417,9 @@ export default function BlacklistPage() {
             </div>
           ) : (
             <>
-              <Table>
-                <TableHeader>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[700px]">
+                  <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">
                       <input
@@ -454,7 +455,13 @@ export default function BlacklistPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {new Date(entry.created_at).toLocaleDateString('zh-CN')}
+                        {(() => {
+                          const d = new Date(entry.created_at)
+                          const year = d.getFullYear()
+                          const month = String(d.getMonth() + 1).padStart(2, '0')
+                          const day = String(d.getDate()).padStart(2, '0')
+                          return `${year}/${month}/${day}`
+                        })()}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -468,7 +475,8 @@ export default function BlacklistPage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </div>
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">

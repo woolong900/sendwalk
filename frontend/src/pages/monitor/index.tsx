@@ -18,6 +18,7 @@ import { useConfirm } from '@/hooks/use-confirm'
 interface SendLog {
   id: number
   campaign_name: string
+  from_email?: string
   smtp_server_name: string
   email: string
   status: 'sent' | 'failed'
@@ -369,20 +370,20 @@ export default function SendMonitorPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">发送监控</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-xl md:text-2xl font-bold">发送监控</h1>
+          <p className="text-sm md:text-base text-muted-foreground mt-2">
             实时监控邮件发送状态
             {totalLogs > 0 && (
-              <span className="ml-2 text-sm text-muted-foreground">
+              <span className="block md:inline md:ml-2 text-xs md:text-sm text-muted-foreground mt-1 md:mt-0">
                 (显示 {displayLogs.length} 条，共 {totalLogs} 条 · 滑动窗口最多显示 {maxDisplayLogs} 条)
               </span>
             )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap md:flex-nowrap gap-2">
           <Button
             variant={autoRefresh ? 'default' : 'outline'}
             size="sm"
@@ -423,8 +424,8 @@ export default function SendMonitorPage() {
       {/* 过滤器 */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex gap-4">
-            <div className="flex-1">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
               <label className="text-sm font-medium text-muted-foreground mb-2 block">
                 按发送服务器筛选
               </label>
@@ -442,7 +443,7 @@ export default function SendMonitorPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex-1">
+            <div>
               <label className="text-sm font-medium text-muted-foreground mb-2 block">
                 按发送状态筛选
               </label>
@@ -457,7 +458,7 @@ export default function SendMonitorPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex-1">
+            <div>
               <label className="text-sm font-medium text-muted-foreground mb-2 block">
                 按时间范围筛选
               </label>
@@ -547,12 +548,12 @@ export default function SendMonitorPage() {
       {/* 发送日志 */}
       <Card className="overflow-hidden">
         <CardHeader className="bg-slate-900 text-white">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Terminal className="w-5 h-5" />
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+              <Terminal className="w-4 h-4 md:w-5 md:h-5" />
               发送日志
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap md:flex-nowrap">
               <Button
                 variant="ghost"
                 size="sm"
@@ -642,7 +643,7 @@ export default function SendMonitorPage() {
                   const hours = String(date.getHours()).padStart(2, '0')
                   const minutes = String(date.getMinutes()).padStart(2, '0')
                   const seconds = String(date.getSeconds()).padStart(2, '0')
-                  const time = `[${year}-${month}-${day} ${hours}:${minutes}:${seconds}]`
+                  const time = `[${year}/${month}/${day} ${hours}:${minutes}:${seconds}]`
                   
                   const statusSymbol = log.status === 'sent' ? '✓' : '✗'
                   const statusColor = log.status === 'sent' ? 'text-green-400' : 'text-red-400'
@@ -650,32 +651,36 @@ export default function SendMonitorPage() {
                   return (
                     <div
                       key={log.id}
-                      className="py-1.5 px-2 rounded hover:bg-slate-800/30 transition-colors"
+                      className="py-2 px-2 md:py-1.5 rounded hover:bg-slate-800/30 transition-colors"
                     >
-                      <div className="flex items-start gap-3">
-                        <span className="text-slate-500 text-xs whitespace-nowrap">
-                          {time}
-                        </span>
-                        <span className={`${statusColor} font-bold`}>
-                          {statusSymbol}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-slate-300">
-                            [{log.campaign_name}]
+                      <div className="flex flex-col md:flex-row md:items-start gap-1 md:gap-3">
+                        <div className="flex items-start gap-2 md:gap-3">
+                          <span className="text-slate-500 text-xs whitespace-nowrap flex-shrink-0">
+                            {time}
                           </span>
-                          <span className="text-slate-400 mx-2">→</span>
-                          <span className="text-cyan-400">{log.email}</span>
-                          {log.smtp_server_name && (
-                            <>
-                              <span className="text-slate-500 mx-2">via</span>
-                              <span className="text-purple-400">{log.smtp_server_name}</span>
-                            </>
-                          )}
-                          <span className={`ml-3 ${statusColor}`}>
-                            {getStatusText(log.status).toUpperCase()}
+                          <span className={`${statusColor} font-bold flex-shrink-0`}>
+                            {statusSymbol}
                           </span>
+                        </div>
+                        <div className="flex-1 min-w-0 text-xs md:text-sm break-words">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="text-slate-300 break-all">
+                              [{log.from_email || log.campaign_name}]
+                            </span>
+                            <span className="text-slate-400">→</span>
+                            <span className="text-cyan-400 break-all">{log.email}</span>
+                            {log.smtp_server_name && (
+                              <>
+                                <span className="text-slate-500">via</span>
+                                <span className="text-purple-400">{log.smtp_server_name}</span>
+                              </>
+                            )}
+                            <span className={`${statusColor}`}>
+                              {getStatusText(log.status).toUpperCase()}
+                            </span>
+                          </div>
                           {log.error_message && (
-                            <div className="text-red-400 text-xs mt-1 pl-6">
+                            <div className="text-red-400 text-xs mt-1 break-words">
                               ERROR: {log.error_message}
                             </div>
                           )}
