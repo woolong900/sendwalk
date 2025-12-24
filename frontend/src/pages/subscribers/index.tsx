@@ -221,17 +221,6 @@ export default function SubscribersPage() {
           queryClient.invalidateQueries({ queryKey: ['subscribers'] })
           queryClient.invalidateQueries({ queryKey: ['list', listId] })
           
-<<<<<<< HEAD
-          // 3秒后自动关闭对话框
-          setTimeout(() => {
-            setIsImportOpen(false)
-            setSelectedFile(null)
-            setUploadProgress(0)
-            setImportResult(null)
-          }, 3000)
-=======
-          // 导入完成，不自动关闭，让用户手动点击关闭按钮
->>>>>>> 1f70e0e (fix)
         } else if (progress.status === 'failed') {
           clearInterval(pollInterval)
           setIsUploading(false)
