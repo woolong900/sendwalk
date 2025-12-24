@@ -193,26 +193,35 @@ export default function SubscribersPage() {
         const progress = response.data.data
         
         setUploadProgress(progress.progress || 0)
-        setImportResult({
-          imported: progress.imported || 0,
-          skipped: progress.skipped || 0,
-          errors: [],
-          status: progress.status,
-        })
+        
+        // 只在有实际数据时更新结果（避免显示 "0 个订阅者"）
+        if (progress.status === 'processing' && (progress.imported > 0 || progress.skipped > 0)) {
+          setImportResult({
+            imported: progress.imported || 0,
+            skipped: progress.skipped || 0,
+            errors: [],
+            status: progress.status,
+          })
+        }
         
         // 检查是否完成
         if (progress.status === 'completed') {
           clearInterval(pollInterval)
           setIsUploading(false)
           
+          // 更新最终结果
+          setImportResult({
+            imported: progress.imported || 0,
+            skipped: progress.skipped || 0,
+            errors: [],
+            status: progress.status,
+          })
+          
+          // 刷新数据（但不显示 toast，因为对话框中已有结果显示）
           queryClient.invalidateQueries({ queryKey: ['subscribers'] })
           queryClient.invalidateQueries({ queryKey: ['list', listId] })
           
-          // 只有当导入人数大于0时才显示提示
-          if (progress.imported > 0) {
-            toast.success(`成功导入 ${progress.imported} 个订阅者，跳过 ${progress.skipped} 个`)
-          }
-          
+          // 3秒后自动关闭对话框
           setTimeout(() => {
             setIsImportOpen(false)
             setSelectedFile(null)
