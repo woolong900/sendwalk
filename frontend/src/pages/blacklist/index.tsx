@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Upload, Search, AlertCircle } from 'lucide-react'
+import { Plus, Trash2, Upload, Search, AlertCircle, Loader2, CheckCircle2, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -47,13 +47,30 @@ interface PaginatedResponse {
   total: number
 }
 
+interface ImportProgress {
+  total_batches: number
+  completed_batches: number
+  total_emails?: number
+  added: number
+  already_exists: number
+  invalid: number
+  subscribers_updated: number
+  status: 'processing' | 'completed' | 'failed'
+  progress_percentage: number
+  started_at: string
+  completed_at?: string
+  error?: string
+}
+
 export default function BlacklistPage() {
   const { confirm, ConfirmDialog } = useConfirm()
   
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isBatchUploadOpen, setIsBatchUploadOpen] = useState(false)
+  const [isProgressOpen, setIsProgressOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [importTaskId, setImportTaskId] = useState<string | null>(null)
   
   const [addFormData, setAddFormData] = useState({
     email: '',
@@ -70,6 +87,47 @@ export default function BlacklistPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([])
 
   const queryClient = useQueryClient()
+
+  // 查询导入进度
+  const { data: importProgress, refetch: refetchProgress } = useQuery<ImportProgress>({
+    queryKey: ['blacklist-import-progress', importTaskId],
+    queryFn: async () => {
+      if (!importTaskId) throw new Error('No task ID')
+      const response = await api.get(`/blacklist/import-progress/${importTaskId}`)
+      return response.data
+    },
+    enabled: !!importTaskId && isProgressOpen,
+    refetchInterval: (query) => {
+      // 如果任务还在处理中，每2秒刷新一次
+      if (query.state.data?.status === 'processing') {
+        return 2000
+      }
+      // 任务完成或失败，停止轮询
+      return false
+    },
+  })
+
+  // 监听导入进度完成
+  useEffect(() => {
+    if (importProgress && importProgress.status === 'completed') {
+      queryClient.invalidateQueries({ queryKey: ['blacklist'] })
+      const { added, already_exists, invalid, subscribers_updated } = importProgress
+      
+      const messages = []
+      if (added > 0) messages.push(`新增 ${added} 个`)
+      if (already_exists > 0) messages.push(`已存在 ${already_exists} 个`)
+      if (invalid > 0) messages.push(`无效 ${invalid} 个`)
+      
+      const summary = messages.join('，')
+      const subscriberInfo = subscribers_updated > 0 
+        ? `，更新订阅者 ${subscribers_updated} 个` 
+        : ''
+      
+      toast.success(`导入完成！${summary}${subscriberInfo}`)
+    } else if (importProgress && importProgress.status === 'failed') {
+      toast.error(`导入失败：${importProgress.error || '未知错误'}`)
+    }
+  }, [importProgress, queryClient])
 
   // 获取黑名单列表
   const { data: blacklistData, isLoading } = useQuery<PaginatedResponse>({
@@ -108,27 +166,40 @@ export default function BlacklistPage() {
       return api.post('/blacklist/batch-upload', data)
     },
     onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['blacklist'] })
-      const { 
-        added, 
-        already_exists, 
-        invalid, 
-        subscribers_updated 
-      } = response.data
+      const data = response.data
       
-      // 构建更详细的提示信息
-      const messages = []
-      if (added > 0) messages.push(`新增 ${added} 个`)
-      if (already_exists > 0) messages.push(`已存在 ${already_exists} 个`)
-      if (invalid > 0) messages.push(`无效 ${invalid} 个`)
+      // 检查是否是异步导入（返回task_id）
+      if (data.task_id) {
+        // 异步导入，显示进度dialog
+        setImportTaskId(data.task_id)
+        setIsProgressOpen(true)
+        setIsBatchUploadOpen(false)
+        toast.info(`大批量导入已提交（${data.total_emails} 个邮箱），正在后台处理...`)
+      } else {
+        // 同步导入，直接显示结果
+        queryClient.invalidateQueries({ queryKey: ['blacklist'] })
+        const { 
+          added, 
+          already_exists, 
+          invalid, 
+          subscribers_updated 
+        } = data
+        
+        // 构建更详细的提示信息
+        const messages = []
+        if (added > 0) messages.push(`新增 ${added} 个`)
+        if (already_exists > 0) messages.push(`已存在 ${already_exists} 个`)
+        if (invalid > 0) messages.push(`无效 ${invalid} 个`)
+        
+        const summary = messages.join('，')
+        const subscriberInfo = subscribers_updated > 0 
+          ? `，更新订阅者 ${subscribers_updated} 个` 
+          : ''
+        
+        toast.success(`批量上传完成：${summary}${subscriberInfo}`)
+        setIsBatchUploadOpen(false)
+      }
       
-      const summary = messages.join('，')
-      const subscriberInfo = subscribers_updated > 0 
-        ? `，更新订阅者 ${subscribers_updated} 个` 
-        : ''
-      
-      toast.success(`批量上传完成：${summary}${subscriberInfo}`)
-      setIsBatchUploadOpen(false)
       setBatchFormData({ emails: '', reason: '' })
       setSelectedFile(null)
     },
@@ -507,6 +578,151 @@ export default function BlacklistPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* 导入进度Dialog */}
+      <Dialog open={isProgressOpen} onOpenChange={(open) => {
+        // 只有在任务完成或失败时才允许关闭
+        if (!open && importProgress && 
+            (importProgress.status === 'completed' || importProgress.status === 'failed')) {
+          setIsProgressOpen(false)
+          setImportTaskId(null)
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {importProgress?.status === 'processing' && (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                  批量导入进行中...
+                </>
+              )}
+              {importProgress?.status === 'completed' && (
+                <>
+                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  导入完成！
+                </>
+              )}
+              {importProgress?.status === 'failed' && (
+                <>
+                  <XCircle className="w-5 h-5 text-red-600" />
+                  导入失败
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {importTaskId && (
+                <span className="text-xs font-mono">任务ID: {importTaskId}</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {importProgress && (
+            <div className="space-y-4">
+              {/* 进度条 */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">整体进度</span>
+                  <span className="font-medium">{importProgress.progress_percentage.toFixed(1)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <div
+                    className={`h-2.5 rounded-full transition-all duration-300 ${
+                      importProgress.status === 'completed' 
+                        ? 'bg-green-600' 
+                        : importProgress.status === 'failed'
+                        ? 'bg-red-600'
+                        : 'bg-blue-600'
+                    }`}
+                    style={{ width: `${importProgress.progress_percentage}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>批次 {importProgress.completed_batches} / {importProgress.total_batches}</span>
+                  {importProgress.total_emails && (
+                    <span>共 {importProgress.total_emails.toLocaleString()} 个邮箱</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 统计信息 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <div className="text-xs text-muted-foreground mb-1">新增</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {importProgress.added.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-3 bg-yellow-50 rounded-lg">
+                  <div className="text-xs text-muted-foreground mb-1">已存在</div>
+                  <div className="text-2xl font-bold text-yellow-600">
+                    {importProgress.already_exists.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-3 bg-red-50 rounded-lg">
+                  <div className="text-xs text-muted-foreground mb-1">无效</div>
+                  <div className="text-2xl font-bold text-red-600">
+                    {importProgress.invalid.toLocaleString()}
+                  </div>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <div className="text-xs text-muted-foreground mb-1">订阅者已更新</div>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {importProgress.subscribers_updated.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* 错误信息 */}
+              {importProgress.status === 'failed' && importProgress.error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="font-medium text-red-900 mb-1">错误信息</div>
+                      <div className="text-sm text-red-700">{importProgress.error}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 操作按钮 */}
+              <div className="flex justify-end gap-2">
+                {importProgress.status === 'processing' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => refetchProgress()}
+                  >
+                    <Loader2 className="w-4 h-4 mr-2" />
+                    刷新进度
+                  </Button>
+                )}
+                {(importProgress.status === 'completed' || importProgress.status === 'failed') && (
+                  <Button
+                    onClick={() => {
+                      setIsProgressOpen(false)
+                      setImportTaskId(null)
+                    }}
+                  >
+                    关闭
+                  </Button>
+                )}
+              </div>
+
+              {/* 提示信息 */}
+              {importProgress.status === 'processing' && (
+                <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-md">
+                  <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-blue-900">
+                    导入正在后台进行，您可以关闭此窗口，任务会继续执行。可以随时回来查看进度。
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog />
     </div>
