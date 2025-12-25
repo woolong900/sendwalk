@@ -108,7 +108,20 @@ class SmtpServer extends Model
         $cacheKey = $this->getSenderPauseCacheKey($fromEmail);
         $pausedUntil = time() + ($minutes * 60);
         
+        // 设置暂停缓存
         Cache::put($cacheKey, $pausedUntil, $minutes * 60);
+        
+        // 存储邮箱地址映射，用于后续查询
+        Cache::put($cacheKey . '_email', $fromEmail, $minutes * 60);
+        
+        // 将此 key 添加到暂停列表中
+        $listKey = '_paused_senders_list_' . $this->id;
+        $keys = Cache::get($listKey, []);
+        if (!in_array($cacheKey, $keys)) {
+            $keys[] = $cacheKey;
+            // 列表过期时间设置为稍长一些，确保能查到所有暂停的发件人
+            Cache::put($listKey, $keys, ($minutes + 1) * 60);
+        }
         
         \Log::warning('SMTP sender temporarily paused', [
             'server_id' => $this->id,
@@ -126,10 +139,12 @@ class SmtpServer extends Model
      */
     public function getPausedSenders(): array
     {
-        $pattern = "smtp_sender_paused_{$this->id}_*";
-        $keys = Cache::get('_paused_senders_list_' . $this->id, []);
+        $listKey = '_paused_senders_list_' . $this->id;
+        $keys = Cache::get($listKey, []);
         
         $pausedSenders = [];
+        $validKeys = [];
+        
         foreach ($keys as $key) {
             if (Cache::has($key)) {
                 // 从 key 中提取邮箱：smtp_sender_paused_{id}_{email_hash}
@@ -141,8 +156,18 @@ class SmtpServer extends Model
                             'email' => $email,
                             'remaining_seconds' => $remaining,
                         ];
+                        $validKeys[] = $key; // 保留有效的 key
                     }
                 }
+            }
+        }
+        
+        // 清理过期的 keys
+        if (count($validKeys) < count($keys)) {
+            if (count($validKeys) > 0) {
+                Cache::put($listKey, $validKeys, 360); // 6小时
+            } else {
+                Cache::forget($listKey);
             }
         }
         

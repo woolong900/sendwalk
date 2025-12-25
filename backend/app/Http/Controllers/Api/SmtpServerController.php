@@ -86,6 +86,9 @@ class SmtpServerController extends Controller
                     ];
                 }
                 
+                // 添加暂停的发件人列表
+                $status['paused_senders'] = $server->getPausedSenders();
+                
                 $server->rate_limit_status = $status;
             });
             
