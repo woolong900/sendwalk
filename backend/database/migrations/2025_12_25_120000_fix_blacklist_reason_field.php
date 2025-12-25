@@ -12,7 +12,23 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // 将 reason 从 ENUM 改回 TEXT，允许用户自定义原因
+        // 1. 先检查并删除 reason 字段上的索引
+        $indexes = DB::select("SHOW INDEX FROM blacklist WHERE Column_name = 'reason'");
+        
+        if (!empty($indexes)) {
+            foreach ($indexes as $index) {
+                $indexName = $index->Key_name;
+                if ($indexName !== 'PRIMARY') {
+                    try {
+                        DB::statement("ALTER TABLE blacklist DROP INDEX `{$indexName}`");
+                    } catch (\Exception $e) {
+                        // 索引可能已经不存在，忽略错误
+                    }
+                }
+            }
+        }
+        
+        // 2. 将 reason 从 ENUM 改为 TEXT，允许用户自定义原因
         DB::statement("
             ALTER TABLE blacklist 
             MODIFY COLUMN reason TEXT NULL
@@ -29,14 +45,22 @@ return new class extends Migration
         DB::statement("
             UPDATE blacklist 
             SET reason = 'manual' 
-            WHERE reason NOT IN ('manual', 'hard_bounce', 'soft_bounce', 'complaint', 'unsubscribe')
+            WHERE reason IS NULL 
+            OR reason NOT IN ('manual', 'hard_bounce', 'soft_bounce', 'complaint', 'unsubscribe')
         ");
         
         DB::statement("
             ALTER TABLE blacklist 
             MODIFY COLUMN reason ENUM('manual', 'hard_bounce', 'soft_bounce', 'complaint', 'unsubscribe') 
-            DEFAULT 'manual'
+            NOT NULL DEFAULT 'manual'
         ");
+        
+        // 重新创建索引
+        try {
+            DB::statement("ALTER TABLE blacklist ADD INDEX `blacklist_reason_index` (`reason`)");
+        } catch (\Exception $e) {
+            // 索引可能已存在，忽略
+        }
     }
 };
 
