@@ -94,6 +94,18 @@ class TagController extends Controller
             'values' => $request->values,
         ]);
 
+        // 刷新模型以获取最新数据
+        $tag->refresh();
+        
+        $valuesCount = $tag->getValuesCount();
+        
+        \Log::info('标签创建成功', [
+            'tag_id' => $tag->id,
+            'tag_name' => $tag->name,
+            'values_count' => $valuesCount,
+            'values_length' => strlen($tag->values),
+        ]);
+
         return response()->json([
             'message' => '标签创建成功',
             'data' => [
@@ -101,7 +113,7 @@ class TagController extends Controller
                 'name' => $tag->name,
                 'values' => $tag->values,
                 'placeholder' => $tag->getPlaceholder(),
-                'values_count' => $tag->getValuesCount(),
+                'values_count' => $valuesCount,
                 'created_at' => $tag->created_at,
             ],
         ], 201);
@@ -153,6 +165,18 @@ class TagController extends Controller
             'values' => $request->values,
         ]);
 
+        // 刷新模型以获取最新数据
+        $tag->refresh();
+        
+        $valuesCount = $tag->getValuesCount();
+        
+        \Log::info('标签更新成功', [
+            'tag_id' => $tag->id,
+            'tag_name' => $tag->name,
+            'values_count' => $valuesCount,
+            'values_length' => strlen($tag->values),
+        ]);
+
         return response()->json([
             'message' => '标签更新成功',
             'data' => [
@@ -160,7 +184,7 @@ class TagController extends Controller
                 'name' => $tag->name,
                 'values' => $tag->values,
                 'placeholder' => $tag->getPlaceholder(),
-                'values_count' => $tag->getValuesCount(),
+                'values_count' => $valuesCount,
                 'created_at' => $tag->created_at,
             ],
         ]);

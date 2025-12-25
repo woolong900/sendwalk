@@ -38,8 +38,11 @@ class Tag extends Model
             return [];
         }
         
+        // 统一处理不同的换行符格式（Windows: \r\n, Unix: \n, Mac: \r）
+        $normalized = str_replace(["\r\n", "\r"], "\n", $this->values);
+        
         // 按行分割
-        $lines = explode("\n", $this->values);
+        $lines = explode("\n", $normalized);
         
         // 过滤空行并去除首尾空格
         return array_filter(array_map('trim', $lines), function($line) {

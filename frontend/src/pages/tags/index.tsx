@@ -74,8 +74,10 @@ export default function TagsPage() {
     mutationFn: async (data: typeof formData) => {
       return api.post('/tags', data)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tags'] })
+    onSuccess: async () => {
+      // 立即重新获取数据以确保显示最新内容
+      await queryClient.invalidateQueries({ queryKey: ['tags'] })
+      await queryClient.refetchQueries({ queryKey: ['tags'] })
       toast.success('标签创建成功')
       setIsCreateOpen(false)
       resetForm()
@@ -88,8 +90,10 @@ export default function TagsPage() {
     mutationFn: async ({ id, data }: { id: number; data: typeof formData }) => {
       return api.put(`/tags/${id}`, data)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tags'] })
+    onSuccess: async () => {
+      // 立即重新获取数据以确保显示最新内容
+      await queryClient.invalidateQueries({ queryKey: ['tags'] })
+      await queryClient.refetchQueries({ queryKey: ['tags'] })
       toast.success('标签更新成功')
       setIsEditOpen(false)
       setEditingTag(null)
@@ -103,8 +107,10 @@ export default function TagsPage() {
     mutationFn: async (id: number) => {
       return api.delete(`/tags/${id}`)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tags'] })
+    onSuccess: async () => {
+      // 立即重新获取数据以确保显示最新内容
+      await queryClient.invalidateQueries({ queryKey: ['tags'] })
+      await queryClient.refetchQueries({ queryKey: ['tags'] })
       toast.success('标签删除成功')
     },
     // onError 已由全局拦截器处理
