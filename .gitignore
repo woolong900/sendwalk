@@ -50,3 +50,6 @@ temp/
 docker/mysql/data/
 docker/redis/data/
 
+backend/composer.lock
+frontend/package-lock.json
+backend/bootstrap/cache/routes-v7.php
