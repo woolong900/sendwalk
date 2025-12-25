@@ -84,7 +84,8 @@ export default function BlacklistPage() {
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
+  const [fileUploadProgress, setFileUploadProgress] = useState(0) // 文件上传进度
+  const [importProgress, setImportProgress] = useState(0) // 导入处理进度
   const [importResult, setImportResult] = useState<{
     added: number
     already_exists: number
@@ -178,7 +179,8 @@ export default function BlacklistPage() {
       }
       
       setIsUploading(true)
-      setUploadProgress(0)
+      setFileUploadProgress(0)
+      setImportProgress(0)
       setImportResult(null)
       
       return api.post('/blacklist/batch-upload', formData, {
@@ -186,7 +188,7 @@ export default function BlacklistPage() {
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
             const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            setUploadProgress(percentCompleted)
+            setFileUploadProgress(percentCompleted)
           }
         },
       })
@@ -195,13 +197,16 @@ export default function BlacklistPage() {
       const data = response.data.data
       
       if (data.import_id) {
-        // 文件上传完成，开始后台处理
+        // 文件上传完成（100%），开始后台处理
+        setFileUploadProgress(100)
         setImportTaskId(data.import_id)
         pollImportProgress(data.import_id)
       }
     },
     onError: () => {
       setIsUploading(false)
+      setFileUploadProgress(0)
+      setImportProgress(0)
       toast.error('上传失败，请重试')
     },
   })
@@ -213,13 +218,13 @@ export default function BlacklistPage() {
         const response = await api.get(`/blacklist/import-progress/${importId}`)
         const progress = response.data.data
         
-        // 更新进度
+        // 更新处理进度
         if (progress.progress !== undefined) {
-          setUploadProgress(progress.progress)
+          setImportProgress(progress.progress)
         }
         
-        // 更新结果显示（只在有实际数据时显示）
-        if (progress.status === 'processing' && (progress.added > 0 || progress.already_exists > 0 || progress.invalid > 0)) {
+        // 更新结果显示（始终更新，不管是否为0）
+        if (progress.status === 'processing') {
           setImportResult({
             added: progress.added || 0,
             already_exists: progress.already_exists || 0,
@@ -232,6 +237,7 @@ export default function BlacklistPage() {
         if (progress.status === 'completed') {
           clearInterval(pollInterval)
           setIsUploading(false)
+          setImportProgress(100)
           
           // 更新最终结果
           setImportResult({
@@ -244,13 +250,7 @@ export default function BlacklistPage() {
           // 刷新列表
           queryClient.invalidateQueries({ queryKey: ['blacklist'] })
           
-          // 3秒后自动关闭对话框
-          setTimeout(() => {
-            setIsBatchUploadOpen(false)
-            setImportResult(null)
-            setUploadProgress(0)
-            setSelectedFile(null)
-          }, 3000)
+          // 不自动关闭，让用户查看结果后手动关闭
         } else if (progress.status === 'failed') {
           clearInterval(pollInterval)
           setIsUploading(false)
@@ -417,13 +417,29 @@ export default function BlacklistPage() {
 
                 {isUploading && (
                   <div className="space-y-3">
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>导入进度</span>
-                        <span>{uploadProgress}%</span>
+                    {/* 文件上传阶段 */}
+                    {fileUploadProgress < 100 && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>上传文件</span>
+                          <span>{fileUploadProgress}%</span>
+                        </div>
+                        <Progress value={fileUploadProgress} />
                       </div>
-                      <Progress value={uploadProgress} />
-                    </div>
+                    )}
+                    
+                    {/* 导入处理阶段 */}
+                    {fileUploadProgress === 100 && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>处理进度</span>
+                          <span>{importProgress}%</span>
+                        </div>
+                        <Progress value={importProgress} />
+                      </div>
+                    )}
+                    
+                    {/* 实时统计 */}
                     {importResult && (
                       <div className="flex flex-col gap-2 text-sm">
                         <div className="flex items-center gap-4">
@@ -437,10 +453,16 @@ export default function BlacklistPage() {
                 )}
 
                 {importResult && importResult.status === 'completed' && !isUploading && (
-                  <div className="flex items-center gap-2 p-3 bg-green-50 rounded-md">
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                    <div className="text-sm text-green-900">
-                      导入完成！新增 {importResult.added} 个，已存在 {importResult.already_exists} 个，无效 {importResult.invalid} 个
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 p-3 bg-green-50 rounded-md">
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      <div className="text-sm text-green-900">
+                        导入完成！新增 {importResult.added} 个，已存在 {importResult.already_exists} 个，无效 {importResult.invalid} 个
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>请点击"关闭"按钮查看导入结果</span>
                     </div>
                   </div>
                 )}
@@ -462,24 +484,49 @@ export default function BlacklistPage() {
                   </p>
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsBatchUploadOpen(false)
-                      setSelectedFile(null)
-                      setBatchFormData({ reason: '' })
-                      setImportResult(null)
-                      setUploadProgress(0)
-                    }}
-                    disabled={isUploading}
-                  >
-                    {isUploading ? '导入中...' : '取消'}
-                  </Button>
-                  <Button type="submit" disabled={isUploading || !selectedFile}>
-                    {isUploading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    {isUploading ? '导入中...' : '开始导入'}
-                  </Button>
+                  {!isUploading && importResult?.status !== 'completed' && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setIsBatchUploadOpen(false)
+                          setSelectedFile(null)
+                          setBatchFormData({ reason: '' })
+                          setImportResult(null)
+                          setFileUploadProgress(0)
+                          setImportProgress(0)
+                        }}
+                      >
+                        取消
+                      </Button>
+                      <Button type="submit" disabled={!selectedFile}>
+                        开始导入
+                      </Button>
+                    </>
+                  )}
+                  
+                  {isUploading && (
+                    <Button disabled>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      导入中...
+                    </Button>
+                  )}
+                  
+                  {!isUploading && importResult?.status === 'completed' && (
+                    <Button
+                      onClick={() => {
+                        setIsBatchUploadOpen(false)
+                        setSelectedFile(null)
+                        setBatchFormData({ reason: '' })
+                        setImportResult(null)
+                        setFileUploadProgress(0)
+                        setImportProgress(0)
+                      }}
+                    >
+                      关闭
+                    </Button>
+                  )}
                 </div>
               </form>
             </DialogContent>
