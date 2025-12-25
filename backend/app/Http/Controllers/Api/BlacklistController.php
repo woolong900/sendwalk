@@ -92,13 +92,9 @@ class BlacklistController extends Controller
         // 生成唯一的导入ID
         $importId = \Illuminate\Support\Str::uuid()->toString();
 
-        // 保存文件到临时目录
-        $tempPath = storage_path('app/blacklist_imports/' . $importId . '.txt');
-        $directory = dirname($tempPath);
-        if (!is_dir($directory)) {
-            mkdir($directory, 0755, true);
-        }
-        $file->move($directory, basename($tempPath));
+        // 使用 Laravel Storage 保存文件（自动处理权限）
+        $path = $file->storeAs('blacklist_imports', $importId . '.txt');
+        $tempPath = storage_path('app/' . $path);
 
         // 初始化进度缓存
         $cacheKey = "blacklist_import:{$importId}";
