@@ -157,7 +157,8 @@ class ImportSubscribers implements ShouldQueue
                 ]);
             }
 
-            // 注意：订阅者计数由 ListSubscriberObserver 自动维护，无需手动更新
+            // 重新计算列表的订阅者数量（因为批量导入不会触发 Observer）
+            $this->recalculateListCounts($this->listId);
 
             // 设置完成状态
             $this->updateProgress(100, $imported, $skipped, $processed, 'completed');
@@ -295,6 +296,49 @@ class ImportSubscribers implements ShouldQueue
             'imported' => $imported,
             'skipped' => $skipped,
         ];
+    }
+
+    /**
+     * 重新计算列表的订阅者数量
+     */
+    private function recalculateListCounts(int $listId): void
+    {
+        try {
+            $list = MailingList::find($listId);
+            if (!$list) {
+                return;
+            }
+
+            // 计算活跃订阅者数量
+            $subscribersCount = \DB::table('list_subscriber')
+                ->where('list_id', $listId)
+                ->where('status', 'active')
+                ->count();
+
+            // 计算取消订阅者数量
+            $unsubscribedCount = \DB::table('list_subscriber')
+                ->where('list_id', $listId)
+                ->where('status', 'unsubscribed')
+                ->count();
+
+            // 更新列表计数（不更新 timestamps）
+            $list->timestamps = false;
+            $list->subscribers_count = $subscribersCount;
+            $list->unsubscribed_count = $unsubscribedCount;
+            $list->save();
+            $list->timestamps = true;
+
+            Log::info('重新计算列表订阅者数量', [
+                'list_id' => $listId,
+                'subscribers_count' => $subscribersCount,
+                'unsubscribed_count' => $unsubscribedCount,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('重新计算列表数量失败', [
+                'list_id' => $listId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
