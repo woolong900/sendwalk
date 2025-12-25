@@ -418,28 +418,37 @@ export default function CampaignsPage() {
         // 加载中显示骨架屏
         <Card>
           <div className="overflow-x-auto">
-            <Table className="min-w-[900px]">
+            <Table className="min-w-[1190px]">
+              <colgroup>
+                <col className="w-[60px]" />
+                <col className="w-[200px]" />
+                <col className="w-[80px]" />
+                <col className="w-[150px]" />
+                <col className="w-[160px]" />
+                <col className="w-[140px]" />
+                <col className="w-[200px]" />
+              </colgroup>
               <TableHeader>
               <TableRow>
-                <TableHead className="w-[60px]">ID</TableHead>
-                <TableHead className="w-[200px]">标题</TableHead>
-                <TableHead className="text-center w-[80px]">状态</TableHead>
-                <TableHead className="w-[150px]">目标列表</TableHead>
-                <TableHead className="w-[160px]">发送进度</TableHead>
-                <TableHead className="w-[140px]">预定发送时间</TableHead>
-                <TableHead className="text-right w-[200px]">操作</TableHead>
+                <TableHead>ID</TableHead>
+                <TableHead>标题</TableHead>
+                <TableHead className="text-center">状态</TableHead>
+                <TableHead>目标列表</TableHead>
+                <TableHead>发送进度</TableHead>
+                <TableHead>预定发送时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {[...Array(5)].map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-40" /></TableCell>
-                  <TableCell><Skeleton className="h-6 w-16 mx-auto" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-12" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-40" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-6 w-16 mx-auto" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -475,37 +484,48 @@ export default function CampaignsPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <Table className="min-w-[900px]">
+            <Table className="min-w-[1190px]">
+              <colgroup>
+                <col className="w-[60px]" />
+                <col className="w-[200px]" />
+                <col className="w-[80px]" />
+                <col className="w-[150px]" />
+                <col className="w-[160px]" />
+                <col className="w-[100px]" />
+                <col className="w-[100px]" />
+                <col className="w-[140px]" />
+                <col className="w-[200px]" />
+              </colgroup>
               <TableHeader>
               <TableRow>
-                <TableHead className="w-[60px]">ID</TableHead>
-                <TableHead className="w-[200px]">标题</TableHead>
-                <TableHead className="text-center w-[80px]">状态</TableHead>
-                <TableHead className="w-[150px]">列表</TableHead>
-                <TableHead className="text-center w-[160px]">发送进度</TableHead>
-                <TableHead className="text-center w-[100px]">打开率</TableHead>
-                <TableHead className="text-center w-[100px]">点击率</TableHead>
-                <TableHead className="text-center w-[140px]">时间</TableHead>
-                <TableHead className="text-right w-[200px]">操作</TableHead>
+                <TableHead>ID</TableHead>
+                <TableHead>标题</TableHead>
+                <TableHead className="text-center">状态</TableHead>
+                <TableHead>列表</TableHead>
+                <TableHead className="text-center">发送进度</TableHead>
+                <TableHead className="text-center">打开率</TableHead>
+                <TableHead className="text-center">点击率</TableHead>
+                <TableHead className="text-center">时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredCampaigns?.map((campaign) => (
                 <TableRow key={campaign.id} className="hover:bg-muted/50">
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <div className="text-sm text-muted-foreground font-mono">
                       #{campaign.id}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <div className="font-medium">{campaign.name}</div>
+                  <TableCell className="whitespace-nowrap">
+                    <div className="font-medium truncate">{campaign.name}</div>
                   </TableCell>
-                  <TableCell className="text-center w-20">
+                  <TableCell className="text-center whitespace-nowrap">
                     {getStatusBadge(campaign.status)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <div className="flex items-center gap-1 text-sm">
-                      <Mail className="w-4 h-4 text-muted-foreground" />
+                      <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                       <span className="truncate">
                         {campaign.lists && campaign.lists.length > 0 
                           ? campaign.lists.map(l => l.name).join(', ')
@@ -513,7 +533,7 @@ export default function CampaignsPage() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="text-center whitespace-nowrap">
                     <button
                       onClick={() => setSendLogsDialog({ open: true, campaignId: campaign.id, campaignName: campaign.name })}
                       className="flex flex-col items-center gap-1 w-full hover:opacity-70 transition-opacity cursor-pointer"
@@ -535,7 +555,7 @@ export default function CampaignsPage() {
                       </div>
                     </button>
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="text-center whitespace-nowrap">
                     <button
                       onClick={() => setEmailOpensDialog({ open: true, campaignId: campaign.id, campaignName: campaign.name })}
                       className="flex flex-col items-center gap-1 w-full hover:opacity-70 transition-opacity cursor-pointer"
@@ -549,7 +569,7 @@ export default function CampaignsPage() {
                       </span>
                     </button>
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="text-center whitespace-nowrap">
                     <div className="flex flex-col items-center gap-1">
                       <span className="font-medium">
                         {campaign.click_rate?.toFixed(1) || 0}%
@@ -559,7 +579,7 @@ export default function CampaignsPage() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="text-center whitespace-nowrap">
                     {campaign.scheduled_at ? (
                       <div className="text-sm text-muted-foreground leading-tight">
                         <div>{formatDateTimeTwoLines(campaign.scheduled_at).date}</div>
@@ -569,7 +589,7 @@ export default function CampaignsPage() {
                       <span className="text-sm text-muted-foreground">/</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-0.5">
                       {(campaign.status === 'draft' || campaign.status === 'scheduled' || campaign.status === 'cancelled') && (
                         <Button
