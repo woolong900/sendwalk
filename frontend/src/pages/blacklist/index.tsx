@@ -417,27 +417,14 @@ export default function BlacklistPage() {
 
                 {isUploading && (
                   <div className="space-y-3">
-                    {/* 文件上传阶段 */}
-                    {fileUploadProgress < 100 && (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>上传文件</span>
-                          <span>{fileUploadProgress}%</span>
-                        </div>
-                        <Progress value={fileUploadProgress} />
+                    {/* 导入处理进度 */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>导入进度</span>
+                        <span>{processingProgress}%</span>
                       </div>
-                    )}
-                    
-                    {/* 导入处理阶段 */}
-                    {fileUploadProgress === 100 && (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>处理进度</span>
-                          <span>{processingProgress}%</span>
-                        </div>
-                        <Progress value={processingProgress} />
-                      </div>
-                    )}
+                      <Progress value={processingProgress} />
+                    </div>
                     
                     {/* 实时统计 */}
                     {importResult && (
@@ -694,6 +681,14 @@ export default function BlacklistPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      首页
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => setCurrentPage(currentPage - 1)}
                       disabled={currentPage === 1}
                     >
@@ -706,6 +701,14 @@ export default function BlacklistPage() {
                       disabled={currentPage === totalPages}
                     >
                       下一页
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      尾页
                     </Button>
                   </div>
                 </div>

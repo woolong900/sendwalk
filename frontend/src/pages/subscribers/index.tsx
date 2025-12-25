@@ -491,6 +491,14 @@ export default function SubscribersPage() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+              >
+                首页
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setCurrentPage(currentPage - 1)}
                 disabled={currentPage === 1}
               >
@@ -506,6 +514,14 @@ export default function SubscribersPage() {
                 disabled={currentPage === subscribersData.meta.last_page}
               >
                 下一页
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(subscribersData.meta.last_page)}
+                disabled={currentPage === subscribersData.meta.last_page}
+              >
+                尾页
               </Button>
             </div>
           )}
