@@ -495,7 +495,7 @@ export default function BlacklistPage() {
                           setBatchFormData({ reason: '' })
                           setImportResult(null)
                           setFileUploadProgress(0)
-                          setImportProgress(0)
+                          setProcessingProgress(0)
                         }}
                       >
                         取消
