@@ -153,6 +153,29 @@ class SendCampaignEmail implements ShouldQueue
             if (empty($this->fromEmail)) {
                 $this->fromEmail = $this->getRandomSenderEmail($smtpServer);
             }
+            
+            // Check if this sender is paused
+            if ($smtpServer->isSenderPaused($this->fromEmail)) {
+                $waitSeconds = $smtpServer->getSenderPauseRemainingTime($this->fromEmail) ?? 60;
+                
+                Log::warning('Sender is paused, task not sent', [
+                    'reason' => 'sender_paused',
+                    'campaign_id' => $this->campaign->id,
+                    'campaign_name' => $this->campaign->name,
+                    'subscriber_id' => $this->subscriber->id,
+                    'subscriber_email' => $this->subscriber->email,
+                    'smtp_server_id' => $smtpServer->id,
+                    'smtp_server_name' => $smtpServer->name,
+                    'from_email' => $this->fromEmail,
+                    'wait_seconds' => $waitSeconds,
+                ]);
+                
+                // 抛出 RateLimitException，让 Worker 休眠
+                throw new \App\Exceptions\RateLimitException(
+                    "Sender {$this->fromEmail} is temporarily paused",
+                    $waitSeconds
+                );
+            }
 
             // Replace personalization tags in subject
             $subject = $this->replacePersonalizationTags(
@@ -266,14 +289,15 @@ class SendCampaignEmail implements ShouldQueue
         } catch (\Exception $e) {
             $errorMessage = $e->getMessage();
             
-            // 🚨 检测 "Excessive message rate" 错误并自动暂停服务器
-            if (isset($smtpServer) && $this->isRateLimitError($errorMessage)) {
-                $smtpServer->pauseTemporarily(5, 'Excessive message rate detected');
+            // 🚨 检测 "Excessive message rate" 错误并自动暂停该发件人
+            if (isset($smtpServer) && isset($this->fromEmail) && $this->isRateLimitError($errorMessage)) {
+                $smtpServer->pauseSender($this->fromEmail, 5, 'Excessive message rate detected');
                 
-                Log::warning('SMTP server auto-paused due to rate limit error', [
+                Log::warning('SMTP sender auto-paused due to rate limit error', [
                     'campaign_id' => $this->campaign->id,
                     'smtp_server_id' => $smtpServer->id,
                     'smtp_server_name' => $smtpServer->name,
+                    'from_email' => $this->fromEmail,
                     'error_message' => $errorMessage,
                     'pause_duration' => '5 minutes',
                 ]);

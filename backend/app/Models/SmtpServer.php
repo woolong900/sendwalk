@@ -50,13 +50,15 @@ class SmtpServer extends Model
     }
 
     /**
-     * Check if the server can send an email
+     * Check if the server can send an email with a specific sender
      * Returns true if allowed, false otherwise
+     * 
+     * @param string|null $fromEmail 发件人邮箱，如果不提供则只检查服务器级别
      */
-    public function canSend(): bool
+    public function canSend(?string $fromEmail = null): bool
     {
-        // 首先检查是否被临时暂停
-        if ($this->isTemporarilyPaused()) {
+        // 如果提供了发件人，检查该发件人是否被暂停
+        if ($fromEmail && $this->isSenderPaused($fromEmail)) {
             return false;
         }
         
@@ -64,20 +66,26 @@ class SmtpServer extends Model
     }
     
     /**
-     * 检查服务器是否被临时暂停
+     * 检查特定发件人是否被暂停
+     * 
+     * @param string $fromEmail 发件人邮箱
+     * @return bool
      */
-    public function isTemporarilyPaused(): bool
+    public function isSenderPaused(string $fromEmail): bool
     {
-        $cacheKey = "smtp_server_paused_{$this->id}";
+        $cacheKey = $this->getSenderPauseCacheKey($fromEmail);
         return Cache::has($cacheKey);
     }
     
     /**
-     * 获取暂停剩余时间（秒）
+     * 获取发件人暂停剩余时间（秒）
+     * 
+     * @param string $fromEmail 发件人邮箱
+     * @return int|null
      */
-    public function getPauseRemainingTime(): ?int
+    public function getSenderPauseRemainingTime(string $fromEmail): ?int
     {
-        $cacheKey = "smtp_server_paused_{$this->id}";
+        $cacheKey = $this->getSenderPauseCacheKey($fromEmail);
         $pausedUntil = Cache::get($cacheKey);
         
         if (!$pausedUntil) {
@@ -89,39 +97,69 @@ class SmtpServer extends Model
     }
     
     /**
-     * 临时暂停服务器
+     * 临时暂停特定发件人
      * 
+     * @param string $fromEmail 发件人邮箱
      * @param int $minutes 暂停分钟数
      * @param string $reason 暂停原因
      */
-    public function pauseTemporarily(int $minutes = 5, string $reason = 'Rate limit exceeded'): void
+    public function pauseSender(string $fromEmail, int $minutes = 5, string $reason = 'Rate limit exceeded'): void
     {
-        $cacheKey = "smtp_server_paused_{$this->id}";
+        $cacheKey = $this->getSenderPauseCacheKey($fromEmail);
         $pausedUntil = time() + ($minutes * 60);
         
         Cache::put($cacheKey, $pausedUntil, $minutes * 60);
         
-        \Log::warning('SMTP server temporarily paused', [
+        \Log::warning('SMTP sender temporarily paused', [
             'server_id' => $this->id,
             'server_name' => $this->name,
+            'from_email' => $fromEmail,
             'pause_minutes' => $minutes,
             'paused_until' => date('Y-m-d H:i:s', $pausedUntil),
             'reason' => $reason,
         ]);
     }
+    /**
+     * 获取所有被暂停的发件人列表
+     * 
+     * @return array [['email' => '...', 'remaining_seconds' => ...], ...]
+     */
+    public function getPausedSenders(): array
+    {
+        $pattern = "smtp_sender_paused_{$this->id}_*";
+        $keys = Cache::get('_paused_senders_list_' . $this->id, []);
+        
+        $pausedSenders = [];
+        foreach ($keys as $key) {
+            if (Cache::has($key)) {
+                // 从 key 中提取邮箱：smtp_sender_paused_{id}_{email_hash}
+                $email = Cache::get($key . '_email');
+                if ($email) {
+                    $remaining = $this->getSenderPauseRemainingTime($email);
+                    if ($remaining > 0) {
+                        $pausedSenders[] = [
+                            'email' => $email,
+                            'remaining_seconds' => $remaining,
+                        ];
+                    }
+                }
+            }
+        }
+        
+        return $pausedSenders;
+    }
     
     /**
-     * 手动恢复服务器（取消暂停）
+     * 生成发件人暂停的缓存键
+     * 
+     * @param string $fromEmail
+     * @return string
      */
-    public function resume(): void
+    private function getSenderPauseCacheKey(string $fromEmail): string
     {
-        $cacheKey = "smtp_server_paused_{$this->id}";
-        Cache::forget($cacheKey);
-        
-        \Log::info('SMTP server resumed', [
-            'server_id' => $this->id,
-            'server_name' => $this->name,
-        ]);
+        // 使用 MD5 hash 避免邮箱中的特殊字符问题
+        $emailHash = md5(strtolower(trim($fromEmail)));
+        return "smtp_sender_paused_{$this->id}_{$emailHash}";
     }
 
     /**
@@ -141,17 +179,6 @@ class SmtpServer extends Model
                 'blocked_by' => 'inactive',
                 'available' => 0,
                 'wait_seconds' => null,
-            ];
-        }
-        
-        // 检查是否被临时暂停
-        if ($this->isTemporarilyPaused()) {
-            $remainingTime = $this->getPauseRemainingTime();
-            return [
-                'can_send' => false,
-                'blocked_by' => 'temporarily_paused',
-                'available' => 0,
-                'wait_seconds' => $remainingTime,
             ];
         }
 
@@ -326,8 +353,7 @@ class SmtpServer extends Model
             'max_available' => $limitCheck['available'],
             'most_restrictive' => $mostRestrictive,
             'wait_seconds' => $limitCheck['wait_seconds'],
-            'is_paused' => $this->isTemporarilyPaused(),
-            'pause_remaining_seconds' => $this->getPauseRemainingTime(),
+            'paused_senders' => $this->getPausedSenders(),
         ];
     }
 

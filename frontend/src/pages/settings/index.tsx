@@ -5,7 +5,6 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import {
   Card,
   CardContent,
@@ -39,6 +38,11 @@ interface RateLimitPeriod {
   status: string
 }
 
+interface PausedSender {
+  email: string
+  remaining_seconds: number
+}
+
 interface SmtpServer {
   id: number
   name: string
@@ -60,6 +64,7 @@ interface SmtpServer {
     minute?: RateLimitPeriod
     hour?: RateLimitPeriod
     day?: RateLimitPeriod
+    paused_senders?: PausedSender[]
   }
 }
 
@@ -89,6 +94,11 @@ export default function SettingsPage() {
     rate_limit_hour: '',
     rate_limit_day: '',
   })
+  
+  // 发件人列表管理
+  const [senderEmails, setSenderEmails] = useState<string[]>([])
+  const [newSenderEmail, setNewSenderEmail] = useState('')
+  const [pausedSenders, setPausedSenders] = useState<PausedSender[]>([])
 
   const queryClient = useQueryClient()
 
@@ -178,6 +188,14 @@ export default function SettingsPage() {
       rate_limit_hour: '',
       rate_limit_day: '',
     })
+    setSenderEmails([])
+    setNewSenderEmail('')
+    setPausedSenders([])
+  }
+  
+  const handleCreate = () => {
+    resetForm()
+    setIsCreateOpen(true)
   }
 
   const handleEdit = (server: SmtpServer) => {
@@ -197,14 +215,31 @@ export default function SettingsPage() {
       rate_limit_hour: server.rate_limit_hour?.toString() || '',
       rate_limit_day: server.rate_limit_day?.toString() || '',
     })
+    
+    // 解析发件人列表
+    const emails = server.sender_emails 
+      ? server.sender_emails.split('\n').map(e => e.trim()).filter(e => e)
+      : []
+    setSenderEmails(emails)
+    
+    // 获取暂停状态
+    setPausedSenders(server.rate_limit_status?.paused_senders || [])
+    
     setIsEditOpen(true)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
+    // SES 类型必须至少有一个发件人
+    if (formData.type === 'ses' && senderEmails.length === 0) {
+      toast.error('AWS SES 服务器至少需要配置一个发件人邮箱')
+      return
+    }
+    
     const data = {
       ...formData,
+      sender_emails: senderEmails.join('\n'), // 将数组转换为换行符分隔的字符串
       port: formData.port ? parseInt(formData.port) : null,
       rate_limit_second: formData.rate_limit_second ? parseInt(formData.rate_limit_second) : null,
       rate_limit_minute: formData.rate_limit_minute ? parseInt(formData.rate_limit_minute) : null,
@@ -218,9 +253,16 @@ export default function SettingsPage() {
   const handleUpdate = (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingServer) return
+    
+    // SES 类型必须至少有一个发件人
+    if (formData.type === 'ses' && senderEmails.length === 0) {
+      toast.error('AWS SES 服务器至少需要配置一个发件人邮箱')
+      return
+    }
 
     const data = {
       ...formData,
+      sender_emails: senderEmails.join('\n'), // 将数组转换为换行符分隔的字符串
       port: formData.port ? parseInt(formData.port) : null,
       rate_limit_second: formData.rate_limit_second ? parseInt(formData.rate_limit_second) : null,
       rate_limit_minute: formData.rate_limit_minute ? parseInt(formData.rate_limit_minute) : null,
@@ -229,6 +271,34 @@ export default function SettingsPage() {
     }
 
     updateMutation.mutate({ id: editingServer.id, data })
+  }
+  
+  // 添加发件人
+  const handleAddSender = () => {
+    const email = newSenderEmail.trim()
+    if (!email) {
+      toast.error('请输入发件人邮箱')
+      return
+    }
+    
+    // 简单的邮箱验证
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('请输入有效的邮箱地址')
+      return
+    }
+    
+    if (senderEmails.includes(email)) {
+      toast.error('该发件人已存在')
+      return
+    }
+    
+    setSenderEmails([...senderEmails, email])
+    setNewSenderEmail('')
+  }
+  
+  // 删除发件人
+  const handleRemoveSender = (email: string) => {
+    setSenderEmails(senderEmails.filter(e => e !== email))
   }
 
   const renderServerForm = (isEdit: boolean) => (
@@ -328,20 +398,80 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="sender_emails">
-              发件人邮箱
+            <Label>
+              发件人邮箱管理
               <span className="text-muted-foreground ml-2 text-xs font-normal">
-                (可选，每行一个邮箱)
+                (可选，配置多个发件人轮换使用)
               </span>
             </Label>
-            <Textarea
-              id="sender_emails"
-              value={formData.sender_emails}
-              onChange={(e) => setFormData({ ...formData, sender_emails: e.target.value })}
-              placeholder="例如：&#10;sender1@example.com&#10;sender2@example.com"
-              rows={4}
-              className="font-mono text-sm"
-            />
+            
+            {/* 发件人列表 */}
+            <div className="space-y-2">
+              {senderEmails.map((email, index) => {
+                const isPaused = pausedSenders.some(s => s.email === email)
+                const pausedInfo = pausedSenders.find(s => s.email === email)
+                
+                return (
+                  <div key={index} className="grid gap-2" style={{ gridTemplateColumns: '1fr auto' }}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Input
+                        value={email}
+                        readOnly
+                        className={`font-mono text-sm ${isPaused ? 'bg-amber-50 border-amber-300' : 'bg-green-50 border-green-300'}`}
+                      />
+                      {isPaused && (
+                        <span className="text-xs text-amber-600 whitespace-nowrap">
+                          暂停中 ({Math.ceil((pausedInfo?.remaining_seconds || 0) / 60)}分钟)
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleRemoveSender(email)}
+                      title="删除此发件人"
+                      className="h-8"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      删除
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+            
+            {/* 添加新发件人 */}
+            <div className="grid gap-2" style={{ gridTemplateColumns: '1fr auto' }}>
+              <div className="flex items-center gap-2 min-w-0">
+                <Input
+                  value={newSenderEmail}
+                  onChange={(e) => setNewSenderEmail(e.target.value)}
+                  placeholder="添加发件人邮箱 (例如: sender@example.com)"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddSender()
+                    }
+                  }}
+                  className="font-mono text-sm"
+                />
+              </div>
+              <Button
+                type="button"
+                onClick={handleAddSender}
+                size="sm"
+                className="h-8"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                添加
+              </Button>
+            </div>
+            
+            {senderEmails.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                💡 提示：配置多个发件人可以轮换使用，提高发送量和稳定性
+              </p>
+            )}
           </div>
         </>
       )}
@@ -386,23 +516,80 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="sender_emails">
-              发件人邮箱 *
+            <Label>
+              发件人邮箱管理 *
               <span className="text-muted-foreground ml-2 text-xs font-normal">
-                (每行一个邮箱)
+                (必须是在 AWS SES 中已验证的邮箱)
               </span>
             </Label>
-            <Textarea
-              id="sender_emails"
-              value={formData.sender_emails}
-              onChange={(e) => setFormData({ ...formData, sender_emails: e.target.value })}
-              placeholder="例如：&#10;sender1@example.com&#10;sender2@example.com"
-              rows={4}
-              className="font-mono text-sm"
-              required
-            />
+            
+            {/* 发件人列表 */}
+            <div className="space-y-2">
+              {senderEmails.map((email, index) => {
+                const isPaused = pausedSenders.some(s => s.email === email)
+                const pausedInfo = pausedSenders.find(s => s.email === email)
+                
+                return (
+                  <div key={index} className="grid gap-2" style={{ gridTemplateColumns: '1fr auto' }}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Input
+                        value={email}
+                        readOnly
+                        className={`font-mono text-sm ${isPaused ? 'bg-amber-50 border-amber-300' : 'bg-green-50 border-green-300'}`}
+                      />
+                      {isPaused && (
+                        <span className="text-xs text-amber-600 whitespace-nowrap">
+                          暂停中 ({Math.ceil((pausedInfo?.remaining_seconds || 0) / 60)}分钟)
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleRemoveSender(email)}
+                      title="删除此发件人"
+                      className="h-8"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      删除
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+            
+            {/* 添加新发件人 */}
+            <div className="flex gap-2">
+              <Input
+                value={newSenderEmail}
+                onChange={(e) => setNewSenderEmail(e.target.value)}
+                placeholder="添加发件人邮箱 (例如: sender@example.com)"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleAddSender()
+                  }
+                }}
+                className="font-mono text-sm"
+              />
+              <Button
+                type="button"
+                onClick={handleAddSender}
+                size="sm"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                添加
+              </Button>
+            </div>
+            
+            {senderEmails.length === 0 && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                ⚠️ AWS SES 至少需要配置一个已验证的发件人邮箱
+              </p>
+            )}
+            
             <p className="text-xs text-muted-foreground">
-              必须是在 AWS SES 中已验证的邮箱地址或域名
+              💡 提示：必须是在 AWS SES 中已验证的邮箱地址或域名
             </p>
           </div>
         </>
@@ -527,7 +714,7 @@ export default function SettingsPage() {
               <Server className="w-12 h-12 text-muted-foreground mb-4" />
               <p className="text-lg font-medium mb-2">还没有配置SMTP服务器</p>
               <p className="text-muted-foreground mb-4">添加邮件发送服务器以开始发送邮件</p>
-              <Button onClick={() => setIsCreateOpen(true)}>
+              <Button onClick={handleCreate}>
                 <Plus className="w-4 h-4 mr-2" />
                 添加服务器
               </Button>
@@ -535,7 +722,7 @@ export default function SettingsPage() {
           </Card>
         ) : (
           <div className="grid gap-4">
-            {servers?.map((server) => (
+            {servers?.map((server: SmtpServer) => (
               <Card key={server.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-4">
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
