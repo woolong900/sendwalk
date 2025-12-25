@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Progress } from '@/components/ui/progress'
 import {
   Card,
   CardContent,
@@ -78,11 +79,18 @@ export default function BlacklistPage() {
   })
   
   const [batchFormData, setBatchFormData] = useState({
-    emails: '',
     reason: '',
   })
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [importResult, setImportResult] = useState<{
+    added: number
+    already_exists: number
+    invalid: number
+    status?: string
+  } | null>(null)
   
   const [selectedIds, setSelectedIds] = useState<number[]>([])
 
@@ -160,50 +168,101 @@ export default function BlacklistPage() {
     },
   })
 
-  // 批量上传
+  // 批量上传（文件上传）
   const batchUploadMutation = useMutation({
-    mutationFn: async (data: typeof batchFormData) => {
-      return api.post('/blacklist/batch-upload', data)
-    },
-    onSuccess: (response) => {
-      const data = response.data
-      
-      // 检查是否是异步导入（返回task_id）
-      if (data.task_id) {
-        // 异步导入，显示进度dialog
-        setImportTaskId(data.task_id)
-        setIsProgressOpen(true)
-        setIsBatchUploadOpen(false)
-        toast.info(`大批量导入已提交（${data.total_emails} 个邮箱），正在后台处理...`)
-      } else {
-        // 同步导入，直接显示结果
-        queryClient.invalidateQueries({ queryKey: ['blacklist'] })
-        const { 
-          added, 
-          already_exists, 
-          invalid, 
-          subscribers_updated 
-        } = data
-        
-        // 构建更详细的提示信息
-        const messages = []
-        if (added > 0) messages.push(`新增 ${added} 个`)
-        if (already_exists > 0) messages.push(`已存在 ${already_exists} 个`)
-        if (invalid > 0) messages.push(`无效 ${invalid} 个`)
-        
-        const summary = messages.join('，')
-        const subscriberInfo = subscribers_updated > 0 
-          ? `，更新订阅者 ${subscribers_updated} 个` 
-          : ''
-        
-        toast.success(`批量上传完成：${summary}${subscriberInfo}`)
-        setIsBatchUploadOpen(false)
+    mutationFn: async (file: File) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      if (batchFormData.reason) {
+        formData.append('reason', batchFormData.reason)
       }
       
-      setBatchFormData({ emails: '', reason: '' })
-      setSelectedFile(null)
+      setIsUploading(true)
+      setUploadProgress(0)
+      setImportResult(null)
+      
+      return api.post('/blacklist/batch-upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            setUploadProgress(percentCompleted)
+          }
+        },
+      })
+    },
+    onSuccess: (response) => {
+      const data = response.data.data
+      
+      if (data.import_id) {
+        // 文件上传完成，开始后台处理
+        setImportTaskId(data.import_id)
+        pollImportProgress(data.import_id)
+      }
+    },
+    onError: () => {
+      setIsUploading(false)
+      toast.error('上传失败，请重试')
     },
   })
+
+  // 轮询导入进度
+  const pollImportProgress = (importId: string) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await api.get(`/blacklist/import-progress/${importId}`)
+        const progress = response.data.data
+        
+        // 更新进度
+        if (progress.progress !== undefined) {
+          setUploadProgress(progress.progress)
+        }
+        
+        // 更新结果显示（只在有实际数据时显示）
+        if (progress.status === 'processing' && (progress.added > 0 || progress.already_exists > 0 || progress.invalid > 0)) {
+          setImportResult({
+            added: progress.added || 0,
+            already_exists: progress.already_exists || 0,
+            invalid: progress.invalid || 0,
+            status: progress.status,
+          })
+        }
+        
+        // 检查是否完成
+        if (progress.status === 'completed') {
+          clearInterval(pollInterval)
+          setIsUploading(false)
+          
+          // 更新最终结果
+          setImportResult({
+            added: progress.added || 0,
+            already_exists: progress.already_exists || 0,
+            invalid: progress.invalid || 0,
+            status: progress.status,
+          })
+          
+          // 刷新列表
+          queryClient.invalidateQueries({ queryKey: ['blacklist'] })
+          
+          // 3秒后自动关闭对话框
+          setTimeout(() => {
+            setIsBatchUploadOpen(false)
+            setImportResult(null)
+            setUploadProgress(0)
+            setSelectedFile(null)
+          }, 3000)
+        } else if (progress.status === 'failed') {
+          clearInterval(pollInterval)
+          setIsUploading(false)
+          toast.error(progress.error || '导入失败')
+        }
+      } catch (error) {
+        console.error('轮询导入进度失败:', error)
+        clearInterval(pollInterval)
+        setIsUploading(false)
+      }
+    }, 1000) // 每秒轮询一次
+  }
 
   // 删除单个
   const deleteMutation = useMutation({
@@ -233,33 +292,30 @@ export default function BlacklistPage() {
     addMutation.mutate(addFormData)
   }
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     
-    if (!file.name.endsWith('.txt')) {
-      toast.error('请选择txt文件')
+    // 支持多种文件格式
+    const allowedExtensions = ['.txt', '.csv', '.xlsx', '.xls']
+    const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      toast.error('请选择txt、csv或xlsx文件')
       return
     }
     
     setSelectedFile(file)
-    
-    // 读取文件内容
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const content = event.target?.result as string
-      setBatchFormData({ ...batchFormData, emails: content })
-    }
-    reader.readAsText(file)
+    // 不再读取文件内容到内存，直接保存文件对象
   }
 
   const handleBatchUpload = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!batchFormData.emails.trim()) {
+    if (!selectedFile) {
       toast.error('请选择文件')
       return
     }
-    batchUploadMutation.mutate(batchFormData)
+    batchUploadMutation.mutate(selectedFile)
   }
 
   const handleDelete = async (id: number) => {
@@ -336,31 +392,59 @@ export default function BlacklistPage() {
               <form onSubmit={handleBatchUpload} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="file-upload">选择文件 *</Label>
-                  <div className="flex items-center gap-3">
-                    <Input
-                      id="file-upload"
-                      type="file"
-                      accept=".txt"
-                      onChange={handleFileChange}
-                      className="cursor-pointer"
-                      required
-                    />
-                  </div>
+                  <Input
+                    id="file-upload"
+                    type="file"
+                    accept=".txt,.csv,.xlsx,.xls"
+                    onChange={handleFileChange}
+                    className="cursor-pointer"
+                    disabled={isUploading}
+                    required
+                  />
                   {selectedFile && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
                       <Upload className="w-4 h-4" />
                       <span>{selectedFile.name}</span>
                       <span className="text-xs">
-                        ({Math.round(selectedFile.size / 1024)} KB)
+                        ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
                       </span>
                     </div>
                   )}
-                  {batchFormData.emails && (
-                    <div className="text-sm text-muted-foreground mt-2">
-                      已识别 {batchFormData.emails.split(/[\n,;]/).filter(e => e.trim()).length} 个邮箱地址
-                    </div>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    支持txt、csv或xlsx文件，每行一个邮箱地址
+                  </p>
                 </div>
+
+                {isUploading && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>导入进度</span>
+                        <span>{uploadProgress}%</span>
+                      </div>
+                      <Progress value={uploadProgress} />
+                    </div>
+                    {importResult && (
+                      <div className="flex flex-col gap-2 text-sm">
+                        <div className="flex items-center gap-4">
+                          <span>新增: <span className="font-medium text-green-600">{importResult.added}</span></span>
+                          <span>已存在: <span className="font-medium text-orange-600">{importResult.already_exists}</span></span>
+                          <span>无效: <span className="font-medium text-red-600">{importResult.invalid}</span></span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {importResult && importResult.status === 'completed' && !isUploading && (
+                  <div className="flex items-center gap-2 p-3 bg-green-50 rounded-md">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <div className="text-sm text-green-900">
+                      导入完成！新增 {importResult.added} 个，已存在 {importResult.already_exists} 个，无效 {importResult.invalid} 个
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="batch-reason">原因（可选）</Label>
                   <Input
@@ -368,6 +452,7 @@ export default function BlacklistPage() {
                     value={batchFormData.reason}
                     onChange={(e) => setBatchFormData({ ...batchFormData, reason: e.target.value })}
                     placeholder="例如：垃圾邮件投诉"
+                    disabled={isUploading}
                   />
                 </div>
                 <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-md">
@@ -383,13 +468,17 @@ export default function BlacklistPage() {
                     onClick={() => {
                       setIsBatchUploadOpen(false)
                       setSelectedFile(null)
-                      setBatchFormData({ emails: '', reason: '' })
+                      setBatchFormData({ reason: '' })
+                      setImportResult(null)
+                      setUploadProgress(0)
                     }}
+                    disabled={isUploading}
                   >
-                    取消
+                    {isUploading ? '导入中...' : '取消'}
                   </Button>
-                  <Button type="submit" disabled={batchUploadMutation.isPending}>
-                    {batchUploadMutation.isPending ? '上传中...' : '上传'}
+                  <Button type="submit" disabled={isUploading || !selectedFile}>
+                    {isUploading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                    {isUploading ? '导入中...' : '开始导入'}
                   </Button>
                 </div>
               </form>

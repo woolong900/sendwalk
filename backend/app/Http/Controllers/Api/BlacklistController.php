@@ -78,158 +78,107 @@ class BlacklistController extends Controller
     }
 
     /**
-     * Batch upload emails to blacklist
+     * Batch upload emails to blacklist via file (参照 bulkImport)
      */
     public function batchUpload(Request $request)
     {
         $request->validate([
-            'emails' => 'required|string',
+            'file' => 'required|file|mimes:txt,csv,xlsx,xls',
             'reason' => 'nullable|string|max:255',
         ]);
 
-        $emailsText = $request->emails;
-        $emailCount = substr_count($emailsText, '@'); // 粗略估算邮箱数量
-
-        // 如果邮箱数量超过10000，使用队列异步处理
-        if ($emailCount > 10000) {
-            return $this->batchUploadAsync($request, $emailsText);
-        }
-
-        // 小批量直接同步处理（保持原有逻辑）
-        $emails = preg_split('/[\r\n,;]+/', $emailsText);
-        $emails = array_filter(array_map('trim', $emails));
-
-        if (empty($emails)) {
-            return response()->json([
-                'message' => '未找到有效的邮箱地址',
-            ], 422);
-        }
-
-        $result = Blacklist::addBatch(
-            $request->user()->id,
-            $emails,
-            $request->reason
-        );
-
-        return response()->json([
-            'message' => '批量上传完成',
-            'added' => $result['added'],
-            'already_exists' => $result['already_exists'],
-            'invalid' => $result['invalid'],
-            'skipped' => $result['skipped'], // 为向后兼容保留
-            'subscribers_updated' => $result['subscribers_updated'],
-        ]);
-    }
-
-    /**
-     * 大批量异步上传（使用队列）
-     */
-    protected function batchUploadAsync(Request $request, string $emailsText)
-    {
-        // 生成唯一任务ID
-        $taskId = 'import_' . time() . '_' . uniqid();
+        $file = $request->file('file');
         
-        // 使用生成器分批读取，避免内存溢出
-        $batchSize = 1000; // 每批处理1000条
-        $emails = [];
-        $batchNumber = 0;
-        $totalEmails = 0;
+        // 生成唯一的导入ID
+        $importId = \Illuminate\Support\Str::uuid()->toString();
 
-        // 逐行处理，避免一次性加载所有数据到内存
-        $lines = explode("\n", $emailsText);
-        
-        foreach ($lines as $line) {
-            // 支持多种分隔符
-            $lineEmails = preg_split('/[,;]+/', $line);
-            
-            foreach ($lineEmails as $email) {
-                $email = trim($email);
-                if (!empty($email)) {
-                    $emails[] = $email;
-                    $totalEmails++;
-                    
-                    // 达到批次大小，分发队列任务
-                    if (count($emails) >= $batchSize) {
-                        $batchNumber++;
-                        \App\Jobs\ImportBlacklistJob::dispatch(
-                            $request->user()->id,
-                            $emails,
-                            $request->reason,
-                            $taskId,
-                            $batchNumber,
-                            0 // 总批次数暂时设为0，后面更新
-                        );
-                        $emails = []; // 清空数组
-                    }
-                }
-            }
+        // 保存文件到临时目录
+        $tempPath = storage_path('app/blacklist_imports/' . $importId . '.txt');
+        $directory = dirname($tempPath);
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
         }
+        $file->move($directory, basename($tempPath));
 
-        // 处理剩余的邮箱
-        if (!empty($emails)) {
-            $batchNumber++;
-            \App\Jobs\ImportBlacklistJob::dispatch(
-                $request->user()->id,
-                $emails,
-                $request->reason,
-                $taskId,
-                $batchNumber,
-                0
-            );
-        }
-
-        // 更新总批次数
-        $totalBatches = $batchNumber;
-        
         // 初始化进度缓存
-        \Cache::put("blacklist_import_{$taskId}", [
-            'total_batches' => $totalBatches,
-            'completed_batches' => 0,
-            'total_emails' => $totalEmails,
+        $cacheKey = "blacklist_import:{$importId}";
+        $initialData = [
+            'progress' => 0,
             'added' => 0,
             'already_exists' => 0,
             'invalid' => 0,
-            'subscribers_updated' => 0,
-            'status' => 'processing',
+            'processed' => 0,
+            'status' => 'queued',
             'started_at' => now()->toIso8601String(),
-        ], 86400); // 缓存24小时
-
-        \Log::info("黑名单批量导入已提交到队列", [
+        ];
+        
+        \Illuminate\Support\Facades\Cache::put($cacheKey, $initialData, 3600);
+        
+        // 记录初始化日志
+        \Illuminate\Support\Facades\Log::info('创建黑名单导入任务', [
+            'import_id' => $importId,
             'user_id' => $request->user()->id,
-            'task_id' => $taskId,
-            'total_emails' => $totalEmails,
-            'total_batches' => $totalBatches,
+            'file_path' => $tempPath,
+            'cache_key' => $cacheKey,
+            'initial_data' => $initialData,
         ]);
 
+        // 分发异步导入任务
+        \App\Jobs\ImportBlacklist::dispatch(
+            $tempPath,
+            $request->user()->id,
+            $request->reason,
+            $importId
+        )->onQueue('default');
+
         return response()->json([
-            'message' => '大批量导入已提交到队列处理，请稍后查看进度',
-            'task_id' => $taskId,
-            'total_emails' => $totalEmails,
-            'total_batches' => $totalBatches,
-            'status' => 'processing',
+            'message' => '导入任务已创建，正在后台处理',
+            'data' => [
+                'import_id' => $importId,
+                'status' => 'queued',
+            ],
         ], 202); // 202 Accepted
     }
 
     /**
-     * 查询导入进度
+     * 获取导入进度
      */
-    public function importProgress(Request $request, string $taskId)
+    public function getImportProgress(Request $request, string $importId)
     {
-        $cacheKey = "blacklist_import_{$taskId}";
-        $progress = \Cache::get($cacheKey);
-
+        $cacheKey = "blacklist_import:{$importId}";
+        $progress = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        
+        // 记录查询日志（只记录前5次）
+        static $queryCount = [];
+        if (!isset($queryCount[$importId])) {
+            $queryCount[$importId] = 0;
+        }
+        $queryCount[$importId]++;
+        
+        if ($queryCount[$importId] <= 5) {
+            \Illuminate\Support\Facades\Log::info('查询黑名单导入进度', [
+                'import_id' => $importId,
+                'cache_key' => $cacheKey,
+                'query_count' => $queryCount[$importId],
+                'progress_found' => $progress !== null,
+                'progress_data' => $progress,
+            ]);
+        }
+        
         if (!$progress) {
+            \Illuminate\Support\Facades\Log::warning('黑名单导入进度不存在', [
+                'import_id' => $importId,
+                'cache_key' => $cacheKey,
+            ]);
+            
             return response()->json([
-                'message' => '未找到该任务',
+                'message' => '导入任务不存在或已过期'
             ], 404);
         }
-
-        // 计算进度百分比
-        $progress['progress_percentage'] = $progress['total_batches'] > 0
-            ? round(($progress['completed_batches'] / $progress['total_batches']) * 100, 2)
-            : 0;
-
-        return response()->json($progress);
+        
+        return response()->json([
+            'data' => $progress,
+        ]);
     }
 
     /**

@@ -71,7 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('blacklist', [\App\Http\Controllers\Api\BlacklistController::class, 'index']);
     Route::post('blacklist', [\App\Http\Controllers\Api\BlacklistController::class, 'store']);
     Route::post('blacklist/batch-upload', [\App\Http\Controllers\Api\BlacklistController::class, 'batchUpload']);
-    Route::get('blacklist/import-progress/{taskId}', [\App\Http\Controllers\Api\BlacklistController::class, 'importProgress']);
+    Route::get('blacklist/import-progress/{importId}', [\App\Http\Controllers\Api\BlacklistController::class, 'getImportProgress']);
     Route::post('blacklist/check', [\App\Http\Controllers\Api\BlacklistController::class, 'check']);
     Route::delete('blacklist/{blacklist}', [\App\Http\Controllers\Api\BlacklistController::class, 'destroy']);
     Route::post('blacklist/batch-delete', [\App\Http\Controllers\Api\BlacklistController::class, 'batchDestroy']);
