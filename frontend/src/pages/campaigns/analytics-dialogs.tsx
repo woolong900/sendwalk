@@ -133,14 +133,21 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
         </div>
 
         <div className="flex-1 overflow-auto border rounded-lg">
-          <Table className="min-w-[700px]">
+          <Table className="min-w-[960px]">
+            <colgroup>
+              <col className="w-[250px]" />
+              <col className="w-[120px]" />
+              <col className="w-[160px]" />
+              <col className="w-[80px]" />
+              <col className="w-[350px]" />
+            </colgroup>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[200px] max-w-[280px]">邮箱地址</TableHead>
-                <TableHead className="min-w-[100px]">SMTP服务器</TableHead>
-                <TableHead className="min-w-[150px]">发送时间</TableHead>
-                <TableHead className="min-w-[70px]">状态</TableHead>
-                <TableHead className="min-w-[150px] max-w-[400px]">结果</TableHead>
+                <TableHead>邮箱地址</TableHead>
+                <TableHead>SMTP服务器</TableHead>
+                <TableHead>发送时间</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead>结果</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -163,13 +170,15 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
                   
                   return (
                     <TableRow key={log.id}>
-                      <TableCell className="font-mono text-sm truncate" title={log.email}>{log.email}</TableCell>
-                      <TableCell>{log.smtp_server?.name || '-'}</TableCell>
+                      <TableCell className="font-mono text-sm whitespace-nowrap" title={log.email}>
+                        <div className="truncate">{log.email}</div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{log.smtp_server?.name || '-'}</TableCell>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                         {formatDateTime(log.created_at)}
                       </TableCell>
-                      <TableCell className="text-sm">{log.status}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">{log.status}</TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {log.status === 'sent' ? (
                           <span className="text-sm text-green-600 font-medium">OK</span>
                         ) : log.error_message ? (
@@ -356,14 +365,21 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
         </div>
 
         <div className="flex-1 overflow-auto border rounded-lg">
-          <Table className="min-w-[800px]">
+          <Table className="min-w-[1010px]">
+            <colgroup>
+              <col className="w-[250px]" />
+              <col className="w-[100px]" />
+              <col className="w-[150px]" />
+              <col className="w-[350px]" />
+              <col className="w-[160px]" />
+            </colgroup>
             <TableHeader>
               <TableRow>
-                <TableHead className="min-w-[220px] max-w-[280px]">邮箱地址</TableHead>
-                <TableHead className="min-w-[100px]">打开次数</TableHead>
-                <TableHead className="min-w-[130px]">IP地址</TableHead>
-                <TableHead className="min-w-[250px] max-w-[350px]">User Agent</TableHead>
-                <TableHead className="min-w-[160px]">打开时间</TableHead>
+                <TableHead>邮箱地址</TableHead>
+                <TableHead>打开次数</TableHead>
+                <TableHead>IP地址</TableHead>
+                <TableHead>User Agent</TableHead>
+                <TableHead>打开时间</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -385,10 +401,10 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                     return (
                       <>
                         <TableRow key={open.email} className="hover:bg-muted/30">
-                          <TableCell className="font-mono text-sm truncate" title={open.email}>
-                            {open.email}
+                          <TableCell className="font-mono text-sm whitespace-nowrap" title={open.email}>
+                            <div className="truncate">{open.email}</div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="whitespace-nowrap">
                             {open.open_count > 1 ? (
                               <button
                                 onClick={() => fetchEmailDetails(open.email)}
@@ -410,8 +426,8 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                           <TableCell className="font-mono text-xs whitespace-nowrap">
                             {open.first_ip_address || '-'}
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground truncate" title={open.first_user_agent}>
-                            {open.first_user_agent || '-'}
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap" title={open.first_user_agent}>
+                            <div className="truncate">{open.first_user_agent || '-'}</div>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                             {formatDateTime(open.first_opened_at)}
@@ -421,7 +437,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                           <>
                             {emailDetails.map((detail: any, idx: number) => (
                               <TableRow key={detail.id} className="bg-muted/10">
-                                <TableCell className="pl-8 text-xs text-muted-foreground">
+                                <TableCell className="pl-8 text-xs text-muted-foreground whitespace-nowrap">
                                   └ 第 {idx + 2} 次打开
                                 </TableCell>
                                 <TableCell></TableCell>

@@ -214,26 +214,34 @@ export default function TagsPage() {
         // 加载中显示骨架屏
         <Card>
           <div className="overflow-x-auto">
-            <Table className="min-w-[600px]">
+            <Table className="min-w-[900px]">
+              <colgroup>
+                <col className="w-[50px]" />
+                <col className="w-[180px]" />
+                <col className="w-[200px]" />
+                <col className="w-[250px]" />
+                <col className="w-[150px]" />
+                <col className="w-[120px]" />
+              </colgroup>
               <TableHeader>
               <TableRow>
-                <TableHead className="w-[50px]">ID</TableHead>
-                <TableHead className="w-[180px]">标签名称</TableHead>
+                <TableHead>ID</TableHead>
+                <TableHead>标签名称</TableHead>
                 <TableHead>占位符</TableHead>
                 <TableHead>值</TableHead>
-                <TableHead className="w-[180px]">创建时间</TableHead>
-                <TableHead className="text-right w-[120px]">操作</TableHead>
+                <TableHead>创建时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {[...Array(5)].map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-40" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-12" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-40" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -255,7 +263,13 @@ export default function TagsPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <Table className="min-w-[600px]">
+            <Table className="min-w-[720px]">
+              <colgroup>
+                <col className="w-[200px]" />
+                <col className="w-[250px]" />
+                <col className="w-[120px]" />
+                <col className="w-[150px]" />
+              </colgroup>
               <TableHeader>
               <TableRow>
                 <TableHead>标签名称</TableHead>
@@ -267,14 +281,14 @@ export default function TagsPage() {
             <TableBody>
               {tags?.map((tag) => (
                 <TableRow key={tag.id}>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <code className="px-2 py-1 bg-slate-100 rounded text-sm font-mono">
                       {tag.name}
                     </code>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <div className="flex items-center gap-2">
-                      <code className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-sm font-mono">
+                      <code className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-sm font-mono truncate">
                         {tag.placeholder}
                       </code>
                       <Button
@@ -282,17 +296,18 @@ export default function TagsPage() {
                         variant="ghost"
                         onClick={() => copyPlaceholder(tag.placeholder)}
                         title="复制"
+                        className="flex-shrink-0"
                       >
                         <Copy className="w-3 h-3" />
                       </Button>
                     </div>
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="text-center whitespace-nowrap">
                     <Badge variant={tag.values_count > 1 ? 'default' : 'secondary'}>
                       {tag.values_count} 个值
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1">
                       <Button
                         size="sm"

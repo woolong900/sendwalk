@@ -386,26 +386,34 @@ export default function SubscribersPage() {
         // 加载中显示骨架屏
         <Card>
           <div className="overflow-x-auto">
-            <Table className="min-w-[800px]">
+            <Table className="min-w-[880px]">
+              <colgroup>
+                <col className="w-[50px]" />
+                <col className="w-[300px]" />
+                <col className="w-[150px]" />
+                <col className="w-[100px]" />
+                <col className="w-[180px]" />
+                <col className="w-[100px]" />
+              </colgroup>
               <TableHeader>
               <TableRow>
-                <TableHead className="w-[50px]">ID</TableHead>
+                <TableHead>ID</TableHead>
                 <TableHead>邮箱</TableHead>
                 <TableHead>姓名</TableHead>
-                <TableHead className="text-center w-[100px]">状态</TableHead>
-                <TableHead className="w-[180px]">订阅时间</TableHead>
-                <TableHead className="text-right w-[100px]">操作</TableHead>
+                <TableHead className="text-center">状态</TableHead>
+                <TableHead>订阅时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {[...Array(5)].map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                  <TableCell><Skeleton className="h-6 w-16 mx-auto" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-12" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-48" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-24" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-6 w-16 mx-auto" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -434,41 +442,51 @@ export default function SubscribersPage() {
         <>
           <Card>
             <div className="overflow-x-auto">
-              <Table className="min-w-[800px]">
+              <Table className="min-w-[880px]">
+                <colgroup>
+                  <col className="w-[50px]" />
+                  <col className="w-[300px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[100px]" />
+                  <col className="w-[180px]" />
+                  <col className="w-[100px]" />
+                </colgroup>
                 <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[50px]">ID</TableHead>
+                  <TableHead>ID</TableHead>
                   <TableHead>邮箱</TableHead>
                   <TableHead>姓名</TableHead>
-                  <TableHead className="text-center w-[100px]">状态</TableHead>
-                  <TableHead className="w-[180px]">订阅时间</TableHead>
-                  <TableHead className="text-right w-[100px]">操作</TableHead>
+                  <TableHead className="text-center">状态</TableHead>
+                  <TableHead>订阅时间</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {subscribersData?.data.map((subscriber) => (
                   <TableRow key={subscriber.id}>
-                    <TableCell className="font-mono text-muted-foreground">
+                    <TableCell className="font-mono text-muted-foreground whitespace-nowrap">
                       #{subscriber.id}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap">
                       <div className="flex items-center gap-2">
-                        <Mail className="w-4 h-4 text-muted-foreground" />
-                        {subscriber.email}
+                        <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate">{subscriber.email}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      {subscriber.first_name || subscriber.last_name
-                        ? `${subscriber.first_name || ''} ${subscriber.last_name || ''}`.trim()
-                        : '-'}
+                    <TableCell className="whitespace-nowrap">
+                      <div className="truncate">
+                        {subscriber.first_name || subscriber.last_name
+                          ? `${subscriber.first_name || ''} ${subscriber.last_name || ''}`.trim()
+                          : '-'}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="text-center whitespace-nowrap">
                       {getStatusBadge(subscriber.list_status || subscriber.status)}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                       {formatDateTime(subscriber.subscribed_at || subscriber.created_at)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right whitespace-nowrap">
                       <Button
                         size="sm"
                         variant="outline"

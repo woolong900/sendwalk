@@ -600,10 +600,17 @@ export default function BlacklistPage() {
           ) : (
             <>
               <div className="overflow-x-auto">
-                <Table className="min-w-[700px]">
+                <Table className="min-w-[820px]">
+                  <colgroup>
+                    <col className="w-[48px]" />
+                    <col className="w-[300px]" />
+                    <col className="w-[200px]" />
+                    <col className="w-[150px]" />
+                    <col className="w-[120px]" />
+                  </colgroup>
                   <TableHeader>
                   <TableRow>
-                    <TableHead className="w-12">
+                    <TableHead>
                       <input
                         type="checkbox"
                         checked={selectedIds.length === blacklist.length && blacklist.length > 0}
@@ -620,7 +627,7 @@ export default function BlacklistPage() {
                 <TableBody>
                   {blacklist.map((entry) => (
                     <TableRow key={entry.id}>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(entry.id)}
@@ -628,15 +635,17 @@ export default function BlacklistPage() {
                           className="rounded border-gray-300"
                         />
                       </TableCell>
-                      <TableCell className="font-mono text-sm">{entry.email}</TableCell>
-                      <TableCell>
+                      <TableCell className="font-mono text-sm whitespace-nowrap">
+                        <div className="truncate">{entry.email}</div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {entry.reason ? (
                           <Badge variant="secondary">{entry.reason}</Badge>
                         ) : (
                           <span className="text-muted-foreground text-sm">-</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
                         {(() => {
                           const d = new Date(entry.created_at)
                           const year = d.getFullYear()
@@ -645,7 +654,7 @@ export default function BlacklistPage() {
                           return `${year}/${month}/${day}`
                         })()}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right whitespace-nowrap">
                         <Button
                           variant="ghost"
                           size="sm"

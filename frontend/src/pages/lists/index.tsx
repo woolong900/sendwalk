@@ -246,23 +246,30 @@ export default function ListsPage() {
         <Card>
           <div className="overflow-x-auto">
             <Table className="min-w-[700px]">
+              <colgroup>
+                <col className="w-[50px]" />
+                <col className="w-[200px]" />
+                <col className="w-[120px]" />
+                <col className="w-[180px]" />
+                <col className="w-[150px]" />
+              </colgroup>
               <TableHeader>
               <TableRow>
-                <TableHead className="w-[50px]">ID</TableHead>
-                <TableHead className="w-[200px]">标题</TableHead>
-                <TableHead className="text-center w-[120px]">订阅者</TableHead>
-                <TableHead className="w-[180px]">创建时间</TableHead>
-                <TableHead className="text-right w-[150px]">操作</TableHead>
+                <TableHead>ID</TableHead>
+                <TableHead>标题</TableHead>
+                <TableHead className="text-center">订阅者</TableHead>
+                <TableHead>创建时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {[...Array(5)].map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-40" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
-                  <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                  <TableCell><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-12" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-40" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-32" /></TableCell>
+                  <TableCell className="whitespace-nowrap"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -285,13 +292,20 @@ export default function ListsPage() {
         <Card>
           <div className="overflow-x-auto">
             <Table className="min-w-[700px]">
+              <colgroup>
+                <col className="w-[50px]" />
+                <col className="w-[200px]" />
+                <col className="w-[120px]" />
+                <col className="w-[180px]" />
+                <col className="w-[150px]" />
+              </colgroup>
               <TableHeader>
               <TableRow>
-                <TableHead className="w-[50px]">ID</TableHead>
-                <TableHead className="w-[200px]">标题</TableHead>
-                <TableHead className="text-center w-[120px]">订阅者</TableHead>
-                <TableHead className="w-[180px]">创建时间</TableHead>
-                <TableHead className="text-right w-[150px]">操作</TableHead>
+                <TableHead>ID</TableHead>
+                <TableHead>标题</TableHead>
+                <TableHead className="text-center">订阅者</TableHead>
+                <TableHead>创建时间</TableHead>
+                <TableHead className="text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -301,27 +315,27 @@ export default function ListsPage() {
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => navigate(`/lists/${list.id}/subscribers`)}
                 >
-                  <TableCell className="font-mono text-muted-foreground">
+                  <TableCell className="font-mono text-muted-foreground whitespace-nowrap">
                     #{list.id}
                   </TableCell>
-                  <TableCell>
-                    <div className="font-medium text-primary">
+                  <TableCell className="whitespace-nowrap">
+                    <div className="font-medium text-primary truncate">
                       {list.name}
                     </div>
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="text-center whitespace-nowrap">
                     <div className="flex items-center justify-center gap-1">
-                      <Users className="w-4 h-4 text-muted-foreground" />
+                      <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                       <span className="font-semibold">{list.subscribers_count || 0}</span>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Clock className="w-4 h-4" />
+                      <Clock className="w-4 h-4 flex-shrink-0" />
                       {formatDateTime(list.created_at)}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end -space-x-px">
                       <Button
                         size="sm"
