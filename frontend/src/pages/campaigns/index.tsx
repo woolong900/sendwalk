@@ -418,13 +418,13 @@ export default function CampaignsPage() {
         // 加载中显示骨架屏
         <Card>
           <div className="overflow-x-auto">
-            <Table className="min-w-[900px] table-fixed">
+            <Table className="min-w-[900px]">
               <TableHeader>
               <TableRow>
                 <TableHead className="w-[60px]">ID</TableHead>
-                <TableHead>标题</TableHead>
-                <TableHead className="text-center w-20">状态</TableHead>
-                <TableHead>目标列表</TableHead>
+                <TableHead className="w-[200px]">标题</TableHead>
+                <TableHead className="text-center w-[80px]">状态</TableHead>
+                <TableHead className="w-[150px]">目标列表</TableHead>
                 <TableHead className="w-[160px]">发送进度</TableHead>
                 <TableHead className="w-[140px]">预定发送时间</TableHead>
                 <TableHead className="text-right w-[200px]">操作</TableHead>
@@ -475,13 +475,13 @@ export default function CampaignsPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <Table className="min-w-[900px] table-fixed">
+            <Table className="min-w-[900px]">
               <TableHeader>
               <TableRow>
                 <TableHead className="w-[60px]">ID</TableHead>
-                <TableHead>标题</TableHead>
-                <TableHead className="text-center w-20">状态</TableHead>
-                <TableHead>列表</TableHead>
+                <TableHead className="w-[200px]">标题</TableHead>
+                <TableHead className="text-center w-[80px]">状态</TableHead>
+                <TableHead className="w-[150px]">列表</TableHead>
                 <TableHead className="text-center w-[160px]">发送进度</TableHead>
                 <TableHead className="text-center w-[100px]">打开率</TableHead>
                 <TableHead className="text-center w-[100px]">点击率</TableHead>
