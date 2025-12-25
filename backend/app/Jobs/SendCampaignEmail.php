@@ -264,6 +264,21 @@ class SendCampaignEmail implements ShouldQueue
             throw $e;
             
         } catch (\Exception $e) {
+            $errorMessage = $e->getMessage();
+            
+            // 🚨 检测 "Excessive message rate" 错误并自动暂停服务器
+            if (isset($smtpServer) && $this->isRateLimitError($errorMessage)) {
+                $smtpServer->pauseTemporarily(5, 'Excessive message rate detected');
+                
+                Log::warning('SMTP server auto-paused due to rate limit error', [
+                    'campaign_id' => $this->campaign->id,
+                    'smtp_server_id' => $smtpServer->id,
+                    'smtp_server_name' => $smtpServer->name,
+                    'error_message' => $errorMessage,
+                    'pause_duration' => '5 minutes',
+                ]);
+            }
+            
             Log::error('Failed to send campaign email', [
                 'campaign_id' => $this->campaign->id,
                 'campaign_name' => $this->campaign->name,
@@ -273,7 +288,7 @@ class SendCampaignEmail implements ShouldQueue
                 'smtp_server_name' => $smtpServer->name ?? null,
                 'smtp_server_type' => $smtpServer->type ?? null,
                 'from_email' => $this->fromEmail ?? $this->campaign->from_email,
-                'error' => $e->getMessage(),
+                'error' => $errorMessage,
                 'exception' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -594,6 +609,36 @@ class SendCampaignEmail implements ShouldQueue
                 'total_processed' => $totalProcessed,
             ]);
         }
+    }
+    
+    /**
+     * 检测是否为频率限制错误
+     * 
+     * @param string $errorMessage
+     * @return bool
+     */
+    private function isRateLimitError(string $errorMessage): bool
+    {
+        $rateLimitPatterns = [
+            '/excessive message rate/i',
+            '/too many messages/i',
+            '/rate limit exceeded/i',
+            '/sending rate exceeded/i',
+            '/throttle/i',
+            '/quota exceeded/i',
+            '/message rate limit/i',
+            '/451 4\.7\.0/i', // Temporary rate limit
+            '/452 4\.2\.1/i', // User has exceeded the max number of connections
+            '/421 4\.7\.0/i', // Too many errors from your IP
+        ];
+        
+        foreach ($rateLimitPatterns as $pattern) {
+            if (preg_match($pattern, $errorMessage)) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 }
 

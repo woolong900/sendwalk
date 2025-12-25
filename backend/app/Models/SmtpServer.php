@@ -55,7 +55,73 @@ class SmtpServer extends Model
      */
     public function canSend(): bool
     {
+        // 首先检查是否被临时暂停
+        if ($this->isTemporarilyPaused()) {
+            return false;
+        }
+        
         return $this->checkRateLimits()['can_send'];
+    }
+    
+    /**
+     * 检查服务器是否被临时暂停
+     */
+    public function isTemporarilyPaused(): bool
+    {
+        $cacheKey = "smtp_server_paused_{$this->id}";
+        return Cache::has($cacheKey);
+    }
+    
+    /**
+     * 获取暂停剩余时间（秒）
+     */
+    public function getPauseRemainingTime(): ?int
+    {
+        $cacheKey = "smtp_server_paused_{$this->id}";
+        $pausedUntil = Cache::get($cacheKey);
+        
+        if (!$pausedUntil) {
+            return null;
+        }
+        
+        $remaining = $pausedUntil - time();
+        return $remaining > 0 ? $remaining : null;
+    }
+    
+    /**
+     * 临时暂停服务器
+     * 
+     * @param int $minutes 暂停分钟数
+     * @param string $reason 暂停原因
+     */
+    public function pauseTemporarily(int $minutes = 5, string $reason = 'Rate limit exceeded'): void
+    {
+        $cacheKey = "smtp_server_paused_{$this->id}";
+        $pausedUntil = time() + ($minutes * 60);
+        
+        Cache::put($cacheKey, $pausedUntil, $minutes * 60);
+        
+        \Log::warning('SMTP server temporarily paused', [
+            'server_id' => $this->id,
+            'server_name' => $this->name,
+            'pause_minutes' => $minutes,
+            'paused_until' => date('Y-m-d H:i:s', $pausedUntil),
+            'reason' => $reason,
+        ]);
+    }
+    
+    /**
+     * 手动恢复服务器（取消暂停）
+     */
+    public function resume(): void
+    {
+        $cacheKey = "smtp_server_paused_{$this->id}";
+        Cache::forget($cacheKey);
+        
+        \Log::info('SMTP server resumed', [
+            'server_id' => $this->id,
+            'server_name' => $this->name,
+        ]);
     }
 
     /**
@@ -75,6 +141,17 @@ class SmtpServer extends Model
                 'blocked_by' => 'inactive',
                 'available' => 0,
                 'wait_seconds' => null,
+            ];
+        }
+        
+        // 检查是否被临时暂停
+        if ($this->isTemporarilyPaused()) {
+            $remainingTime = $this->getPauseRemainingTime();
+            return [
+                'can_send' => false,
+                'blocked_by' => 'temporarily_paused',
+                'available' => 0,
+                'wait_seconds' => $remainingTime,
             ];
         }
 
@@ -249,6 +326,8 @@ class SmtpServer extends Model
             'max_available' => $limitCheck['available'],
             'most_restrictive' => $mostRestrictive,
             'wait_seconds' => $limitCheck['wait_seconds'],
+            'is_paused' => $this->isTemporarilyPaused(),
+            'pause_remaining_seconds' => $this->getPauseRemainingTime(),
         ];
     }
 

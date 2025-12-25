@@ -428,8 +428,37 @@ class SmtpServerController extends Controller
             return response()->json(['message' => '无权访问'], 403);
         }
 
+        $status = $smtpServer->getRateLimitStatus();
+        
+        // 添加暂停状态信息
+        $status['is_paused'] = $smtpServer->isTemporarilyPaused();
+        $status['pause_remaining_seconds'] = $smtpServer->getPauseRemainingTime();
+        
         return response()->json([
-            'data' => $smtpServer->getRateLimitStatus(),
+            'data' => $status,
+        ]);
+    }
+    
+    /**
+     * 手动恢复被暂停的 SMTP 服务器
+     */
+    public function resume(Request $request, SmtpServer $smtpServer)
+    {
+        if ($smtpServer->user_id !== $request->user()->id) {
+            return response()->json(['message' => '无权访问'], 403);
+        }
+        
+        if (!$smtpServer->isTemporarilyPaused()) {
+            return response()->json([
+                'message' => '服务器未被暂停',
+            ], 422);
+        }
+        
+        $smtpServer->resume();
+        
+        return response()->json([
+            'message' => '服务器已恢复',
+            'data' => $smtpServer,
         ]);
     }
 }
