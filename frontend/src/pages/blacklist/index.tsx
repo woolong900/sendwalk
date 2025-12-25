@@ -84,8 +84,7 @@ export default function BlacklistPage() {
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
-  const [fileUploadProgress, setFileUploadProgress] = useState(0) // 文件上传进度
-  const [processingProgress, setProcessingProgress] = useState(0) // 导入处理进度（本地状态）
+  const [processingProgress, setProcessingProgress] = useState(0) // 导入处理进度
   const [importResult, setImportResult] = useState<{
     added: number
     already_exists: number
@@ -179,33 +178,24 @@ export default function BlacklistPage() {
       }
       
       setIsUploading(true)
-      setFileUploadProgress(0)
       setProcessingProgress(0)
       setImportResult(null)
       
       return api.post('/blacklist/batch-upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            setFileUploadProgress(percentCompleted)
-          }
-        },
       })
     },
     onSuccess: (response) => {
       const data = response.data.data
       
       if (data.import_id) {
-        // 文件上传完成（100%），开始后台处理
-        setFileUploadProgress(100)
+        // 文件上传完成，开始后台处理
         setImportTaskId(data.import_id)
         pollImportProgress(data.import_id)
       }
     },
     onError: () => {
       setIsUploading(false)
-      setFileUploadProgress(0)
       setProcessingProgress(0)
       toast.error('上传失败，请重试')
     },
@@ -481,7 +471,6 @@ export default function BlacklistPage() {
                           setSelectedFile(null)
                           setBatchFormData({ reason: '' })
                           setImportResult(null)
-                          setFileUploadProgress(0)
                           setProcessingProgress(0)
                         }}
                       >
@@ -507,7 +496,6 @@ export default function BlacklistPage() {
                         setSelectedFile(null)
                         setBatchFormData({ reason: '' })
                         setImportResult(null)
-                        setFileUploadProgress(0)
                         setProcessingProgress(0)
                       }}
                     >
