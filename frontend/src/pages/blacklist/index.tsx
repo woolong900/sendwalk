@@ -85,7 +85,7 @@ export default function BlacklistPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [fileUploadProgress, setFileUploadProgress] = useState(0) // 文件上传进度
-  const [importProgress, setImportProgress] = useState(0) // 导入处理进度
+  const [processingProgress, setProcessingProgress] = useState(0) // 导入处理进度（本地状态）
   const [importResult, setImportResult] = useState<{
     added: number
     already_exists: number
@@ -97,7 +97,7 @@ export default function BlacklistPage() {
 
   const queryClient = useQueryClient()
 
-  // 查询导入进度
+  // 查询导入进度（从服务器）
   const { data: importProgress, refetch: refetchProgress } = useQuery<ImportProgress>({
     queryKey: ['blacklist-import-progress', importTaskId],
     queryFn: async () => {
@@ -180,7 +180,7 @@ export default function BlacklistPage() {
       
       setIsUploading(true)
       setFileUploadProgress(0)
-      setImportProgress(0)
+      setProcessingProgress(0)
       setImportResult(null)
       
       return api.post('/blacklist/batch-upload', formData, {
@@ -206,7 +206,7 @@ export default function BlacklistPage() {
     onError: () => {
       setIsUploading(false)
       setFileUploadProgress(0)
-      setImportProgress(0)
+      setProcessingProgress(0)
       toast.error('上传失败，请重试')
     },
   })
@@ -220,7 +220,7 @@ export default function BlacklistPage() {
         
         // 更新处理进度
         if (progress.progress !== undefined) {
-          setImportProgress(progress.progress)
+          setProcessingProgress(progress.progress)
         }
         
         // 更新结果显示（始终更新，不管是否为0）
@@ -237,7 +237,7 @@ export default function BlacklistPage() {
         if (progress.status === 'completed') {
           clearInterval(pollInterval)
           setIsUploading(false)
-          setImportProgress(100)
+          setProcessingProgress(100)
           
           // 更新最终结果
           setImportResult({
@@ -433,9 +433,9 @@ export default function BlacklistPage() {
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                           <span>处理进度</span>
-                          <span>{importProgress}%</span>
+                          <span>{processingProgress}%</span>
                         </div>
-                        <Progress value={importProgress} />
+                        <Progress value={processingProgress} />
                       </div>
                     )}
                     
@@ -521,7 +521,7 @@ export default function BlacklistPage() {
                         setBatchFormData({ reason: '' })
                         setImportResult(null)
                         setFileUploadProgress(0)
-                        setImportProgress(0)
+                        setProcessingProgress(0)
                       }}
                     >
                       关闭
