@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { FileText, Mail, Search, Eye, EyeOff, AlertOctagon } from 'lucide-react'
+import { FileText, Mail, Search, Eye, EyeOff, AlertOctagon, CheckCircle, XCircle, UserX } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,27 @@ interface EmailOpensDialogProps {
 }
 
 interface AbuseReportsDialogProps {
+  campaignId: number | null
+  campaignName: string
+  open: boolean
+  onClose: () => void
+}
+
+interface BouncesDialogProps {
+  campaignId: number | null
+  campaignName: string
+  open: boolean
+  onClose: () => void
+}
+
+interface UnsubscribesDialogProps {
+  campaignId: number | null
+  campaignName: string
+  open: boolean
+  onClose: () => void
+}
+
+interface DeliveriesDialogProps {
   campaignId: number | null
   campaignName: string
   open: boolean

@@ -36,6 +36,7 @@ import {
 import { api } from '@/lib/api'
 import { useConfirm } from '@/hooks/use-confirm'
 import { SendLogsDialog, EmailOpensDialog, AbuseReportsDialog } from './analytics-dialogs'
+import { DeliveriesDialog, BouncesDialog, UnsubscribesDialog } from './stats-dialogs'
 
 interface CustomTag {
   id: number
@@ -105,6 +106,21 @@ export default function CampaignsPage() {
     campaignName: '',
   })
   const [abuseReportsDialog, setAbuseReportsDialog] = useState<{ open: boolean; campaignId: number | null; campaignName: string }>({
+    open: false,
+    campaignId: null,
+    campaignName: '',
+  })
+  const [deliveriesDialog, setDeliveriesDialog] = useState<{ open: boolean; campaignId: number | null; campaignName: string }>({
+    open: false,
+    campaignId: null,
+    campaignName: '',
+  })
+  const [bouncesDialog, setBouncesDialog] = useState<{ open: boolean; campaignId: number | null; campaignName: string }>({
+    open: false,
+    campaignId: null,
+    campaignName: '',
+  })
+  const [unsubscribesDialog, setUnsubscribesDialog] = useState<{ open: boolean; campaignId: number | null; campaignName: string }>({
     open: false,
     campaignId: null,
     campaignName: '',
@@ -519,11 +535,11 @@ export default function CampaignsPage() {
                 <TableHead className="text-center">状态</TableHead>
                 <TableHead>列表</TableHead>
                 <TableHead className="text-center">发送进度</TableHead>
+                <TableHead className="text-center">送达率</TableHead>
                 <TableHead className="text-center">打开率</TableHead>
                 <TableHead className="text-center">点击率</TableHead>
                 <TableHead className="text-center">取消订阅</TableHead>
                 <TableHead className="text-center">投诉率</TableHead>
-                <TableHead className="text-center">送达率</TableHead>
                 <TableHead className="text-center">弹回率</TableHead>
                 <TableHead className="text-center">时间</TableHead>
                 <TableHead className="text-right">操作</TableHead>
@@ -577,6 +593,20 @@ export default function CampaignsPage() {
                   </TableCell>
                   <TableCell className="text-center whitespace-nowrap">
                     <button
+                      onClick={() => setDeliveriesDialog({ open: true, campaignId: campaign.id, campaignName: campaign.name })}
+                      className="flex flex-col items-center gap-1 w-full hover:opacity-70 transition-opacity cursor-pointer"
+                      disabled={campaign.total_delivered === 0}
+                    >
+                      <span className="font-medium">
+                        {campaign.delivery_rate?.toFixed(1) || 0}%
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {campaign.total_delivered || 0} / {campaign.total_sent || 0}
+                      </span>
+                    </button>
+                  </TableCell>
+                  <TableCell className="text-center whitespace-nowrap">
+                    <button
                       onClick={() => setEmailOpensDialog({ open: true, campaignId: campaign.id, campaignName: campaign.name })}
                       className="flex flex-col items-center gap-1 w-full hover:opacity-70 transition-opacity cursor-pointer"
                       disabled={campaign.total_opened === 0}
@@ -600,14 +630,18 @@ export default function CampaignsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center whitespace-nowrap">
-                    <div className="flex flex-col items-center gap-1">
+                    <button
+                      onClick={() => setUnsubscribesDialog({ open: true, campaignId: campaign.id, campaignName: campaign.name })}
+                      className="flex flex-col items-center gap-1 w-full hover:opacity-70 transition-opacity cursor-pointer"
+                      disabled={campaign.total_unsubscribed === 0}
+                    >
                       <span className="font-medium">
                         {campaign.unsubscribe_rate?.toFixed(1) || 0}%
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {campaign.total_unsubscribed || 0} 次
                       </span>
-                    </div>
+                    </button>
                   </TableCell>
                   <TableCell className="text-center whitespace-nowrap">
                     <button
@@ -624,24 +658,18 @@ export default function CampaignsPage() {
                     </button>
                   </TableCell>
                   <TableCell className="text-center whitespace-nowrap">
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="font-medium">
-                        {campaign.delivery_rate?.toFixed(1) || 0}%
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {campaign.total_delivered || 0} / {campaign.total_sent || 0}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center whitespace-nowrap">
-                    <div className="flex flex-col items-center gap-1">
+                    <button
+                      onClick={() => setBouncesDialog({ open: true, campaignId: campaign.id, campaignName: campaign.name })}
+                      className="flex flex-col items-center gap-1 w-full hover:opacity-70 transition-opacity cursor-pointer"
+                      disabled={campaign.total_bounced === 0}
+                    >
                       <span className="font-medium">
                         {campaign.bounce_rate?.toFixed(1) || 0}%
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {campaign.total_bounced || 0} 次
                       </span>
-                    </div>
+                    </button>
                   </TableCell>
                   <TableCell className="text-center whitespace-nowrap">
                     {campaign.scheduled_at ? (
@@ -847,6 +875,30 @@ export default function CampaignsPage() {
         campaignName={abuseReportsDialog.campaignName}
         open={abuseReportsDialog.open}
         onClose={() => setAbuseReportsDialog({ open: false, campaignId: null, campaignName: '' })}
+      />
+
+      {/* 送达记录对话框 */}
+      <DeliveriesDialog
+        campaignId={deliveriesDialog.campaignId}
+        campaignName={deliveriesDialog.campaignName}
+        open={deliveriesDialog.open}
+        onClose={() => setDeliveriesDialog({ open: false, campaignId: null, campaignName: '' })}
+      />
+
+      {/* 弹回记录对话框 */}
+      <BouncesDialog
+        campaignId={bouncesDialog.campaignId}
+        campaignName={bouncesDialog.campaignName}
+        open={bouncesDialog.open}
+        onClose={() => setBouncesDialog({ open: false, campaignId: null, campaignName: '' })}
+      />
+
+      {/* 取消订阅记录对话框 */}
+      <UnsubscribesDialog
+        campaignId={unsubscribesDialog.campaignId}
+        campaignName={unsubscribesDialog.campaignName}
+        open={unsubscribesDialog.open}
+        onClose={() => setUnsubscribesDialog({ open: false, campaignId: null, campaignName: '' })}
       />
     </div>
   )

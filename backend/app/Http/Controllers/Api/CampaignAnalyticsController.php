@@ -7,6 +7,8 @@ use App\Models\Campaign;
 use App\Models\SendLog;
 use App\Models\EmailOpen;
 use App\Models\AbuseReport;
+use App\Models\BounceLog;
+use App\Models\ListSubscriber;
 use Illuminate\Http\Request;
 
 class CampaignAnalyticsController extends Controller
@@ -191,5 +193,109 @@ class CampaignAnalyticsController extends Controller
         $reports = $query->paginate($perPage);
 
         return response()->json($reports);
+    }
+
+    /**
+     * 获取特定活动的弹回记录
+     */
+    public function getBounces(Request $request, $campaignId)
+    {
+        $campaign = Campaign::findOrFail($campaignId);
+        
+        // 检查权限
+        if ($campaign->user_id !== $request->user()->id) {
+            return response()->json(['message' => '无权访问此活动'], 403);
+        }
+
+        $query = BounceLog::with('subscriber')
+            ->where('campaign_id', $campaignId)
+            ->orderBy('created_at', 'desc');
+
+        // 支持搜索
+        if ($request->search) {
+            $query->where('email', 'like', '%' . $request->search . '%');
+        }
+
+        $perPage = $request->per_page ?? 50;
+        $bounces = $query->paginate($perPage);
+
+        return response()->json($bounces);
+    }
+
+    /**
+     * 获取特定活动的取消订阅记录
+     */
+    public function getUnsubscribes(Request $request, $campaignId)
+    {
+        $campaign = Campaign::findOrFail($campaignId);
+        
+        // 检查权限
+        if ($campaign->user_id !== $request->user()->id) {
+            return response()->json(['message' => '无权访问此活动'], 403);
+        }
+
+        // 获取该活动关联的列表
+        $listIds = $campaign->lists()->pluck('lists.id')->toArray();
+        if (empty($listIds)) {
+            // 如果使用的是单个列表
+            $listIds = [$campaign->list_id];
+        }
+
+        $query = ListSubscriber::with(['subscriber', 'list'])
+            ->whereIn('list_id', $listIds)
+            ->where('status', 'unsubscribed')
+            ->whereNotNull('unsubscribed_at')
+            ->orderBy('unsubscribed_at', 'desc');
+
+        // 支持搜索
+        if ($request->search) {
+            $query->whereHas('subscriber', function($q) use ($request) {
+                $q->where('email', 'like', '%' . $request->search . '%');
+            });
+        }
+
+        $perPage = $request->per_page ?? 50;
+        $unsubscribes = $query->paginate($perPage);
+
+        // 格式化数据
+        $unsubscribes->getCollection()->transform(function($item) {
+            return [
+                'id' => $item->id,
+                'email' => $item->subscriber->email ?? 'N/A',
+                'list_name' => $item->list->name ?? 'N/A',
+                'unsubscribed_at' => $item->unsubscribed_at,
+                'subscriber' => $item->subscriber,
+            ];
+        });
+
+        return response()->json($unsubscribes);
+    }
+
+    /**
+     * 获取特定活动的送达记录（成功发送的邮件）
+     */
+    public function getDeliveries(Request $request, $campaignId)
+    {
+        $campaign = Campaign::findOrFail($campaignId);
+        
+        // 检查权限
+        if ($campaign->user_id !== $request->user()->id) {
+            return response()->json(['message' => '无权访问此活动'], 403);
+        }
+
+        $query = SendLog::with(['subscriber', 'smtpServer'])
+            ->where('campaign_id', $campaignId)
+            ->where('status', 'delivered')
+            ->orderBy('completed_at', 'desc');
+
+        // 支持搜索
+        if ($request->search) {
+            $query->where('email', 'like', '%' . $request->search . '%');
+        }
+
+        $perPage = $request->per_page ?? 50;
+        $deliveries = $query->paginate($perPage);
+
+        return response()->json($deliveries);
     }
 }
