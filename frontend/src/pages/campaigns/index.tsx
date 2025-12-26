@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/dialog'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/hooks/use-confirm'
-import { SendLogsDialog, EmailOpensDialog } from './analytics-dialogs'
+import { SendLogsDialog, EmailOpensDialog, AbuseReportsDialog } from './analytics-dialogs'
 
 interface CustomTag {
   id: number
@@ -72,8 +72,15 @@ interface Campaign {
   total_delivered: number
   total_opened: number
   total_clicked: number
+  total_bounced: number
+  total_complained: number
+  total_unsubscribed: number
   open_rate: number
   click_rate: number
+  complaint_rate: number
+  delivery_rate: number
+  bounce_rate: number
+  unsubscribe_rate: number
   scheduled_at: string | null
   sent_at: string | null
   created_at: string
@@ -93,6 +100,11 @@ export default function CampaignsPage() {
     campaignName: '',
   })
   const [emailOpensDialog, setEmailOpensDialog] = useState<{ open: boolean; campaignId: number | null; campaignName: string }>({
+    open: false,
+    campaignId: null,
+    campaignName: '',
+  })
+  const [abuseReportsDialog, setAbuseReportsDialog] = useState<{ open: boolean; campaignId: number | null; campaignName: string }>({
     open: false,
     campaignId: null,
     campaignName: '',
@@ -484,13 +496,17 @@ export default function CampaignsPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <Table className="min-w-[1190px]">
+            <Table className="min-w-[1590px]">
               <colgroup>
                 <col className="w-[60px]" />
                 <col className="w-[200px]" />
                 <col className="w-[80px]" />
                 <col className="w-[150px]" />
                 <col className="w-[160px]" />
+                <col className="w-[100px]" />
+                <col className="w-[100px]" />
+                <col className="w-[100px]" />
+                <col className="w-[100px]" />
                 <col className="w-[100px]" />
                 <col className="w-[100px]" />
                 <col className="w-[140px]" />
@@ -505,6 +521,10 @@ export default function CampaignsPage() {
                 <TableHead className="text-center">发送进度</TableHead>
                 <TableHead className="text-center">打开率</TableHead>
                 <TableHead className="text-center">点击率</TableHead>
+                <TableHead className="text-center">取消订阅</TableHead>
+                <TableHead className="text-center">投诉率</TableHead>
+                <TableHead className="text-center">送达率</TableHead>
+                <TableHead className="text-center">弹回率</TableHead>
                 <TableHead className="text-center">时间</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
@@ -576,6 +596,50 @@ export default function CampaignsPage() {
                       </span>
                       <span className="text-xs text-muted-foreground">
                         {campaign.total_clicked || 0} 次
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center whitespace-nowrap">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="font-medium">
+                        {campaign.unsubscribe_rate?.toFixed(1) || 0}%
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {campaign.total_unsubscribed || 0} 次
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center whitespace-nowrap">
+                    <button
+                      onClick={() => setAbuseReportsDialog({ open: true, campaignId: campaign.id, campaignName: campaign.name })}
+                      className="flex flex-col items-center gap-1 w-full hover:opacity-70 transition-opacity cursor-pointer"
+                      disabled={campaign.total_complained === 0}
+                    >
+                      <span className="font-medium">
+                        {campaign.complaint_rate?.toFixed(1) || 0}%
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {campaign.total_complained || 0} 次
+                      </span>
+                    </button>
+                  </TableCell>
+                  <TableCell className="text-center whitespace-nowrap">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="font-medium">
+                        {campaign.delivery_rate?.toFixed(1) || 0}%
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {campaign.total_delivered || 0} / {campaign.total_sent || 0}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center whitespace-nowrap">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="font-medium">
+                        {campaign.bounce_rate?.toFixed(1) || 0}%
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {campaign.total_bounced || 0} 次
                       </span>
                     </div>
                   </TableCell>
@@ -775,6 +839,14 @@ export default function CampaignsPage() {
         campaignName={emailOpensDialog.campaignName}
         open={emailOpensDialog.open}
         onClose={() => setEmailOpensDialog({ open: false, campaignId: null, campaignName: '' })}
+      />
+
+      {/* 投诉报告对话框 */}
+      <AbuseReportsDialog
+        campaignId={abuseReportsDialog.campaignId}
+        campaignName={abuseReportsDialog.campaignName}
+        open={abuseReportsDialog.open}
+        onClose={() => setAbuseReportsDialog({ open: false, campaignId: null, campaignName: '' })}
       />
     </div>
   )

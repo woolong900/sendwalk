@@ -92,6 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('campaigns/{campaign}/email-opens', [CampaignAnalyticsController::class, 'getEmailOpens']);
     Route::get('campaigns/{campaign}/email-open-details', [CampaignAnalyticsController::class, 'getEmailOpenDetails']);
     Route::get('campaigns/{campaign}/open-stats', [CampaignAnalyticsController::class, 'getOpenStats']);
+    Route::get('campaigns/{campaign}/abuse-reports', [CampaignAnalyticsController::class, 'getAbuseReports']);
 
     // Automations
     Route::apiResource('automations', AutomationController::class);

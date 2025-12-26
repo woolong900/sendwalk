@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\SendLog;
 use App\Models\EmailOpen;
+use App\Models\AbuseReport;
 use Illuminate\Http\Request;
 
 class CampaignAnalyticsController extends Controller
@@ -163,5 +164,32 @@ class CampaignAnalyticsController extends Controller
                 'open_rate' => $campaign->open_rate,
             ]
         ]);
+    }
+
+    /**
+     * 获取特定活动的投诉报告
+     */
+    public function getAbuseReports(Request $request, $campaignId)
+    {
+        $campaign = Campaign::findOrFail($campaignId);
+        
+        // 检查权限
+        if ($campaign->user_id !== $request->user()->id) {
+            return response()->json(['message' => '无权访问此活动'], 403);
+        }
+
+        $query = AbuseReport::with('subscriber')
+            ->where('campaign_id', $campaignId)
+            ->orderBy('created_at', 'desc');
+
+        // 支持搜索
+        if ($request->search) {
+            $query->where('email', 'like', '%' . $request->search . '%');
+        }
+
+        $perPage = $request->per_page ?? 50;
+        $reports = $query->paginate($perPage);
+
+        return response()->json($reports);
     }
 }

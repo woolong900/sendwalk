@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { FileText, Mail, Search, Eye, EyeOff } from 'lucide-react'
+import { FileText, Mail, Search, Eye, EyeOff, AlertOctagon } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,13 @@ interface SendLogsDialogProps {
 }
 
 interface EmailOpensDialogProps {
+  campaignId: number | null
+  campaignName: string
+  open: boolean
+  onClose: () => void
+}
+
+interface AbuseReportsDialogProps {
   campaignId: number | null
   campaignName: string
   open: boolean
@@ -498,6 +505,156 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                 variant="outline"
                 onClick={() => setCurrentPage(opensData.last_page)}
                 disabled={currentPage === opensData.last_page}
+              >
+                尾页
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: AbuseReportsDialogProps) {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['campaign-abuse-reports', campaignId, searchTerm, currentPage],
+    queryFn: async () => {
+      if (!campaignId) return null
+      const response = await api.get(`/campaigns/${campaignId}/abuse-reports`, {
+        params: {
+          search: searchTerm || undefined,
+          page: currentPage,
+          per_page: 50,
+        },
+      })
+      return response.data
+    },
+    enabled: open && !!campaignId,
+    placeholderData: (previousData) => previousData,
+  })
+
+  const handleClose = () => {
+    setCurrentPage(1)
+    setSearchTerm('')
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertOctagon className="w-5 h-5 text-red-500" />
+            投诉报告 - {campaignName}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex gap-2 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="搜索邮箱地址..."
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="pl-8"
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto border rounded-lg">
+          {isLoading ? (
+            <div className="p-8 text-center text-muted-foreground">加载中...</div>
+          ) : !data || data.data.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              {searchTerm ? '未找到匹配的投诉记录' : '暂无投诉记录'}
+            </div>
+          ) : (
+            <Table className="min-w-[800px]">
+              <colgroup>
+                <col className="w-[250px]" />
+                <col className="w-[200px]" />
+                <col className="w-[200px]" />
+                <col className="w-[150px]" />
+              </colgroup>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="whitespace-nowrap">邮箱地址</TableHead>
+                  <TableHead className="whitespace-nowrap">投诉原因</TableHead>
+                  <TableHead className="whitespace-nowrap">IP 地址</TableHead>
+                  <TableHead className="whitespace-nowrap">投诉时间</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.data.map((report: any, index: number) => (
+                  <TableRow key={index}>
+                    <TableCell className="whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <div className="truncate">{report.email}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <div className="truncate">
+                        {report.reason || '-'}
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <code className="text-xs bg-muted px-2 py-1 rounded">
+                        {report.ip_address || '-'}
+                      </code>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                      {formatDateTime(report.created_at)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
+
+        {data && data.last_page > 1 && (
+          <div className="flex items-center justify-between pt-4">
+            <div className="text-sm text-muted-foreground">
+              第 {data.from || 0} - {data.to || 0} 条，共 {data.total} 条
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+              >
+                首页
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                上一页
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCurrentPage(p => Math.min(data.last_page, p + 1))}
+                disabled={currentPage === data.last_page}
+              >
+                下一页
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCurrentPage(data.last_page)}
+                disabled={currentPage === data.last_page}
               >
                 尾页
               </Button>

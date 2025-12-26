@@ -45,6 +45,10 @@ class Campaign extends Model
     protected $appends = [
         'open_rate',
         'click_rate',
+        'complaint_rate',
+        'delivery_rate',
+        'bounce_rate',
+        'unsubscribe_rate',
         'list_ids',
     ];
 
@@ -80,6 +84,11 @@ class Campaign extends Model
         return $this->hasMany(Link::class);
     }
 
+    public function abuseReports()
+    {
+        return $this->hasMany(AbuseReport::class);
+    }
+
     public function getOpenRateAttribute()
     {
         if ($this->total_delivered == 0) return 0;
@@ -90,6 +99,30 @@ class Campaign extends Model
     {
         if ($this->total_delivered == 0) return 0;
         return round(($this->total_clicked / $this->total_delivered) * 100, 2);
+    }
+
+    public function getComplaintRateAttribute()
+    {
+        if ($this->total_delivered == 0) return 0;
+        return round(($this->total_complained / $this->total_delivered) * 100, 2);
+    }
+
+    public function getDeliveryRateAttribute()
+    {
+        if ($this->total_sent == 0) return 0;
+        return round(($this->total_delivered / $this->total_sent) * 100, 2);
+    }
+
+    public function getBounceRateAttribute()
+    {
+        if ($this->total_sent == 0) return 0;
+        return round(($this->total_bounced / $this->total_sent) * 100, 2);
+    }
+
+    public function getUnsubscribeRateAttribute()
+    {
+        if ($this->total_delivered == 0) return 0;
+        return round(($this->total_unsubscribed / $this->total_delivered) * 100, 2);
     }
 
     public function getListIdsAttribute()
