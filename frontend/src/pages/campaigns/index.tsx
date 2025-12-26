@@ -36,7 +36,7 @@ import {
 import { api } from '@/lib/api'
 import { useConfirm } from '@/hooks/use-confirm'
 import { SendLogsDialog, EmailOpensDialog, AbuseReportsDialog } from './analytics-dialogs'
-import { DeliveriesDialog, BouncesDialog, UnsubscribesDialog } from './stats-dialogs'
+import { BouncesDialog, UnsubscribesDialog } from './stats-dialogs'
 
 interface CustomTag {
   id: number
@@ -106,11 +106,6 @@ export default function CampaignsPage() {
     campaignName: '',
   })
   const [abuseReportsDialog, setAbuseReportsDialog] = useState<{ open: boolean; campaignId: number | null; campaignName: string }>({
-    open: false,
-    campaignId: null,
-    campaignName: '',
-  })
-  const [deliveriesDialog, setDeliveriesDialog] = useState<{ open: boolean; campaignId: number | null; campaignName: string }>({
     open: false,
     campaignId: null,
     campaignName: '',
@@ -593,9 +588,9 @@ export default function CampaignsPage() {
                   </TableCell>
                   <TableCell className="text-center whitespace-nowrap">
                     <button
-                      onClick={() => setDeliveriesDialog({ open: true, campaignId: campaign.id, campaignName: campaign.name })}
+                      onClick={() => setSendLogsDialog({ open: true, campaignId: campaign.id, campaignName: campaign.name })}
                       className="flex flex-col items-center gap-1 w-full hover:opacity-70 transition-opacity cursor-pointer"
-                      disabled={campaign.total_delivered === 0}
+                      disabled={campaign.total_sent === 0}
                     >
                       <span className="font-medium">
                         {campaign.delivery_rate?.toFixed(1) || 0}%
@@ -875,14 +870,6 @@ export default function CampaignsPage() {
         campaignName={abuseReportsDialog.campaignName}
         open={abuseReportsDialog.open}
         onClose={() => setAbuseReportsDialog({ open: false, campaignId: null, campaignName: '' })}
-      />
-
-      {/* 送达记录对话框 */}
-      <DeliveriesDialog
-        campaignId={deliveriesDialog.campaignId}
-        campaignName={deliveriesDialog.campaignName}
-        open={deliveriesDialog.open}
-        onClose={() => setDeliveriesDialog({ open: false, campaignId: null, campaignName: '' })}
       />
 
       {/* 弹回记录对话框 */}
