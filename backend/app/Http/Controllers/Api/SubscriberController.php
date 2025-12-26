@@ -10,11 +10,30 @@ class SubscriberController extends Controller
 {
     public function index(Request $request)
     {
+        $startTime = microtime(true);
+        $requestId = uniqid('req_');
+        
+        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 开始处理列表请求', [
+            'request_id' => $requestId,
+            'user_id' => $request->user()->id ?? 'N/A',
+            'list_id' => $request->get('list_id'),
+            'status' => $request->get('status'),
+            'search' => $request->get('search'),
+            'page' => $request->get('page', 1),
+            'timestamp' => now()->toIso8601String(),
+        ]);
+        
         $query = Subscriber::query();
 
         // Filter by list
+        $listFilterStart = microtime(true);
         if ($request->has('list_id')) {
             $listId = $request->list_id;
+            
+            \Illuminate\Support\Facades\Log::info('[性能-订阅者] 添加列表过滤', [
+                'request_id' => $requestId,
+                'list_id' => $listId,
+            ]);
             
             $query->whereHas('lists', function ($q) use ($listId) {
                 $q->where('lists.id', $listId);
@@ -38,8 +57,15 @@ class SubscriberController extends Controller
                 $query->where('status', $request->status);
             }
         }
+        $listFilterDuration = (microtime(true) - $listFilterStart) * 1000;
+        
+        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 列表过滤条件添加完成', [
+            'request_id' => $requestId,
+            'duration_ms' => round($listFilterDuration, 2),
+        ]);
 
         // Search
+        $searchStart = microtime(true);
         if ($request->has('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -47,11 +73,54 @@ class SubscriberController extends Controller
                     ->orWhere('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%");
             });
+            $searchDuration = (microtime(true) - $searchStart) * 1000;
+            
+            \Illuminate\Support\Facades\Log::info('[性能-订阅者] 搜索条件添加完成', [
+                'request_id' => $requestId,
+                'search_term' => $search,
+                'duration_ms' => round($searchDuration, 2),
+            ]);
         }
 
+        // 获取SQL并记录
+        $sql = $query->latest()->toSql();
+        $bindings = $query->getBindings();
+        
+        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 准备执行SQL', [
+            'request_id' => $requestId,
+            'sql' => $sql,
+            'bindings_count' => count($bindings),
+        ]);
+
+        // 执行数据库查询
+        $dbQueryStart = microtime(true);
         $subscribers = $query->latest()->paginate(15);
+        $dbQueryDuration = (microtime(true) - $dbQueryStart) * 1000;
+        
+        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 数据库查询完成', [
+            'request_id' => $requestId,
+            'duration_ms' => round($dbQueryDuration, 2),
+            'total_records' => $subscribers->total(),
+            'current_page' => $subscribers->currentPage(),
+            'per_page' => $subscribers->perPage(),
+            'last_page' => $subscribers->lastPage(),
+            'returned_count' => $subscribers->count(),
+        ]);
+        
+        // 如果查询超过200ms，记录警告
+        if ($dbQueryDuration > 200) {
+            \Illuminate\Support\Facades\Log::warning('[性能-订阅者] 数据库查询慢', [
+                'request_id' => $requestId,
+                'duration_ms' => round($dbQueryDuration, 2),
+                'threshold_ms' => 200,
+                'has_list_filter' => $request->has('list_id'),
+                'has_status_filter' => $request->has('status'),
+                'has_search' => $request->has('search'),
+            ]);
+        }
         
         // 如果有 list_id，为每个订阅者添加在该列表中的状态
+        $postProcessStart = microtime(true);
         if ($request->has('list_id')) {
             $items = $subscribers->items();
             foreach ($items as $subscriber) {
@@ -64,8 +133,17 @@ class SubscriberController extends Controller
                 }
             }
         }
+        $postProcessDuration = (microtime(true) - $postProcessStart) * 1000;
+        
+        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 后处理完成', [
+            'request_id' => $requestId,
+            'duration_ms' => round($postProcessDuration, 2),
+            'processed_count' => $subscribers->count(),
+        ]);
 
-        return response()->json([
+        // 构建响应
+        $responseStart = microtime(true);
+        $response = response()->json([
             'data' => $subscribers->items(),
             'meta' => [
                 'current_page' => $subscribers->currentPage(),
@@ -74,6 +152,33 @@ class SubscriberController extends Controller
                 'total' => $subscribers->total(),
             ],
         ]);
+        $responseDuration = (microtime(true) - $responseStart) * 1000;
+        
+        $totalDuration = (microtime(true) - $startTime) * 1000;
+        
+        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 请求处理完成', [
+            'request_id' => $requestId,
+            'list_filter_ms' => round($listFilterDuration, 2),
+            'db_query_ms' => round($dbQueryDuration, 2),
+            'post_process_ms' => round($postProcessDuration, 2),
+            'response_build_ms' => round($responseDuration, 2),
+            'total_duration_ms' => round($totalDuration, 2),
+            'total_records' => $subscribers->total(),
+            'returned_count' => $subscribers->count(),
+        ]);
+        
+        // 如果总耗时超过1秒，记录警告
+        if ($totalDuration > 1000) {
+            \Illuminate\Support\Facades\Log::warning('[性能-订阅者] 请求处理慢', [
+                'request_id' => $requestId,
+                'total_duration_ms' => round($totalDuration, 2),
+                'threshold_ms' => 1000,
+                'db_query_ms' => round($dbQueryDuration, 2),
+                'percentage_in_db' => round(($dbQueryDuration / $totalDuration) * 100, 1) . '%',
+            ]);
+        }
+
+        return $response;
     }
 
     public function store(Request $request)

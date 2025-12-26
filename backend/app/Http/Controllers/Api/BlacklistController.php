@@ -13,23 +13,110 @@ class BlacklistController extends Controller
      */
     public function index(Request $request)
     {
+        $startTime = microtime(true);
+        $requestId = uniqid('req_');
+        
+        \Illuminate\Support\Facades\Log::info('[性能-黑名单] 开始处理列表请求', [
+            'request_id' => $requestId,
+            'user_id' => $request->user()->id,
+            'page' => $request->get('page', 1),
+            'per_page' => $request->get('per_page', 15),
+            'has_search' => $request->has('search'),
+            'search_term' => $request->get('search'),
+            'timestamp' => now()->toIso8601String(),
+        ]);
+        
         $perPage = $request->get('per_page', 15);
         
-        // 只查询必要字段，减少数据传输
+        // 步骤1: 构建查询
+        $queryBuildStart = microtime(true);
         $query = Blacklist::select(['id', 'email', 'reason', 'created_at'])
             ->where('user_id', $request->user()->id);
+        $queryBuildDuration = (microtime(true) - $queryBuildStart) * 1000;
+        
+        \Illuminate\Support\Facades\Log::info('[性能-黑名单] 查询构建完成', [
+            'request_id' => $requestId,
+            'duration_ms' => round($queryBuildDuration, 2),
+        ]);
 
         // Search filter
         if ($request->has('search') && !empty($request->search)) {
+            $searchStart = microtime(true);
             $search = $request->search;
             $query->where('email', 'like', "%{$search}%");
+            $searchDuration = (microtime(true) - $searchStart) * 1000;
+            
+            \Illuminate\Support\Facades\Log::info('[性能-黑名单] 搜索条件添加完成', [
+                'request_id' => $requestId,
+                'search_term' => $search,
+                'duration_ms' => round($searchDuration, 2),
+            ]);
         }
 
-        // 使用 ID 倒序代替 created_at 排序（利用主键索引，更快）
-        // 对于大数据集，ID排序比时间戳排序快10倍以上
+        // 步骤2: 获取SQL并记录
+        $sql = $query->orderBy('id', 'desc')->toSql();
+        $bindings = $query->getBindings();
+        
+        \Illuminate\Support\Facades\Log::info('[性能-黑名单] 准备执行SQL', [
+            'request_id' => $requestId,
+            'sql' => $sql,
+            'bindings' => $bindings,
+        ]);
+        
+        // 步骤3: 执行数据库查询
+        $dbQueryStart = microtime(true);
         $blacklist = $query->orderBy('id', 'desc')->paginate($perPage);
+        $dbQueryDuration = (microtime(true) - $dbQueryStart) * 1000;
+        
+        \Illuminate\Support\Facades\Log::info('[性能-黑名单] 数据库查询完成', [
+            'request_id' => $requestId,
+            'duration_ms' => round($dbQueryDuration, 2),
+            'total_records' => $blacklist->total(),
+            'current_page' => $blacklist->currentPage(),
+            'per_page' => $blacklist->perPage(),
+            'last_page' => $blacklist->lastPage(),
+            'returned_count' => $blacklist->count(),
+        ]);
+        
+        // 如果查询超过100ms，记录警告
+        if ($dbQueryDuration > 100) {
+            \Illuminate\Support\Facades\Log::warning('[性能-黑名单] 数据库查询慢', [
+                'request_id' => $requestId,
+                'duration_ms' => round($dbQueryDuration, 2),
+                'threshold_ms' => 100,
+                'total_records' => $blacklist->total(),
+            ]);
+        }
 
-        return response()->json($blacklist);
+        // 步骤4: 构建JSON响应
+        $responseStart = microtime(true);
+        $response = response()->json($blacklist);
+        $responseDuration = (microtime(true) - $responseStart) * 1000;
+        
+        $totalDuration = (microtime(true) - $startTime) * 1000;
+        
+        \Illuminate\Support\Facades\Log::info('[性能-黑名单] 请求处理完成', [
+            'request_id' => $requestId,
+            'query_build_ms' => round($queryBuildDuration, 2),
+            'db_query_ms' => round($dbQueryDuration, 2),
+            'response_build_ms' => round($responseDuration, 2),
+            'total_duration_ms' => round($totalDuration, 2),
+            'total_records' => $blacklist->total(),
+            'returned_count' => $blacklist->count(),
+        ]);
+        
+        // 如果总耗时超过500ms，记录警告
+        if ($totalDuration > 500) {
+            \Illuminate\Support\Facades\Log::warning('[性能-黑名单] 请求处理慢', [
+                'request_id' => $requestId,
+                'total_duration_ms' => round($totalDuration, 2),
+                'threshold_ms' => 500,
+                'db_query_ms' => round($dbQueryDuration, 2),
+                'percentage_in_db' => round(($dbQueryDuration / $totalDuration) * 100, 1) . '%',
+            ]);
+        }
+
+        return $response;
     }
 
     /**
