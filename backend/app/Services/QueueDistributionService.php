@@ -56,9 +56,18 @@ class QueueDistributionService
         $jobsData = [];
         $now = time();
         
-        foreach ($subscribers as $subscriber) {
+        foreach ($subscribers as $subscriberData) {
+            // 支持两种格式：直接的订阅者对象 或 包含订阅者和列表ID的数组
+            if (is_array($subscriberData)) {
+                $subscriber = $subscriberData['subscriber'];
+                $listId = $subscriberData['list_id'] ?? null;
+            } else {
+                $subscriber = $subscriberData;
+                $listId = null;
+            }
+            
             // 创建 Job 实例以获取 payload
-            $job = new SendCampaignEmail($campaign, $subscriber);
+            $job = new SendCampaignEmail($campaign, $subscriber, $listId);
             
             // 准备 job 数据
             $jobsData[] = [

@@ -33,7 +33,8 @@ class SendCampaignEmail implements ShouldQueue
      */
     public function __construct(
         public Campaign $campaign,
-        public Subscriber $subscriber
+        public Subscriber $subscriber,
+        public ?int $listId = null
     ) {}
 
     /**
@@ -211,9 +212,16 @@ class SendCampaignEmail implements ShouldQueue
             $replyTo = $this->campaign->reply_to ?: $this->fromEmail;
 
             // Get list information for headers
-            $listId = $this->campaign->list_id;
             $userId = $this->campaign->user_id;
-            $listName = $this->campaign->list->name ?? null;
+            
+            // 使用订阅者实际所属的列表
+            if ($this->listId) {
+                $listId = $this->listId;
+                $listName = \App\Models\MailingList::find($this->listId)->name ?? null;
+            } else {
+                $listId = $this->campaign->list_id;
+                $listName = $this->campaign->list->name ?? null;
+            }
 
             // Send email
             $emailService->send(
@@ -385,7 +393,20 @@ class SendCampaignEmail implements ShouldQueue
     {
         $senderDomain = $this->getSenderDomain();
         $unsubscribeUrl = $this->getUnsubscribeUrl($subscriber);
-        $listName = $this->campaign->lists()->first()->name ?? $this->campaign->list->name ?? '';
+        
+        // 获取订阅者所属的列表名称
+        if ($this->listId) {
+            // 使用指定的列表 ID
+            $listName = \App\Models\MailingList::find($this->listId)->name ?? '';
+        } else {
+            // 如果没有指定，尝试从订阅者的列表关系中获取（与活动列表交集的第一个）
+            $campaignListIds = $this->campaign->list_ids ?? [$this->campaign->list_id];
+            $subscriberList = $subscriber->lists()
+                ->whereIn('lists.id', $campaignListIds)
+                ->first();
+            $listName = $subscriberList->name ?? $this->campaign->list->name ?? '';
+        }
+        
         $serverName = $this->campaign->smtpServer->name ?? '';
         
         // 订阅者标签（只支持花括号格式 {}）

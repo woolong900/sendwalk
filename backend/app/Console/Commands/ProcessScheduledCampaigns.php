@@ -57,26 +57,43 @@ class ProcessScheduledCampaigns extends Command
             }
             
             // 获取所有列表中的活跃订阅者（去重）
-            $subscribers = Subscriber::whereHas('lists', function ($query) use ($listIds) {
-                $query->whereIn('lists.id', $listIds)
-                      ->where('list_subscriber.status', 'active');
-            })->distinct()->get();
+            // 为每个列表获取订阅者，保留列表关系信息
+            $subscribersWithList = [];
+            $uniqueSubscriberIds = [];
+            
+            foreach ($listIds as $listId) {
+                $listSubscribers = Subscriber::whereHas('lists', function ($query) use ($listId) {
+                    $query->where('lists.id', $listId)
+                          ->where('list_subscriber.status', 'active');
+                })->get();
+                
+                foreach ($listSubscribers as $subscriber) {
+                    // 使用订阅者ID去重，确保每个订阅者只发送一次
+                    if (!in_array($subscriber->id, $uniqueSubscriberIds)) {
+                        $subscribersWithList[] = [
+                            'subscriber' => $subscriber,
+                            'list_id' => $listId,
+                        ];
+                        $uniqueSubscriberIds[] = $subscriber->id;
+                    }
+                }
+            }
 
-            if ($subscribers->isEmpty()) {
+            if (empty($subscribersWithList)) {
                 $this->warn("  ⚠️  活动 {$campaign->name} 没有订阅者，跳过");
                 continue;
             }
 
             // 更新总收件人数
             $campaign->update([
-                'total_recipients' => $subscribers->count(),
+                'total_recipients' => count($subscribersWithList),
             ]);
 
             // ✅ 现在才创建 jobs！使用智能分配服务
             $distributionService = new QueueDistributionService();
-            $result = $distributionService->distributeEvenly($campaign, $subscribers);
+            $result = $distributionService->distributeEvenly($campaign, $subscribersWithList);
 
-            $this->info("  ✅ 已创建 {$subscribers->count()} 个发送任务");
+            $this->info("  ✅ 已创建 " . count($subscribersWithList) . " 个发送任务");
             $this->info("     队列: {$result['queue']}");
             $this->info("     分配策略: {$result['distribution']}");
         }
