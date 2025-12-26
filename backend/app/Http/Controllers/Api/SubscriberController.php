@@ -270,30 +270,40 @@ class SubscriberController extends Controller
      */
     public function getImportProgress(Request $request, string $importId)
     {
+        $startTime = microtime(true);
+        $requestId = uniqid('req_');
+        
+        \Illuminate\Support\Facades\Log::info('[性能] 开始处理导入进度请求', [
+            'request_id' => $requestId,
+            'import_id' => $importId,
+            'timestamp' => now()->toIso8601String(),
+        ]);
+        
         $cacheKey = "import_progress:{$importId}";
+        
+        // 记录缓存查询开始
+        $cacheStartTime = microtime(true);
         $progress = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        $cacheDuration = (microtime(true) - $cacheStartTime) * 1000;
         
-        // 记录查询日志（只记录前5次）
-        static $queryCount = [];
-        if (!isset($queryCount[$importId])) {
-            $queryCount[$importId] = 0;
-        }
-        $queryCount[$importId]++;
-        
-        if ($queryCount[$importId] <= 5) {
-            \Illuminate\Support\Facades\Log::info('查询导入进度', [
-                'import_id' => $importId,
-                'cache_key' => $cacheKey,
-                'query_count' => $queryCount[$importId],
-                'progress_found' => $progress !== null,
-                'progress_data' => $progress,
-            ]);
-        }
+        \Illuminate\Support\Facades\Log::info('[性能] 缓存查询完成', [
+            'request_id' => $requestId,
+            'import_id' => $importId,
+            'cache_key' => $cacheKey,
+            'duration_ms' => round($cacheDuration, 2),
+            'progress_found' => $progress !== null,
+            'progress_status' => $progress['status'] ?? 'N/A',
+            'progress_percent' => $progress['progress'] ?? 'N/A',
+        ]);
         
         if (!$progress) {
-            \Illuminate\Support\Facades\Log::warning('导入进度不存在', [
+            $totalDuration = (microtime(true) - $startTime) * 1000;
+            
+            \Illuminate\Support\Facades\Log::warning('[性能] 导入进度不存在', [
+                'request_id' => $requestId,
                 'import_id' => $importId,
                 'cache_key' => $cacheKey,
+                'total_duration_ms' => round($totalDuration, 2),
             ]);
             
             return response()->json([
@@ -301,9 +311,25 @@ class SubscriberController extends Controller
             ], 404);
         }
         
-        return response()->json([
+        // 准备响应
+        $responseStartTime = microtime(true);
+        $response = response()->json([
             'data' => $progress,
         ]);
+        $responseDuration = (microtime(true) - $responseStartTime) * 1000;
+        
+        $totalDuration = (microtime(true) - $startTime) * 1000;
+        
+        \Illuminate\Support\Facades\Log::info('[性能] 请求处理完成', [
+            'request_id' => $requestId,
+            'import_id' => $importId,
+            'cache_duration_ms' => round($cacheDuration, 2),
+            'response_duration_ms' => round($responseDuration, 2),
+            'total_duration_ms' => round($totalDuration, 2),
+            'progress_status' => $progress['status'] ?? 'N/A',
+        ]);
+        
+        return $response;
     }
 
     public function bulkDelete(Request $request)
