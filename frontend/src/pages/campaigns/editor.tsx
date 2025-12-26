@@ -104,11 +104,11 @@ export default function CampaignEditorPage() {
     },
   })
 
-  // 获取列表
+  // 获取列表（获取所有列表用于选择）
   const { data: lists } = useQuery<MailingList[]>({
-    queryKey: ['lists'],
+    queryKey: ['lists-all'],
     queryFn: async () => {
-      const response = await api.get('/lists')
+      const response = await api.get('/lists?all=true')
       return response.data.data
     },
   })

@@ -11,7 +11,7 @@ class ListController extends Controller
     public function index(Request $request)
     {
         // 直接使用缓存的计数字段，避免复杂的关联查询
-        $lists = MailingList::where('user_id', $request->user()->id)
+        $query = MailingList::where('user_id', $request->user()->id)
             ->select([
                 'id',
                 'name',
@@ -21,8 +21,18 @@ class ListController extends Controller
                 'created_at',
                 'updated_at',
             ])
-            ->latest()
-            ->paginate(15);
+            ->latest();
+
+        // 如果请求参数包含 all=true，则返回所有列表（用于表单选择）
+        if ($request->query('all') === 'true') {
+            $lists = $query->get();
+            return response()->json([
+                'data' => $lists,
+            ]);
+        }
+
+        // 否则使用分页（用于列表页面）
+        $lists = $query->paginate(15);
 
         return response()->json([
             'data' => $lists->items(),

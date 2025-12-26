@@ -74,6 +74,7 @@ export default function ListsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lists'] })
+      queryClient.invalidateQueries({ queryKey: ['lists-all'] })
       toast.success('列表创建成功')
       setIsCreateOpen(false)
       resetForm()
@@ -88,6 +89,7 @@ export default function ListsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lists'] })
+      queryClient.invalidateQueries({ queryKey: ['lists-all'] })
       toast.success('列表更新成功')
       setIsEditOpen(false)
       setEditingList(null)
@@ -103,6 +105,7 @@ export default function ListsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lists'] })
+      queryClient.invalidateQueries({ queryKey: ['lists-all'] })
       toast.success('列表删除成功')
     },
     // onError 已由全局拦截器处理
