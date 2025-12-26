@@ -251,7 +251,7 @@ export default function BlacklistPage() {
         clearInterval(pollInterval)
         setIsUploading(false)
       }
-    }, 1000) // 每秒轮询一次
+    }, 3000) // 每3秒轮询一次（优化：减少请求频率）
   }
 
   // 删除单个
