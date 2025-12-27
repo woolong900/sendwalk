@@ -34,6 +34,17 @@ class ListController extends Controller
         // 否则使用分页（用于列表页面）
         $lists = $query->paginate(15);
 
+        // 计算总体统计数据（基于所有列表，不是当前页）
+        $allLists = MailingList::where('user_id', $request->user()->id)
+            ->select(['subscribers_count', 'unsubscribed_count'])
+            ->get();
+        
+        $stats = [
+            'total_lists' => $allLists->count(),
+            'total_subscribers' => $allLists->sum('subscribers_count'),
+            'total_unsubscribed' => $allLists->sum('unsubscribed_count'),
+        ];
+
         return response()->json([
             'data' => $lists->items(),
             'meta' => [
@@ -42,6 +53,7 @@ class ListController extends Controller
                 'per_page' => $lists->perPage(),
                 'total' => $lists->total(),
             ],
+            'stats' => $stats,
         ]);
     }
 

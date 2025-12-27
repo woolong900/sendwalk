@@ -43,6 +43,21 @@ interface MailingList {
   updated_at: string
 }
 
+interface ListsResponse {
+  data: MailingList[]
+  meta: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+  stats: {
+    total_lists: number
+    total_subscribers: number
+    total_unsubscribed: number
+  }
+}
+
 export default function ListsPage() {
   const { confirm, ConfirmDialog } = useConfirm()
   
@@ -51,6 +66,7 @@ export default function ListsPage() {
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editingList, setEditingList] = useState<MailingList | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -59,13 +75,17 @@ export default function ListsPage() {
   const queryClient = useQueryClient()
 
   // 获取列表
-  const { data: lists, isLoading } = useQuery<MailingList[]>({
-    queryKey: ['lists'],
+  const { data: listsResponse, isLoading } = useQuery<ListsResponse>({
+    queryKey: ['lists', currentPage],
     queryFn: async () => {
-      const response = await api.get('/lists')
-      return response.data.data
+      const response = await api.get(`/lists?page=${currentPage}`)
+      return response.data
     },
   })
+  
+  const lists = listsResponse?.data || []
+  const meta = listsResponse?.meta
+  const stats = listsResponse?.stats
 
   // 创建列表
   const createMutation = useMutation({
@@ -77,6 +97,7 @@ export default function ListsPage() {
       queryClient.invalidateQueries({ queryKey: ['lists-all'] })
       toast.success('列表创建成功')
       setIsCreateOpen(false)
+      setCurrentPage(1) // 返回第一页
       resetForm()
     },
     // onError 已由全局拦截器处理
@@ -107,6 +128,10 @@ export default function ListsPage() {
       queryClient.invalidateQueries({ queryKey: ['lists'] })
       queryClient.invalidateQueries({ queryKey: ['lists-all'] })
       toast.success('列表删除成功')
+      // 如果删除后当前页为空且不是第一页，返回上一页
+      if (lists.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1)
+      }
     },
     // onError 已由全局拦截器处理
   })
@@ -155,17 +180,10 @@ export default function ListsPage() {
   }
 
   // 搜索过滤
-  const filteredLists = lists?.filter((list) =>
+  const filteredLists = lists.filter((list) =>
     list.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     list.description?.toLowerCase().includes(searchTerm.toLowerCase())
   )
-
-  // 统计数据
-  const stats = {
-    totalLists: lists?.length || 0,
-    totalSubscribers: lists?.reduce((sum, list) => sum + (list.subscribers_count || 0), 0) || 0,
-    totalUnsubscribed: lists?.reduce((sum, list) => sum + (list.unsubscribed_count || 0), 0) || 0,
-  }
 
   return (
     <div className="space-y-6">
@@ -189,7 +207,7 @@ export default function ListsPage() {
             <ListFilter className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalLists}</div>
+            <div className="text-2xl font-bold">{stats?.total_lists || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">
               已创建的邮件列表
             </p>
@@ -201,7 +219,7 @@ export default function ListsPage() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalSubscribers}</div>
+            <div className="text-2xl font-bold">{stats?.total_subscribers || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">
               所有列表的订阅者总数
             </p>
@@ -211,11 +229,11 @@ export default function ListsPage() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">总取消订阅</CardTitle>
             <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700">
-              {stats.totalUnsubscribed}
+              {stats?.total_unsubscribed || 0}
             </Badge>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{stats.totalUnsubscribed}</div>
+            <div className="text-2xl font-bold text-orange-600">{stats?.total_unsubscribed || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">
               从所有列表取消订阅的总数
             </p>
@@ -224,7 +242,7 @@ export default function ListsPage() {
       </div>
 
       {/* 搜索栏 */}
-      {lists && lists.length > 0 && (
+      {lists.length > 0 && (
         <div className="flex items-center gap-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -237,14 +255,14 @@ export default function ListsPage() {
           </div>
           {searchTerm && (
             <p className="text-sm text-muted-foreground">
-              找到 {filteredLists?.length || 0} 个结果
+              找到 {filteredLists.length} 个结果
             </p>
           )}
         </div>
       )}
 
       {/* 列表表格 */}
-      {isLoading || !lists ? (
+      {isLoading ? (
         // 加载中显示骨架屏
         <Card>
           <div className="overflow-x-auto">
@@ -312,7 +330,7 @@ export default function ListsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLists?.map((list) => (
+              {filteredLists.map((list) => (
                 <TableRow 
                   key={list.id}
                   className="cursor-pointer hover:bg-muted/50 transition-colors"
@@ -366,6 +384,33 @@ export default function ListsPage() {
             </TableBody>
             </Table>
           </div>
+          
+          {/* 分页 */}
+          {meta && meta.last_page > 1 && !searchTerm && (
+            <div className="flex items-center justify-between border-t px-6 py-4">
+              <p className="text-sm text-muted-foreground">
+                第 {meta.current_page} 页，共 {meta.last_page} 页 · 总共 {meta.total} 个列表
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  上一页
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === meta.last_page}
+                >
+                  下一页
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
