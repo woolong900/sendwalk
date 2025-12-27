@@ -69,41 +69,97 @@ The label's for attribute doesn't match any element id.
 
 ## 解决方案
 
-### 方案 1：使用 useRef 追踪状态（已采用）
+### 最终方案：三重保护机制（已采用）
+
+#### 1. 在 setFormData 之前先设置 ref
 
 ```typescript
-const defaultServerSetRef = useRef(false) // 标记是否已设置默认服务器
-
-// 在加载活动数据时设置标记
 useEffect(() => {
   if (campaign) {
     const serverId = campaign.smtp_server_id ? campaign.smtp_server_id.toString() : ''
     
-    setFormData({ ...formData, smtp_server_id: serverId })
-    
-    // 编辑模式下，标记已有服务器设置
+    // 🔑 关键：在 setFormData 之前先设置 ref，防止时序窗口问题
     if (serverId) {
       defaultServerSetRef.current = true
     }
+    
+    setFormData({
+      ...formData,
+      smtp_server_id: serverId,
+    })
   }
 }, [campaign])
+```
 
-// 自动选择默认服务器（仅在创建新活动且未设置过时）
+**为什么这样做？**
+- `setFormData` 会触发第二个 useEffect（因为 `formData.smtp_server_id` 在依赖项中）
+- 如果先执行 `setFormData` 再设置 ref，中间有时间窗口
+- 第二个 useEffect 可能在 ref 被设置为 true 之前执行
+- 结果：错误地自动选择默认服务器
+
+**时序对比**：
+
+```
+❌ 错误顺序：
+1. setFormData (smtp_server_id = '3')
+2. → 触发第二个 useEffect
+3. → 此时 ref 还是 false
+4. → 自动选择默认服务器（错误！）
+5. defaultServerSetRef.current = true （太晚了）
+
+✅ 正确顺序：
+1. defaultServerSetRef.current = true
+2. setFormData (smtp_server_id = '3')
+3. → 触发第二个 useEffect
+4. → 检查 ref，已经是 true
+5. → 直接返回（正确！）
+```
+
+#### 2. 多重检查机制
+
+```typescript
 useEffect(() => {
+  // 检查 1：编辑模式完全跳过
   if (isEditing) {
-    return // 编辑模式下完全跳过
+    return
   }
   
-  // 使用 ref 防止重复设置
-  if (smtpServers && smtpServers.length > 0 && !defaultServerSetRef.current && !formData.smtp_server_id) {
+  // 检查 2：已设置过就跳过
+  if (defaultServerSetRef.current) {
+    return
+  }
+  
+  // 检查 3：有 SMTP 服务器且未选择时才自动选择
+  if (smtpServers && smtpServers.length > 0 && !formData.smtp_server_id) {
     const defaultServer = smtpServers.find(s => s.is_default && s.is_active)
     if (defaultServer) {
-      setFormData(prev => ({ ...prev, smtp_server_id: defaultServer.id.toString() }))
-      defaultServerSetRef.current = true
+      // ...
     }
   }
 }, [smtpServers, isEditing, formData.smtp_server_id])
 ```
+
+**为什么需要三重检查？**
+- 每一层都是一个防护网
+- 即使前面的检查有延迟，后面的检查也能拦截
+- 确保在任何竞态条件下都不会错误触发
+
+#### 3. 函数式更新 + 状态再检查
+
+```typescript
+setFormData(prev => {
+  // 🔑 在更新函数中再次检查，基于最新状态
+  if (prev.smtp_server_id) {
+    return prev // 如果已有值，不覆盖
+  }
+  return { ...prev, smtp_server_id: defaultServer.id.toString() }
+})
+```
+
+**为什么需要这一层？**
+- 函数式更新确保基于最新状态
+- 即使前面的所有检查都通过了，更新时再检查一次
+- 这是最后一道防线
 
 **优势**：
 - ✅ 使用 ref 追踪是否已设置，ref 的变化不会触发重新渲染
@@ -258,12 +314,79 @@ useEffect(() => {
 
 - `frontend/src/pages/campaigns/editor.tsx` - 活动编辑器主文件
 
+## 关键改进点总结
+
+### 改进 1：调整操作顺序（最关键）
+
+**问题**：`setFormData` 和设置 ref 之间有时间窗口
+
+**修复前**：
+```typescript
+setFormData({ smtp_server_id: '3' })  // 1. 设置状态
+↓ 触发第二个 useEffect
+defaultServerSetRef.current = true     // 2. 设置 ref（太晚了）
+```
+
+**修复后**：
+```typescript
+defaultServerSetRef.current = true     // 1. 先设置 ref
+setFormData({ smtp_server_id: '3' })  // 2. 再设置状态
+↓ 触发第二个 useEffect（ref 已经是 true，正确跳过）
+```
+
+### 改进 2：独立的 ref 检查
+
+```typescript
+// 即使 isEditing 检查有延迟，ref 检查也能拦截
+if (defaultServerSetRef.current) {
+  return
+}
+```
+
+### 改进 3：函数式更新保护
+
+```typescript
+setFormData(prev => {
+  if (prev.smtp_server_id) return prev  // 最后一道防线
+  return { ...prev, smtp_server_id: value }
+})
+```
+
+## 为什么需要三重保护？
+
+| 场景 | 第一层（isEditing） | 第二层（ref） | 第三层（函数式更新） |
+|------|-------------------|--------------|-------------------|
+| 正常创建 | ✅ 通过 | ✅ 通过 | ✅ 通过 → 设置默认 |
+| 正常编辑 | ❌ 拦截 | - | - |
+| 编辑但 ref 已设置 | ✅ 通过 | ❌ 拦截 | - |
+| 极端竞态 | ✅ 通过 | ✅ 通过 | ❌ 拦截 |
+
+每一层都是一个安全网，确保在任何情况下都不会错误设置。
+
+## 测试建议
+
+### 压力测试
+
+重复以下操作 20-50 次，观察是否还有问题：
+
+1. 编辑活动（ID 20）
+2. 强制刷新浏览器（Ctrl+Shift+R）
+3. 检查服务器是否正确显示
+
+### 正常测试
+
+- ✅ 创建新活动：应该自动选择默认服务器
+- ✅ 编辑活动：应该显示原有服务器
+- ✅ 手动更改：更改后不会被覆盖
+- ✅ 页面刷新：保持原有选择
+
 ## 总结
 
-这次修复解决了两个问题：
+这次修复通过**三重保护机制**解决了竞态条件：
 
-1. **竞态条件**：使用 useRef 追踪状态，避免闭包陷阱
-2. **Label 警告**：移除 htmlFor 或给 SelectTrigger 添加 id
+1. **操作顺序优化**：先设置 ref，再触发状态更新
+2. **多重检查**：三层独立检查，层层拦截
+3. **函数式更新**：基于最新状态，最后一道防线
 
-修复后，无论服务器列表何时加载，活动编辑器都能正确显示和保持 SMTP 服务器的选择。
+修复后，即使在最极端的竞态条件下，也能确保编辑活动时正确显示 SMTP 服务器。
 
