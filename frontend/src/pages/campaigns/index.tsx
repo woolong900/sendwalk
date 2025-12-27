@@ -823,21 +823,6 @@ export default function CampaignsPage() {
           <div className="flex-1 overflow-auto border rounded-lg bg-white">
             {previewCampaign?.html_content ? (
               <>
-                {/* 调试：打印替换后的 HTML */}
-                {(() => {
-                  const replacedHtml = replaceTagsForPreview(previewCampaign.html_content, previewCampaign)
-                  console.log('=== 预览 HTML（前 500 字符）===')
-                  console.log(replacedHtml.substring(0, 500))
-                  console.log('\n=== 检查 <a 标签 ===')
-                  const aTagMatches = replacedHtml.match(/<a[^>]*>/g)
-                  if (aTagMatches) {
-                    console.log('找到 ' + aTagMatches.length + ' 个 <a> 标签')
-                    console.log('前 3 个：', aTagMatches.slice(0, 3))
-                  } else {
-                    console.log('❌ 没有找到 <a> 标签')
-                  }
-                  return null
-                })()}
                 <iframe
                   ref={(iframe) => {
                     if (iframe && previewCampaign?.html_content) {
