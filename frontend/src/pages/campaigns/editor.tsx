@@ -154,15 +154,16 @@ export default function CampaignEditorPage() {
     }
   }, [campaign])
 
-  // 自动选择默认SMTP服务器
+  // 自动选择默认SMTP服务器（仅在创建新活动时）
   useEffect(() => {
-    if (smtpServers && !formData.smtp_server_id) {
+    // 只在创建新活动（非编辑模式）时自动选择默认服务器
+    if (!isEditing && smtpServers && !formData.smtp_server_id) {
       const defaultServer = smtpServers.find(s => s.is_default && s.is_active)
       if (defaultServer) {
         setFormData(prev => ({ ...prev, smtp_server_id: defaultServer.id.toString() }))
       }
     }
-  }, [smtpServers])
+  }, [smtpServers, isEditing])
 
   // 保存/更新活动
   const saveMutation = useMutation({
