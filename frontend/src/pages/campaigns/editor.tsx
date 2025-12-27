@@ -741,14 +741,14 @@ export default function CampaignEditorPage() {
                   id="html_content"
                   value={formData.html_content}
                   onChange={(e) => setFormData({ ...formData, html_content: e.target.value })}
-                  className="w-full min-h-[400px] p-4 border rounded-md font-mono text-sm bg-gray-50"
+                  className="w-full min-h-[800px] p-4 border rounded-md font-mono text-sm bg-gray-50"
                   placeholder="<h1>你好 {first_name}!</h1>"
                 />
               </div>
             ) : (
               <div className="space-y-2">
                 <Label>预览效果</Label>
-                <div className="w-full min-h-[400px] border rounded-md bg-white overflow-hidden">
+                <div className="w-full min-h-[800px] border rounded-md bg-white overflow-hidden">
                   <iframe
                     ref={(iframe) => {
                       if (iframe && formData.html_content) {
@@ -761,7 +761,7 @@ export default function CampaignEditorPage() {
                         }
                       }
                     }}
-                    className="w-full h-full min-h-[400px]"
+                    className="w-full h-full min-h-[800px]"
                     title="邮件预览"
                   />
                 </div>
