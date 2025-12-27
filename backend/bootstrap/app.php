@@ -21,7 +21,11 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'message' => '资源不存在',
+            ], 404);
+        });
     })
     ->withProviders([
         \App\Providers\SortOrderQueueServiceProvider::class,

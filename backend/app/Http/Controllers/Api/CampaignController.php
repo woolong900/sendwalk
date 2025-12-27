@@ -67,15 +67,30 @@ class CampaignController extends Controller
 
     public function show(Request $request, Campaign $campaign)
     {
-        if ($campaign->user_id !== $request->user()->id) {
-            return response()->json(['message' => '无权访问'], 403);
+        try {
+            if ($campaign->user_id !== $request->user()->id) {
+                return response()->json(['message' => '无权访问'], 403);
+            }
+
+            // 不加载 sends 关系，因为可能有大量发送记录
+            // 编辑活动时不需要所有的发送记录
+            $campaign->load(['list', 'lists', 'smtpServer']);
+
+            return response()->json([
+                'data' => $campaign,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Failed to show campaign', [
+                'campaign_id' => $campaign->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'message' => '获取活动详情失败',
+                'error' => $e->getMessage(),
+            ], 500);
         }
-
-        $campaign->load(['list', 'lists', 'sends', 'smtpServer']);
-
-        return response()->json([
-            'data' => $campaign,
-        ]);
     }
 
     public function update(Request $request, Campaign $campaign)

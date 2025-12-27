@@ -67,55 +67,93 @@ class ProcessScheduledCampaigns extends Command
             
             $this->info("  📋 活动关联的列表: " . implode(', ', $listIds));
             
-            // 获取所有列表中的活跃订阅者（去重）
-            // 为每个列表获取订阅者，保留列表关系信息
-            $subscribersWithList = [];
-            $uniqueSubscriberIds = [];
-            
-            foreach ($listIds as $listId) {
-                // 只查询必要的字段，减少内存占用和查询时间
-                $listSubscribers = Subscriber::select(['id', 'email', 'first_name', 'last_name', 'custom_fields'])
-                    ->whereHas('lists', function ($query) use ($listId) {
-                        $query->where('lists.id', $listId)
-                              ->where('list_subscriber.status', 'active');
-                    })->get();
-                
-                foreach ($listSubscribers as $subscriber) {
-                    // 使用订阅者ID去重，确保每个订阅者只发送一次
-                    if (!in_array($subscriber->id, $uniqueSubscriberIds)) {
-                        $subscribersWithList[] = [
-                            'subscriber' => $subscriber,
-                            'list_id' => $listId,
-                        ];
-                        $uniqueSubscriberIds[] = $subscriber->id;
-                    }
-                }
-            }
-
-            if (empty($subscribersWithList)) {
-                $this->warn("  ⚠️  活动 {$campaign->name} 没有订阅者，跳过");
-                continue;
-            }
-
-            // 更新总收件人数
-            $campaign->update([
-                'total_recipients' => count($subscribersWithList),
-            ]);
-
-            // ✅ 现在才创建 jobs！使用智能分配服务
             try {
+                // 分批处理：每次处理一个列表的 5000 个订阅者
+                $batchSize = 5000;
+                $totalTasksCreated = 0;
+                $totalRecipients = 0;
                 $distributionService = new QueueDistributionService();
-                $result = $distributionService->distributeEvenly($campaign, $subscribersWithList);
-
-                $this->info("  ✅ 已创建 {$result['tasks']} 个发送任务");
-                $this->info("     队列: {$result['queue']}");
-                $this->info("     分配策略: {$result['distribution']}");
+                
+                foreach ($listIds as $listIndex => $listId) {
+                    $this->info("  📝 处理列表 #{$listId} (" . ($listIndex + 1) . "/" . count($listIds) . ")");
+                    
+                    $listTasksCreated = 0;
+                    $lastId = 0; // 使用游标分页，避免 offset 导致的数据混乱
+                    $batchNumber = 0;
+                    
+                    while (true) {
+                        // 使用游标分页查询活跃订阅者（基于 ID）
+                        // 优势：即使处理过程中有数据变化，也不会漏掉或重复处理记录
+                        $listSubscribers = Subscriber::select(['id', 'email', 'first_name', 'last_name', 'custom_fields'])
+                            ->whereHas('lists', function ($query) use ($listId) {
+                                $query->where('lists.id', $listId)
+                                      ->where('list_subscriber.status', 'active');
+                            })
+                            ->where('subscribers.id', '>', $lastId)
+                            ->orderBy('subscribers.id', 'asc')
+                            ->take($batchSize)
+                            ->get();
+                        
+                        if ($listSubscribers->isEmpty()) {
+                            break; // 该列表处理完毕
+                        }
+                        
+                        // 更新游标位置
+                        $lastId = $listSubscribers->last()->id;
+                        $batchNumber++;
+                        
+                        // 构建待发送的订阅者列表
+                        $subscribersWithList = [];
+                        foreach ($listSubscribers as $subscriber) {
+                            $subscribersWithList[] = [
+                                'subscriber' => $subscriber,
+                                'list_id' => $listId,
+                            ];
+                        }
+                        
+                        // 创建发送任务
+                        $result = $distributionService->distributeEvenly($campaign, $subscribersWithList);
+                        $listTasksCreated += count($subscribersWithList);
+                        $totalTasksCreated += count($subscribersWithList);
+                        
+                        $this->info("     ✓ 批次 {$batchNumber}: 创建 " . count($subscribersWithList) . " 个任务 (游标: ID > {$lastId})");
+                        
+                        // 清理内存
+                        unset($subscribersWithList, $listSubscribers);
+                        gc_collect_cycles();
+                    }
+                    
+                    $this->info("     ✅ 列表 #{$listId} 完成: 共创建 {$listTasksCreated} 个任务");
+                }
+                
+                if ($totalTasksCreated === 0) {
+                    $this->warn("  ⚠️  活动 {$campaign->name} 没有待发送的订阅者，跳过");
+                    continue;
+                }
+                
+                // 统计总收件人数（包括已发送和新创建的任务）
+                $totalRecipients = \DB::table('campaign_sends')
+                    ->where('campaign_id', $campaign->id)
+                    ->count();
+                
+                if ($totalRecipients === 0) {
+                    $totalRecipients = $totalTasksCreated;
+                }
+                
+                // 更新总收件人数
+                $campaign->update([
+                    'total_recipients' => $totalRecipients,
+                ]);
+                
+                $this->info("  🎉 活动 {$campaign->name} 任务创建完成");
+                $this->info("     总任务数: {$totalTasksCreated}");
+                $this->info("     总收件人: {$totalRecipients}");
+                $this->info("     队列: campaign_{$campaign->id}");
             } catch (\Exception $e) {
                 $this->error("  ❌ 创建任务失败: {$e->getMessage()}");
                 \Log::error('Failed to create campaign tasks', [
                     'campaign_id' => $campaign->id,
                     'campaign_name' => $campaign->name,
-                    'subscriber_count' => count($subscribersWithList),
                     'error' => $e->getMessage(),
                     'trace' => $e->getTraceAsString(),
                 ]);

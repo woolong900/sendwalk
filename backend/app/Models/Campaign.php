@@ -127,7 +127,12 @@ class Campaign extends Model
 
     public function getListIdsAttribute()
     {
-        // Return array of list IDs from the many-to-many relationship
+        // 使用已加载的关系（如果已加载），避免额外的数据库查询
+        if ($this->relationLoaded('lists')) {
+            return $this->lists->pluck('id')->toArray();
+        }
+        
+        // 如果关系未加载，执行查询
         return $this->lists()->pluck('lists.id')->toArray();
     }
 }
