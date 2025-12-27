@@ -42,11 +42,14 @@ class QueueDistributionService
         // 3. 每个活动独立队列，不需要计算间隔
         $interval = 1;
         
+        // 计算订阅者数量（兼容 Collection 和 Array）
+        $subscriberCount = is_array($subscribers) ? count($subscribers) : $subscribers->count();
+        
         Log::info('Distributing campaign tasks to dedicated queue', [
             'campaign_id' => $campaign->id,
             'campaign_name' => $campaign->name,
             'queue' => $queueName,
-            'subscribers' => $subscribers->count(),
+            'subscribers' => $subscriberCount,
             'start_sort' => $startSort,
             'max_sort_value' => $maxSortValue ?? 'N/A',
         ]);

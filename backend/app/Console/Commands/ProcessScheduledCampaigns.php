@@ -48,13 +48,24 @@ class ProcessScheduledCampaigns extends Command
             // 重新加载活动（获取最新状态）
             $campaign->refresh();
 
-            // 获取所有列表的订阅者（支持多列表）
-            $listIds = $campaign->lists->pluck('id')->toArray();
+            // 获取所有列表的订阅者（兼容单列表和多列表）
+            $listIds = [];
+            
+            // 优先使用多列表关系（新版）
+            if ($campaign->lists()->exists()) {
+                $listIds = $campaign->lists->pluck('id')->toArray();
+            }
+            // 回退到单列表字段（旧版）
+            elseif ($campaign->list_id) {
+                $listIds = [$campaign->list_id];
+            }
             
             if (empty($listIds)) {
                 $this->warn("  ⚠️  活动 {$campaign->name} 没有关联的邮件列表，跳过");
                 continue;
             }
+            
+            $this->info("  📋 活动关联的列表: " . implode(', ', $listIds));
             
             // 获取所有列表中的活跃订阅者（去重）
             // 为每个列表获取订阅者，保留列表关系信息
