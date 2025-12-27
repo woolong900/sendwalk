@@ -67,7 +67,7 @@ export default function CampaignEditorPage() {
 
   const [formData, setFormData] = useState({
     list_ids: [] as number[],
-    smtp_server_id: undefined as string | undefined,
+    smtp_server_id: '', // 始终使用空字符串，确保组件始终是 controlled
     name: '',
     subject: '',
     preview_text: '',
@@ -135,11 +135,12 @@ export default function CampaignEditorPage() {
 
   useEffect(() => {
     if (campaign) {
-      const serverId = campaign.smtp_server_id ? campaign.smtp_server_id.toString() : undefined
+      // 确保 smtp_server_id 始终是字符串（空字符串或有值）
+      const serverId = campaign.smtp_server_id ? campaign.smtp_server_id.toString() : ''
       
       setFormData({
         list_ids: campaign.list_ids || (campaign.list_id ? [campaign.list_id] : []),
-        smtp_server_id: serverId,
+        smtp_server_id: serverId, // 始终是字符串
         name: campaign.name || '',
         subject: campaign.subject || '',
         preview_text: campaign.preview_text || '',
@@ -454,7 +455,7 @@ export default function CampaignEditorPage() {
               <div className="space-y-2">
                 <Label htmlFor="smtp_server_id">发送服务器 *</Label>
                 <Select
-                  value={formData.smtp_server_id}
+                  value={formData.smtp_server_id || ''}
                   onValueChange={(value) => setFormData({ ...formData, smtp_server_id: value })}
                 >
                   <SelectTrigger>
