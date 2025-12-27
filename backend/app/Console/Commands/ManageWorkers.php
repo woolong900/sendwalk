@@ -14,7 +14,7 @@ class ManageWorkers extends Command
      */
     protected $signature = 'queue:manage-workers
                             {--min=1 : Minimum number of workers per queue}
-                            {--max=4 : Maximum number of workers per queue}
+                            {--max=20 : Maximum number of workers per queue}
                             {--check-interval=10 : Seconds between checks}
                             {--scale-up-threshold=50 : Jobs per worker to scale up}
                             {--scale-down-threshold=10 : Jobs per worker to scale down}';
@@ -135,15 +135,15 @@ class ManageWorkers extends Command
         
         if ($jobCount > 0 && $jobsPerWorker > $scaleUpThreshold && $currentWorkers < $maxWorkers) {
             // 智能扩容：根据负载计算需要的 Worker 数量
-            // 目标：每个 Worker 处理约 5000 个任务
-            $idealWorkers = max(1, ceil($jobCount / 5000));
+            // 目标：每个 Worker 处理约 2000 个任务（更激进的扩容）
+            $idealWorkers = max(1, ceil($jobCount / 2000));
             
             // 限制在最小值和最大值之间
             $targetWorkers = min(max($idealWorkers, $minWorkers), $maxWorkers);
             
-            // 如果计算出的目标值和当前值相同，至少增加1个（防止卡住）
+            // 如果计算出的目标值和当前值相同，至少增加2个（更快扩容）
             if ($targetWorkers == $currentWorkers && $currentWorkers < $maxWorkers) {
-                $targetWorkers = min($currentWorkers + 1, $maxWorkers);
+                $targetWorkers = min($currentWorkers + 2, $maxWorkers);
             }
             
             $this->info("    📈 Scaling UP: {$currentWorkers} → {$targetWorkers} (load: {$jobsPerWorker} jobs/worker)");
@@ -153,7 +153,8 @@ class ManageWorkers extends Command
             $this->info("    📉 Scaling DOWN: {$currentWorkers} → {$targetWorkers} (load: {$jobsPerWorker} jobs/worker)");
         } elseif ($currentWorkers == 0 && $jobCount > 0) {
             // 队列有任务但没有 Worker，根据任务数智能启动
-            $idealWorkers = max(1, ceil($jobCount / 5000));
+            // 目标：每个 Worker 处理约 2000 个任务（更激进的扩容）
+            $idealWorkers = max(1, ceil($jobCount / 2000));
             $targetWorkers = min(max($idealWorkers, $minWorkers), $maxWorkers);
             $this->info("    🚀 Starting workers: 0 → {$targetWorkers} (jobs: {$jobCount})");
         }

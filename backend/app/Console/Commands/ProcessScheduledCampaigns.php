@@ -73,10 +73,12 @@ class ProcessScheduledCampaigns extends Command
             $uniqueSubscriberIds = [];
             
             foreach ($listIds as $listId) {
-                $listSubscribers = Subscriber::whereHas('lists', function ($query) use ($listId) {
-                    $query->where('lists.id', $listId)
-                          ->where('list_subscriber.status', 'active');
-                })->get();
+                // 只查询必要的字段，减少内存占用和查询时间
+                $listSubscribers = Subscriber::select(['id', 'email', 'first_name', 'last_name', 'custom_fields'])
+                    ->whereHas('lists', function ($query) use ($listId) {
+                        $query->where('lists.id', $listId)
+                              ->where('list_subscriber.status', 'active');
+                    })->get();
                 
                 foreach ($listSubscribers as $subscriber) {
                     // 使用订阅者ID去重，确保每个订阅者只发送一次
@@ -101,12 +103,28 @@ class ProcessScheduledCampaigns extends Command
             ]);
 
             // ✅ 现在才创建 jobs！使用智能分配服务
-            $distributionService = new QueueDistributionService();
-            $result = $distributionService->distributeEvenly($campaign, $subscribersWithList);
+            try {
+                $distributionService = new QueueDistributionService();
+                $result = $distributionService->distributeEvenly($campaign, $subscribersWithList);
 
-            $this->info("  ✅ 已创建 " . count($subscribersWithList) . " 个发送任务");
-            $this->info("     队列: {$result['queue']}");
-            $this->info("     分配策略: {$result['distribution']}");
+                $this->info("  ✅ 已创建 {$result['tasks']} 个发送任务");
+                $this->info("     队列: {$result['queue']}");
+                $this->info("     分配策略: {$result['distribution']}");
+            } catch (\Exception $e) {
+                $this->error("  ❌ 创建任务失败: {$e->getMessage()}");
+                \Log::error('Failed to create campaign tasks', [
+                    'campaign_id' => $campaign->id,
+                    'campaign_name' => $campaign->name,
+                    'subscriber_count' => count($subscribersWithList),
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+                
+                // 将活动状态改回 scheduled，以便下次重试
+                $campaign->update(['status' => 'scheduled']);
+                $this->warn("  ⚠️  活动状态已重置为 scheduled，将在下次调度时重试");
+                continue;
+            }
         }
 
         $this->info("\n✅ 所有定时活动处理完成");

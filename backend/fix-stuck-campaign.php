@@ -90,10 +90,12 @@ $subscribersWithList = [];
 $uniqueSubscriberIds = [];
 
 foreach ($listIds as $listId) {
-    $listSubscribers = Subscriber::whereHas('lists', function ($query) use ($listId) {
-        $query->where('lists.id', $listId)
-              ->where('list_subscriber.status', 'active');
-    })->get();
+    // 只查询必要的字段，减少内存占用
+    $listSubscribers = Subscriber::select(['id', 'email', 'first_name', 'last_name', 'custom_fields'])
+        ->whereHas('lists', function ($query) use ($listId) {
+            $query->where('lists.id', $listId)
+                  ->where('list_subscriber.status', 'active');
+        })->get();
     
     echo "  列表 #{$listId}: " . $listSubscribers->count() . " 个活跃订阅者\n";
     
@@ -154,15 +156,26 @@ if (empty($subscribersWithList)) {
 }
 
 // 创建任务
-echo "正在创建发送任务...\n";
+$taskCount = count($subscribersWithList);
+echo "正在创建 {$taskCount} 个发送任务...\n";
 
-$distributionService = new QueueDistributionService();
-$result = $distributionService->distributeEvenly($campaign, $subscribersWithList);
+if ($taskCount > 10000) {
+    echo "⚠️  任务数量较大，可能需要几分钟时间，请耐心等待...\n";
+}
 
-echo "\n✅ 任务创建成功！\n";
-echo "  队列: {$result['queue']}\n";
-echo "  任务数: " . count($subscribersWithList) . "\n";
-echo "  分配策略: {$result['distribution']}\n";
+try {
+    $distributionService = new QueueDistributionService();
+    $result = $distributionService->distributeEvenly($campaign, $subscribersWithList);
+    
+    echo "\n✅ 任务创建成功！\n";
+    echo "  队列: {$result['queue']}\n";
+    echo "  任务数: {$result['tasks']}\n";
+    echo "  分配策略: {$result['distribution']}\n";
+} catch (\Exception $e) {
+    echo "\n❌ 任务创建失败: {$e->getMessage()}\n";
+    echo "详细信息: {$e->getTraceAsString()}\n";
+    exit(1);
+}
 
 // 更新活动状态
 if ($campaign->status !== 'sending') {

@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Log;
 
 class SendCampaignEmail implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable;
 
     // 不重试：失败即失败，记录日志
     public $tries = 1;
@@ -27,13 +27,20 @@ class SendCampaignEmail implements ShouldQueue
 
     // Store determined from_email for this task
     private ?string $fromEmail = null;
+    
+    // 模型实例（在 handle 中从 ID 加载）
+    private ?Campaign $campaign = null;
+    private ?Subscriber $subscriber = null;
 
     /**
      * Create a new job instance.
+     * 
+     * 注意：为了性能，我们只存储 ID，不使用 SerializesModels
+     * 这样可以大幅提升队列任务创建速度（特别是大批量时）
      */
     public function __construct(
-        public Campaign $campaign,
-        public Subscriber $subscriber,
+        public int $campaignId,
+        public int $subscriberId,
         public ?int $listId = null
     ) {}
 
@@ -43,6 +50,22 @@ class SendCampaignEmail implements ShouldQueue
     public function handle(EmailService $emailService): void
     {
         $startTime = now();
+        
+        // 从数据库加载模型（因为我们只存储了 ID）
+        $campaign = Campaign::find($this->campaignId);
+        $subscriber = Subscriber::find($this->subscriberId);
+        
+        if (!$campaign || !$subscriber) {
+            Log::error('Campaign or subscriber not found', [
+                'campaign_id' => $this->campaignId,
+                'subscriber_id' => $this->subscriberId,
+            ]);
+            return;
+        }
+        
+        // 将实例变量设置为加载的模型，以便后续代码使用
+        $this->campaign = $campaign;
+        $this->subscriber = $subscriber;
         $sendLog = null; // 只在最终结果时创建日志
 
         try {
