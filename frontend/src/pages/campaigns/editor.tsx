@@ -135,6 +135,12 @@ export default function CampaignEditorPage() {
 
   useEffect(() => {
     if (campaign) {
+      console.log('🔵 Campaign data loaded:', {
+        campaign_id: campaign.id,
+        smtp_server_id: campaign.smtp_server_id,
+        smtp_server_id_type: typeof campaign.smtp_server_id
+      })
+      
       setFormData({
         list_ids: campaign.list_ids || (campaign.list_id ? [campaign.list_id] : []),
         smtp_server_id: campaign.smtp_server_id ? campaign.smtp_server_id.toString() : '',
@@ -147,6 +153,8 @@ export default function CampaignEditorPage() {
         html_content: campaign.html_content || '',
       })
       
+      console.log('✅ FormData set with smtp_server_id:', campaign.smtp_server_id ? campaign.smtp_server_id.toString() : '')
+      
       // 如果有定时发送时间，设置为定时模式
       if (campaign.scheduled_at) {
         setSendMode('schedule')
@@ -155,22 +163,38 @@ export default function CampaignEditorPage() {
       
       // 标记活动数据已加载
       setCampaignDataLoaded(true)
+      console.log('✅ Campaign data loaded flag set to true')
     }
   }, [campaign])
 
   // 自动选择默认SMTP服务器（仅在创建新活动时）
   useEffect(() => {
+    console.log('🟡 Auto-select effect triggered:', {
+      isEditing,
+      campaignDataLoaded,
+      hasSmtpServers: !!smtpServers,
+      smtpServersCount: smtpServers?.length,
+      currentFormDataServerId: formData.smtp_server_id
+    })
+    
     // 编辑模式下，如果活动数据已加载，跳过自动选择（保留活动原有的服务器设置）
     if (isEditing && campaignDataLoaded) {
+      console.log('⏭️  Skipping auto-select: Edit mode with data loaded')
       return
     }
     
     // 创建模式下：如果有SMTP服务器列表，且当前未选择服务器，自动选择默认服务器
     if (!isEditing && smtpServers && smtpServers.length > 0 && !formData.smtp_server_id) {
       const defaultServer = smtpServers.find(s => s.is_default && s.is_active)
+      console.log('🟢 Auto-selecting default server:', defaultServer?.id)
       if (defaultServer) {
-        setFormData(prev => ({ ...prev, smtp_server_id: defaultServer.id.toString() }))
+        setFormData(prev => {
+          console.log('🔄 Setting server from', prev.smtp_server_id, 'to', defaultServer.id.toString())
+          return { ...prev, smtp_server_id: defaultServer.id.toString() }
+        })
       }
+    } else {
+      console.log('⏭️  Conditions not met for auto-select')
     }
   }, [smtpServers, isEditing, campaignDataLoaded])
 
@@ -451,9 +475,21 @@ export default function CampaignEditorPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="smtp_server_id">发送服务器 *</Label>
+                {(() => {
+                  console.log('🎯 Select render:', {
+                    formDataServerId: formData.smtp_server_id,
+                    smtpServersAvailable: smtpServers?.length,
+                    activeServers: smtpServers?.filter(s => s.is_active).length,
+                    serversIds: smtpServers?.map(s => ({ id: s.id, name: s.name, idType: typeof s.id }))
+                  })
+                  return null
+                })()}
                 <Select
                   value={formData.smtp_server_id || undefined}
-                  onValueChange={(value) => setFormData({ ...formData, smtp_server_id: value })}
+                  onValueChange={(value) => {
+                    console.log('📝 Server changed to:', value)
+                    setFormData({ ...formData, smtp_server_id: value })
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="选择服务器" />
