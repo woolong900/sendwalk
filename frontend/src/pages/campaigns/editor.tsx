@@ -83,6 +83,7 @@ export default function CampaignEditorPage() {
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false)
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false)
   const [isSaveBeforeSend, setIsSaveBeforeSend] = useState(false) // 标记是否是"保存后发送"操作
+  const [campaignDataLoaded, setCampaignDataLoaded] = useState(false) // 标记活动数据是否已加载
   const subjectInputRef = useRef<HTMLInputElement>(null)
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -151,19 +152,27 @@ export default function CampaignEditorPage() {
         setSendMode('schedule')
         setScheduledDateTime(new Date(campaign.scheduled_at))
       }
+      
+      // 标记活动数据已加载
+      setCampaignDataLoaded(true)
     }
   }, [campaign])
 
   // 自动选择默认SMTP服务器（仅在创建新活动时）
   useEffect(() => {
-    // 只在创建新活动（非编辑模式）时自动选择默认服务器
-    if (!isEditing && smtpServers && !formData.smtp_server_id) {
+    // 编辑模式下，如果活动数据已加载，跳过自动选择（保留活动原有的服务器设置）
+    if (isEditing && campaignDataLoaded) {
+      return
+    }
+    
+    // 创建模式下：如果有SMTP服务器列表，且当前未选择服务器，自动选择默认服务器
+    if (!isEditing && smtpServers && smtpServers.length > 0 && !formData.smtp_server_id) {
       const defaultServer = smtpServers.find(s => s.is_default && s.is_active)
       if (defaultServer) {
         setFormData(prev => ({ ...prev, smtp_server_id: defaultServer.id.toString() }))
       }
     }
-  }, [smtpServers, isEditing])
+  }, [smtpServers, isEditing, campaignDataLoaded])
 
   // 保存/更新活动
   const saveMutation = useMutation({
