@@ -33,6 +33,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/hooks/use-confirm'
 import { SendLogsDialog, EmailOpensDialog, AbuseReportsDialog } from './analytics-dialogs'
@@ -386,9 +392,10 @@ export default function CampaignsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 页头 */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* 页头 */}
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-xl md:text-2xl font-bold tracking-tight">邮件活动</h1>
           <p className="text-muted-foreground mt-2">创建和管理邮件营销活动</p>
@@ -555,14 +562,25 @@ export default function CampaignsPage() {
                     {getStatusBadge(campaign.status)}
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
-                    <div className="flex items-center gap-1 text-sm">
-                      <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      <span className="truncate">
-                        {campaign.lists && campaign.lists.length > 0 
-                          ? campaign.lists.map(l => l.name).join(', ')
-                          : campaign.list?.name || '未指定列表'}
-                      </span>
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-1 text-sm cursor-help">
+                          <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                          <span className="truncate max-w-[130px]">
+                            {campaign.lists && campaign.lists.length > 0 
+                              ? campaign.lists.map(l => l.name).join(', ')
+                              : campaign.list?.name || '未指定列表'}
+                          </span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="max-w-xs">
+                          {campaign.lists && campaign.lists.length > 0 
+                            ? campaign.lists.map(l => l.name).join(', ')
+                            : campaign.list?.name || '未指定列表'}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="text-center whitespace-nowrap">
                     <button
@@ -887,6 +905,7 @@ export default function CampaignsPage() {
         open={unsubscribesDialog.open}
         onClose={() => setUnsubscribesDialog({ open: false, campaignId: null, campaignName: '' })}
       />
-    </div>
+      </div>
+    </TooltipProvider>
   )
 }
