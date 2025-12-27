@@ -83,7 +83,6 @@ export default function CampaignEditorPage() {
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false)
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false)
   const [isSaveBeforeSend, setIsSaveBeforeSend] = useState(false) // 标记是否是"保存后发送"操作
-  const defaultServerSetRef = useRef(false) // 标记是否已设置默认服务器
   const subjectInputRef = useRef<HTMLInputElement>(null)
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -133,20 +132,12 @@ export default function CampaignEditorPage() {
     enabled: isEditing,
   })
 
+  // 加载活动数据（仅编辑模式）
   useEffect(() => {
     if (campaign) {
-      // 确保 smtp_server_id 始终是字符串（空字符串或有值）
-      const serverId = campaign.smtp_server_id ? campaign.smtp_server_id.toString() : ''
-      
-      // 🔑 关键：在 setFormData 之前先设置 ref，防止时序窗口问题
-      // 这样可以确保当 setFormData 触发第二个 useEffect 时，ref 已经是 true
-      if (serverId) {
-        defaultServerSetRef.current = true
-      }
-      
       setFormData({
         list_ids: campaign.list_ids || (campaign.list_id ? [campaign.list_id] : []),
-        smtp_server_id: serverId, // 始终是字符串
+        smtp_server_id: campaign.smtp_server_id ? campaign.smtp_server_id.toString() : '',
         name: campaign.name || '',
         subject: campaign.subject || '',
         preview_text: campaign.preview_text || '',
@@ -164,34 +155,6 @@ export default function CampaignEditorPage() {
     }
   }, [campaign])
 
-  // 自动选择默认SMTP服务器（仅在创建新活动时）
-  useEffect(() => {
-    // 编辑模式下完全跳过（多重检查确保万无一失）
-    if (isEditing) {
-      return
-    }
-    
-    // 如果已经设置过（包括编辑模式加载的数据或用户手动选择），跳过
-    if (defaultServerSetRef.current) {
-      return
-    }
-    
-    // 创建模式下：如果有SMTP服务器列表，且当前未选择服务器，自动选择默认服务器
-    if (smtpServers && smtpServers.length > 0 && !formData.smtp_server_id) {
-      const defaultServer = smtpServers.find(s => s.is_default && s.is_active)
-      if (defaultServer) {
-        // 使用函数式更新，确保基于最新状态
-        setFormData(prev => {
-          // 再次检查当前状态，防止竞态
-          if (prev.smtp_server_id) {
-            return prev // 如果已有值，不覆盖
-          }
-          return { ...prev, smtp_server_id: defaultServer.id.toString() }
-        })
-        defaultServerSetRef.current = true // 标记已设置
-      }
-    }
-  }, [smtpServers, isEditing, formData.smtp_server_id])
 
   // 保存/更新活动
   const saveMutation = useMutation({
