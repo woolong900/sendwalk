@@ -35,17 +35,15 @@ class SubscriberController extends Controller
                 'list_id' => $listId,
             ]);
             
-            $query->whereHas('lists', function ($q) use ($listId) {
+            // ✅ 性能优化：合并为单个 whereHas，避免双重子查询
+            $query->whereHas('lists', function ($q) use ($listId, $request) {
                 $q->where('lists.id', $listId);
+                
+                // 当按列表过滤时，状态过滤应该使用 list_subscriber.status
+                if ($request->has('status')) {
+                    $q->where('list_subscriber.status', $request->status);
+                }
             });
-            
-            // 当按列表过滤时，状态过滤应该使用 list_subscriber.status
-            if ($request->has('status')) {
-                $query->whereHas('lists', function ($q) use ($listId, $request) {
-                    $q->where('lists.id', $listId)
-                      ->where('list_subscriber.status', $request->status);
-                });
-            }
             
             // 加载订阅者在该列表中的状态
             $query->with(['lists' => function ($q) use ($listId) {

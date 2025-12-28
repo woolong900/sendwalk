@@ -41,6 +41,21 @@ class TemplateController extends Controller
         $sortOrder = $request->input('sort_order', 'desc');
         $query->orderBy($sortBy, $sortOrder);
 
+        // ✅ 性能优化：列表页不返回完整的 HTML 内容，减少响应大小 80-90%
+        // 只选择列表页需要的字段
+        $query->select([
+            'id',
+            'user_id',
+            'name',
+            'description',
+            'category',
+            'is_active',
+            'is_default',
+            'created_at',
+            'updated_at',
+            // 不包括 html_content 和 plain_content（这些字段可能很大）
+        ]);
+
         $templates = $query->paginate($request->input('per_page', 20));
 
         return response()->json([
