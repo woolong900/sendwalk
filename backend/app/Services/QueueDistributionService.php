@@ -88,33 +88,33 @@ class QueueDistributionService
             try {
                 // 创建 Job 实例以获取 payload（只传递 ID，不传递整个模型）
                 $job = new SendCampaignEmail($campaign->id, $subscriber->id, $listId);
-                
-                // 准备 job 数据
+            
+            // 准备 job 数据
                 $currentBatch[] = [
-                    'queue' => $queueName,
-                    'payload' => json_encode([
-                        'uuid' => \Illuminate\Support\Str::uuid()->toString(),
-                        'displayName' => 'App\\Jobs\\SendCampaignEmail',
-                        'job' => 'Illuminate\\Queue\\CallQueuedHandler@call',
-                        'maxTries' => 1,  // 不重试
-                        'maxExceptions' => null,
-                        'failOnTimeout' => false,
-                        'backoff' => null,
-                        'timeout' => 120,
-                        'retryUntil' => null,
-                        'data' => [
-                            'commandName' => 'App\\Jobs\\SendCampaignEmail',
-                            'command' => serialize($job),
-                        ],
-                    ]),
-                    'attempts' => 0,
-                    'reserved_at' => null,
-                    'available_at' => $now,  // 立即可用（当前时间）
-                    'sort_order' => $currentSort,  // 控制执行顺序（齐头并进）
-                    'created_at' => $now,
-                ];
-                
-                $currentSort += $interval;
+                'queue' => $queueName,
+                'payload' => json_encode([
+                    'uuid' => \Illuminate\Support\Str::uuid()->toString(),
+                    'displayName' => 'App\\Jobs\\SendCampaignEmail',
+                    'job' => 'Illuminate\\Queue\\CallQueuedHandler@call',
+                    'maxTries' => 1,  // 不重试
+                    'maxExceptions' => null,
+                    'failOnTimeout' => false,
+                    'backoff' => null,
+                    'timeout' => 120,
+                    'retryUntil' => null,
+                    'data' => [
+                        'commandName' => 'App\\Jobs\\SendCampaignEmail',
+                        'command' => serialize($job),
+                    ],
+                ]),
+                'attempts' => 0,
+                'reserved_at' => null,
+                'available_at' => $now,  // 立即可用（当前时间）
+                'sort_order' => $currentSort,  // 控制执行顺序（齐头并进）
+                'created_at' => $now,
+            ];
+            
+            $currentSort += $interval;
                 $taskCount++;
                 
                 // 当达到批次大小或是最后一条记录时，执行插入

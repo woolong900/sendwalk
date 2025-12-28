@@ -117,54 +117,8 @@ export default function CampaignEditorPage() {
   const { data: smtpServers } = useQuery<SmtpServer[]>({
     queryKey: ['smtp-servers'],
     queryFn: async () => {
-      const requestId = `frontend_${Date.now()}_${Math.random().toString(36).substring(7)}`
-      console.log('[SMTP Servers] ========== Fetching ==========', {
-        requestId,
-        timestamp: new Date().toISOString(),
-      })
-      
-      try {
-        const response = await api.get('/smtp-servers')
-        
-        console.log('[SMTP Servers] Response received', {
-          requestId,
-          status: response.status,
-          statusText: response.statusText,
-          hasData: !!response.data,
-          dataKeys: response.data ? Object.keys(response.data) : [],
-          dataType: typeof response.data,
-          dataIsArray: Array.isArray(response.data),
-          rawData: response.data,
-        })
-        
-        const servers = response.data.data
-        
-        console.log('[SMTP Servers] Parsed servers', {
-          requestId,
-          servers,
-          serversType: typeof servers,
-          serversIsArray: Array.isArray(servers),
-          serversLength: servers ? servers.length : null,
-          isEmpty: !servers || servers.length === 0,
-          serverIds: servers ? servers.map((s: any) => s.id) : [],
-          serverNames: servers ? servers.map((s: any) => s.name) : [],
-        })
-        
-        console.log('[SMTP Servers] ========== Fetch complete ==========', {
-          requestId,
-          finalCount: servers ? servers.length : 0,
-        })
-        
-        return servers
-      } catch (error) {
-        console.error('[SMTP Servers] ========== Fetch error ==========', {
-          requestId,
-          error,
-          errorMessage: error instanceof Error ? error.message : String(error),
-          errorStack: error instanceof Error ? error.stack : undefined,
-        })
-        throw error
-      }
+      const response = await api.get('/smtp-servers')
+      return response.data.data
     },
   })
 
@@ -178,39 +132,14 @@ export default function CampaignEditorPage() {
     enabled: isEditing,
   })
 
-  // 监控 smtpServers 变化
+  // 加载活动数据（仅编辑模式）- 等待 smtpServers 加载完成以避免竞态条件
   useEffect(() => {
-    console.log('[Campaign Editor] smtpServers changed', {
-      hasSmtpServers: !!smtpServers,
-      smtpServersType: typeof smtpServers,
-      smtpServersIsArray: Array.isArray(smtpServers),
-      smtpServersLength: smtpServers ? smtpServers.length : null,
-      isEmpty: !smtpServers || smtpServers.length === 0,
-      serverIds: smtpServers ? smtpServers.map(s => s.id) : [],
-      serverNames: smtpServers ? smtpServers.map(s => s.name) : [],
-      currentFormDataServerId: formData.smtp_server_id,
-    })
-  }, [smtpServers])
-
-  // 加载活动数据（仅编辑模式）- 关键修复：依赖 campaign 和 smtpServers
-  useEffect(() => {
-    console.log('[Campaign Editor] Campaign useEffect triggered', {
-      hasCampaign: !!campaign,
-      campaignId: campaign?.id,
-      smtpServerId: campaign?.smtp_server_id,
-      smtpServerIdType: typeof campaign?.smtp_server_id,
-      hasSmtpServers: !!smtpServers,
-      smtpServersLength: smtpServers?.length,
-    })
-    
     if (!campaign) {
-      console.log('[Campaign Editor] No campaign, skipping formData update')
       return
     }
 
     // 如果是编辑模式且有 smtp_server_id，等待 smtpServers 加载完成
     if (isEditing && campaign.smtp_server_id && (!smtpServers || smtpServers.length === 0)) {
-      console.log('[Campaign Editor] Waiting for smtpServers to load before setting formData')
       return
     }
     
@@ -225,14 +154,6 @@ export default function CampaignEditorPage() {
       reply_to: campaign.reply_to || '',
       html_content: campaign.html_content || '',
     }
-    
-    console.log('[Campaign Editor] Setting formData', {
-      campaignId: campaign.id,
-      oldSmtpServerId: formData.smtp_server_id,
-      newSmtpServerId: newFormData.smtp_server_id,
-      smtpServersAvailable: smtpServers?.length || 0,
-      newFormData,
-    })
     
     setFormData(newFormData)
     

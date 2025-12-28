@@ -11,9 +11,21 @@ class CampaignController extends Controller
     public function index(Request $request)
     {
         $campaigns = Campaign::where('user_id', $request->user()->id)
-            ->with(['list', 'lists', 'smtpServer'])
+            ->with(['lists:id,name', 'smtpServer:id,name,type'])
+            ->select([
+                'id', 'user_id', 'list_id', 'smtp_server_id', 'name', 'subject', 
+                'status', 'scheduled_at', 'sent_at', 'created_at', 'updated_at',
+                'total_recipients', 'total_sent', 'total_delivered', 'total_opened', 
+                'total_clicked', 'total_bounced', 'total_complained', 'total_unsubscribed'
+            ])
             ->latest()
             ->paginate(15);
+
+        // 手动添加 list_ids 以避免在每次序列化时都查询
+        $campaigns->getCollection()->transform(function ($campaign) {
+            $campaign->list_ids = $campaign->lists->pluck('id')->toArray();
+            return $campaign;
+        });
 
         return response()->json([
             'data' => $campaigns->items(),
@@ -68,17 +80,17 @@ class CampaignController extends Controller
     public function show(Request $request, Campaign $campaign)
     {
         try {
-            if ($campaign->user_id !== $request->user()->id) {
-                return response()->json(['message' => '无权访问'], 403);
-            }
+        if ($campaign->user_id !== $request->user()->id) {
+            return response()->json(['message' => '无权访问'], 403);
+        }
 
             // 不加载 sends 关系，因为可能有大量发送记录
             // 编辑活动时不需要所有的发送记录
             $campaign->load(['list', 'lists', 'smtpServer']);
 
-            return response()->json([
-                'data' => $campaign,
-            ]);
+        return response()->json([
+            'data' => $campaign,
+        ]);
         } catch (\Exception $e) {
             \Log::error('Failed to show campaign', [
                 'campaign_id' => $campaign->id,

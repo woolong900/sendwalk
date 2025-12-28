@@ -42,6 +42,9 @@ class AbuseController extends Controller
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
+            
+            // 更新活动的投诉统计
+            Campaign::where('id', $campaignId)->increment('total_complained');
 
             Log::info('Abuse report submitted', [
                 'report_id' => $report->id,

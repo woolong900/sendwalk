@@ -10,79 +10,29 @@ class SmtpServerController extends Controller
 {
     public function index(Request $request)
     {
-        $startTime = microtime(true);
-        $requestId = uniqid('smtp_', true); // 唯一请求ID用于追踪
-        
-        \Log::info('[SMTP Servers API] ========== Request started ==========', [
-            'request_id' => $requestId,
-            'user_id' => $request->user()->id,
-            'user_email' => $request->user()->email,
-            'timestamp' => now()->toDateTimeString(),
-            'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
+        $servers = SmtpServer::where('user_id', $request->user()->id)
+            ->latest()
+            ->get();
 
-        // Step 1: 查询服务器列表
-        $queryStart = microtime(true);
-        
-        \Log::info('[SMTP Servers API] Building query', [
-            'request_id' => $requestId,
-            'user_id' => $request->user()->id,
-        ]);
-        
-        $query = SmtpServer::where('user_id', $request->user()->id)->latest();
-        
-        \Log::info('[SMTP Servers API] Executing query', [
-            'request_id' => $requestId,
-            'sql' => $query->toSql(),
-            'bindings' => $query->getBindings(),
-        ]);
-        
-        $servers = $query->get();
-        $queryTime = (microtime(true) - $queryStart) * 1000;
-        
-        \Log::info('[SMTP Servers API] Query servers completed', [
-            'request_id' => $requestId,
-            'count' => $servers->count(),
-            'time_ms' => round($queryTime, 2),
-            'server_ids' => $servers->pluck('id')->toArray(),
-            'server_names' => $servers->pluck('name')->toArray(),
-            'servers_isEmpty' => $servers->isEmpty(),
-            'servers_isNotEmpty' => $servers->isNotEmpty(),
-        ]);
-
-        // Step 2: 批量查询所有服务器的速率限制状态（优化：1次查询）
+        // 批量查询所有服务器的速率限制状态
         if ($servers->isNotEmpty()) {
-            $rateLimitStart = microtime(true);
-            
             $serverIds = $servers->pluck('id')->toArray();
             
-            \Log::info('[SMTP Servers API] Batch querying rate limits', [
-                'server_ids' => $serverIds,
-            ]);
-            
-            // ✅ 关键优化：一次查询获取所有服务器最近1小时的发送日志
+            // 一次查询获取所有服务器最近1小时的发送日志
             $oneHourAgo = now()->subHour();
             $oneMinuteAgo = now()->subMinute();
             $oneSecondAgo = now()->subSecond();
             
-            $batchQueryStart = microtime(true);
             $logs = \App\Models\SendLog::whereIn('smtp_server_id', $serverIds)
                 ->whereIn('status', ['sent', 'failed'])
                 ->where('created_at', '>=', $oneHourAgo)
                 ->select('smtp_server_id', 'created_at')
                 ->get();
-            $batchQueryTime = (microtime(true) - $batchQueryStart) * 1000;
             
-            \Log::info('[SMTP Servers API] Batch query completed', [
-                'logs_count' => $logs->count(),
-                'time_ms' => round($batchQueryTime, 2),
-            ]);
-            
-            // ✅ 在内存中按服务器分组
+            // 在内存中按服务器分组
             $logsByServer = $logs->groupBy('smtp_server_id');
             
-            // ✅ 为每个服务器计算速率限制状态（纯内存操作，极快）
+            // 为每个服务器计算速率限制状态
             $servers->each(function ($server) use ($logsByServer, $oneSecondAgo, $oneMinuteAgo) {
                 $serverLogs = $logsByServer->get($server->id, collect());
                 
@@ -114,37 +64,11 @@ class SmtpServerController extends Controller
                 
                 $server->rate_limit_status = $status;
             });
-            
-            $rateLimitTotalTime = (microtime(true) - $rateLimitStart) * 1000;
-            \Log::info('[SMTP Servers API] All rate limits completed (batch mode)', [
-                'total_time_ms' => round($rateLimitTotalTime, 2),
-                'servers_count' => $servers->count(),
-            ]);
         }
 
-        // Step 3: 返回响应
-        $totalTime = (microtime(true) - $startTime) * 1000;
-        
-        $responseData = [
+        return response()->json([
             'data' => $servers,
-        ];
-        
-        \Log::info('[SMTP Servers API] Preparing response', [
-            'request_id' => $requestId,
-            'servers_count' => $servers->count(),
-            'response_has_data' => isset($responseData['data']),
-            'response_data_count' => isset($responseData['data']) ? $responseData['data']->count() : null,
-            'response_data_empty' => isset($responseData['data']) ? $responseData['data']->isEmpty() : null,
         ]);
-        
-        \Log::info('[SMTP Servers API] ========== Request completed ==========', [
-            'request_id' => $requestId,
-            'total_time_ms' => round($totalTime, 2),
-            'servers_count' => $servers->count(),
-            'final_server_ids' => $servers->pluck('id')->toArray(),
-        ]);
-
-        return response()->json($responseData);
     }
 
     public function store(Request $request)
@@ -468,7 +392,7 @@ class SmtpServerController extends Controller
         }
 
         $status = $smtpServer->getRateLimitStatus();
-        
+
         return response()->json([
             'data' => $status,
         ]);

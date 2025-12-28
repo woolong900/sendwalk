@@ -49,7 +49,6 @@ class Campaign extends Model
         'delivery_rate',
         'bounce_rate',
         'unsubscribe_rate',
-        'list_ids',
     ];
 
     public function user()

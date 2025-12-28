@@ -243,7 +243,7 @@ class SendCampaignEmail implements ShouldQueue
                 $listName = \App\Models\MailingList::find($this->listId)->name ?? null;
             } else {
                 $listId = $this->campaign->list_id;
-                $listName = $this->campaign->list->name ?? null;
+            $listName = $this->campaign->list->name ?? null;
             }
 
             // Send email

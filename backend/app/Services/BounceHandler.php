@@ -216,6 +216,11 @@ class BounceHandler
             'error_message' => $errorMessage,
             'smtp_response' => $smtpResponse,
         ]);
+        
+        // 更新活动的退信统计
+        if ($campaignId) {
+            Campaign::where('id', $campaignId)->increment('total_bounced');
+        }
     }
 
     /**

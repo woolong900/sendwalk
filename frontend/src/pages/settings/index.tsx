@@ -453,8 +453,8 @@ export default function SettingsPage() {
                       handleAddSender()
                     }
                   }}
-                  className="font-mono text-sm"
-                />
+              className="font-mono text-sm"
+            />
               </div>
               <Button
                 type="button"
@@ -570,7 +570,7 @@ export default function SettingsPage() {
                     handleAddSender()
                   }
                 }}
-                className="font-mono text-sm"
+              className="font-mono text-sm"
               />
               <Button
                 type="button"

@@ -53,7 +53,7 @@ class ProcessScheduledCampaigns extends Command
             
             // 优先使用多列表关系（新版）
             if ($campaign->lists()->exists()) {
-                $listIds = $campaign->lists->pluck('id')->toArray();
+            $listIds = $campaign->lists->pluck('id')->toArray();
             }
             // 回退到单列表字段（旧版）
             elseif ($campaign->list_id) {
@@ -87,13 +87,13 @@ class ProcessScheduledCampaigns extends Command
                         $listSubscribers = Subscriber::select(['id', 'email', 'first_name', 'last_name', 'custom_fields'])
                             ->whereHas('lists', function ($query) use ($listId) {
                                 $query->where('lists.id', $listId)
-                                      ->where('list_subscriber.status', 'active');
+                      ->where('list_subscriber.status', 'active');
                             })
                             ->where('subscribers.id', '>', $lastId)
                             ->orderBy('subscribers.id', 'asc')
                             ->take($batchSize)
                             ->get();
-                        
+
                         if ($listSubscribers->isEmpty()) {
                             break; // 该列表处理完毕
                         }
@@ -128,8 +128,8 @@ class ProcessScheduledCampaigns extends Command
                 
                 if ($totalTasksCreated === 0) {
                     $this->warn("  ⚠️  活动 {$campaign->name} 没有待发送的订阅者，跳过");
-                    continue;
-                }
+                continue;
+            }
                 
                 // 统计总收件人数（包括已发送和新创建的任务）
                 $totalRecipients = \DB::table('campaign_sends')
@@ -139,12 +139,12 @@ class ProcessScheduledCampaigns extends Command
                 if ($totalRecipients === 0) {
                     $totalRecipients = $totalTasksCreated;
                 }
-                
-                // 更新总收件人数
-                $campaign->update([
+
+            // 更新总收件人数
+            $campaign->update([
                     'total_recipients' => $totalRecipients,
-                ]);
-                
+            ]);
+
                 $this->info("  🎉 活动 {$campaign->name} 任务创建完成");
                 $this->info("     总任务数: {$totalTasksCreated}");
                 $this->info("     总收件人: {$totalRecipients}");
