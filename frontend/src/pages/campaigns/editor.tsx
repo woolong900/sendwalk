@@ -1097,7 +1097,7 @@ export default function CampaignEditorPage() {
                 onClick={sendMode === 'now' ? handleSendNow : handleScheduleSend}
                 disabled={sendMutation.isPending}
               >
-                {sendMutation.isPending ? '发送中...' : sendMode === 'now' ? '立即发送' : '定时发送'}
+                {sendMutation.isPending ? '处理中...' : sendMode === 'now' ? '立即发送' : '定时发送'}
               </Button>
             </div>
           </div>

@@ -198,23 +198,13 @@ class CampaignController extends Controller
             ], 422);
         }
 
-        // 计算总收件人数量
-        $listIds = $campaign->lists->pluck('id')->toArray();
-        $totalRecipients = 0;
-        
-        if (!empty($listIds)) {
-            $totalRecipients = \App\Models\Subscriber::whereHas('lists', function ($query) use ($listIds) {
-                $query->whereIn('lists.id', $listIds)
-                      ->where('list_subscriber.status', 'active');
-            })->distinct()->count();
-        }
-
-        // ✅ 统一逻辑：设置为 scheduled 状态，scheduled_at 为当前时间
-        // 定时任务会立即检测到并处理
+        // ✅ 优化：不在这里计算 total_recipients，延迟到 ProcessScheduledCampaigns 中计算
+        // 这样可以立即响应用户，避免等待 6-8 秒
+        // total_recipients 会在后台任务处理时准确计算
         $campaign->update([
             'status' => 'scheduled',
             'scheduled_at' => now(),  // 立即发送 = 当前时间
-            'total_recipients' => $totalRecipients,
+            'total_recipients' => 0,  // 初始为 0，后台任务会更新
         ]);
 
         return response()->json([
@@ -240,21 +230,13 @@ class CampaignController extends Controller
             'scheduled_at' => 'required|date',
         ]);
 
-        // 计算总收件人数量
-        $listIds = $campaign->lists->pluck('id')->toArray();
-        $totalRecipients = 0;
-        
-        if (!empty($listIds)) {
-            $totalRecipients = \App\Models\Subscriber::whereHas('lists', function ($query) use ($listIds) {
-                $query->whereIn('lists.id', $listIds)
-                      ->where('list_subscriber.status', 'active');
-            })->distinct()->count();
-        }
-
+        // ✅ 优化：不在这里计算 total_recipients，延迟到 ProcessScheduledCampaigns 中计算
+        // 这样可以立即响应用户，避免等待 6-8 秒
+        // total_recipients 会在后台任务处理时准确计算
         $campaign->update([
             'status' => 'scheduled',
             'scheduled_at' => $request->scheduled_at,
-            'total_recipients' => $totalRecipients,
+            'total_recipients' => 0,  // 初始为 0，后台任务会更新
         ]);
 
         return response()->json([
