@@ -192,44 +192,56 @@ export default function CampaignEditorPage() {
     })
   }, [smtpServers])
 
-  // 加载活动数据（仅编辑模式）
+  // 加载活动数据（仅编辑模式）- 关键修复：依赖 campaign 和 smtpServers
   useEffect(() => {
     console.log('[Campaign Editor] Campaign useEffect triggered', {
       hasCampaign: !!campaign,
       campaignId: campaign?.id,
       smtpServerId: campaign?.smtp_server_id,
       smtpServerIdType: typeof campaign?.smtp_server_id,
+      hasSmtpServers: !!smtpServers,
+      smtpServersLength: smtpServers?.length,
     })
     
-    if (campaign) {
-      const newFormData = {
-        list_ids: campaign.list_ids || (campaign.list_id ? [campaign.list_id] : []),
-        smtp_server_id: campaign.smtp_server_id ? campaign.smtp_server_id.toString() : '',
-        name: campaign.name || '',
-        subject: campaign.subject || '',
-        preview_text: campaign.preview_text || '',
-        from_name: campaign.from_name || '',
-        from_email: campaign.from_email || '',
-        reply_to: campaign.reply_to || '',
-        html_content: campaign.html_content || '',
-      }
-      
-      console.log('[Campaign Editor] Setting formData', {
-        campaignId: campaign.id,
-        oldSmtpServerId: formData.smtp_server_id,
-        newSmtpServerId: newFormData.smtp_server_id,
-        newFormData,
-      })
-      
-      setFormData(newFormData)
-      
-      // 如果有定时发送时间，设置为定时模式
-      if (campaign.scheduled_at) {
-        setSendMode('schedule')
-        setScheduledDateTime(new Date(campaign.scheduled_at))
-      }
+    if (!campaign) {
+      console.log('[Campaign Editor] No campaign, skipping formData update')
+      return
     }
-  }, [campaign])
+
+    // 如果是编辑模式且有 smtp_server_id，等待 smtpServers 加载完成
+    if (isEditing && campaign.smtp_server_id && (!smtpServers || smtpServers.length === 0)) {
+      console.log('[Campaign Editor] Waiting for smtpServers to load before setting formData')
+      return
+    }
+    
+    const newFormData = {
+      list_ids: campaign.list_ids || (campaign.list_id ? [campaign.list_id] : []),
+      smtp_server_id: campaign.smtp_server_id ? campaign.smtp_server_id.toString() : '',
+      name: campaign.name || '',
+      subject: campaign.subject || '',
+      preview_text: campaign.preview_text || '',
+      from_name: campaign.from_name || '',
+      from_email: campaign.from_email || '',
+      reply_to: campaign.reply_to || '',
+      html_content: campaign.html_content || '',
+    }
+    
+    console.log('[Campaign Editor] Setting formData', {
+      campaignId: campaign.id,
+      oldSmtpServerId: formData.smtp_server_id,
+      newSmtpServerId: newFormData.smtp_server_id,
+      smtpServersAvailable: smtpServers?.length || 0,
+      newFormData,
+    })
+    
+    setFormData(newFormData)
+    
+    // 如果有定时发送时间，设置为定时模式
+    if (campaign.scheduled_at) {
+      setSendMode('schedule')
+      setScheduledDateTime(new Date(campaign.scheduled_at))
+    }
+  }, [campaign, smtpServers, isEditing])
 
 
   // 保存/更新活动
