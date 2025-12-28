@@ -140,17 +140,19 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
         </div>
 
         <div className="flex-1 overflow-auto border rounded-lg">
-          <Table className="min-w-[960px]">
+          <Table className="min-w-[1100px]">
             <colgroup>
-              <col className="w-[250px]" />
+              <col className="w-[220px]" />
+              <col className="w-[180px]" />
               <col className="w-[120px]" />
               <col className="w-[160px]" />
               <col className="w-[80px]" />
-              <col className="w-[350px]" />
+              <col className="w-[340px]" />
             </colgroup>
             <TableHeader>
               <TableRow>
                 <TableHead>邮箱地址</TableHead>
+                <TableHead>发件人</TableHead>
                 <TableHead>SMTP服务器</TableHead>
                 <TableHead>发送时间</TableHead>
                 <TableHead>状态</TableHead>
@@ -160,13 +162,13 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     加载中...
                   </TableCell>
                 </TableRow>
               ) : !data?.data || data.data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     暂无发送记录
                   </TableCell>
                 </TableRow>
@@ -179,6 +181,9 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
                     <TableRow key={log.id}>
                       <TableCell className="font-mono text-sm whitespace-nowrap" title={log.email}>
                         <div className="truncate">{log.email}</div>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm whitespace-nowrap" title={log.from_email}>
+                        <div className="truncate">{log.from_email || '-'}</div>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">{log.smtp_server?.name || '-'}</TableCell>
                       <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
