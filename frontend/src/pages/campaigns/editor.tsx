@@ -117,8 +117,54 @@ export default function CampaignEditorPage() {
   const { data: smtpServers } = useQuery<SmtpServer[]>({
     queryKey: ['smtp-servers'],
     queryFn: async () => {
-      const response = await api.get('/smtp-servers')
-      return response.data.data
+      const requestId = `frontend_${Date.now()}_${Math.random().toString(36).substring(7)}`
+      console.log('[SMTP Servers] ========== Fetching ==========', {
+        requestId,
+        timestamp: new Date().toISOString(),
+      })
+      
+      try {
+        const response = await api.get('/smtp-servers')
+        
+        console.log('[SMTP Servers] Response received', {
+          requestId,
+          status: response.status,
+          statusText: response.statusText,
+          hasData: !!response.data,
+          dataKeys: response.data ? Object.keys(response.data) : [],
+          dataType: typeof response.data,
+          dataIsArray: Array.isArray(response.data),
+          rawData: response.data,
+        })
+        
+        const servers = response.data.data
+        
+        console.log('[SMTP Servers] Parsed servers', {
+          requestId,
+          servers,
+          serversType: typeof servers,
+          serversIsArray: Array.isArray(servers),
+          serversLength: servers ? servers.length : null,
+          isEmpty: !servers || servers.length === 0,
+          serverIds: servers ? servers.map((s: any) => s.id) : [],
+          serverNames: servers ? servers.map((s: any) => s.name) : [],
+        })
+        
+        console.log('[SMTP Servers] ========== Fetch complete ==========', {
+          requestId,
+          finalCount: servers ? servers.length : 0,
+        })
+        
+        return servers
+      } catch (error) {
+        console.error('[SMTP Servers] ========== Fetch error ==========', {
+          requestId,
+          error,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+        })
+        throw error
+      }
     },
   })
 
@@ -132,10 +178,31 @@ export default function CampaignEditorPage() {
     enabled: isEditing,
   })
 
+  // 监控 smtpServers 变化
+  useEffect(() => {
+    console.log('[Campaign Editor] smtpServers changed', {
+      hasSmtpServers: !!smtpServers,
+      smtpServersType: typeof smtpServers,
+      smtpServersIsArray: Array.isArray(smtpServers),
+      smtpServersLength: smtpServers ? smtpServers.length : null,
+      isEmpty: !smtpServers || smtpServers.length === 0,
+      serverIds: smtpServers ? smtpServers.map(s => s.id) : [],
+      serverNames: smtpServers ? smtpServers.map(s => s.name) : [],
+      currentFormDataServerId: formData.smtp_server_id,
+    })
+  }, [smtpServers])
+
   // 加载活动数据（仅编辑模式）
   useEffect(() => {
+    console.log('[Campaign Editor] Campaign useEffect triggered', {
+      hasCampaign: !!campaign,
+      campaignId: campaign?.id,
+      smtpServerId: campaign?.smtp_server_id,
+      smtpServerIdType: typeof campaign?.smtp_server_id,
+    })
+    
     if (campaign) {
-      setFormData({
+      const newFormData = {
         list_ids: campaign.list_ids || (campaign.list_id ? [campaign.list_id] : []),
         smtp_server_id: campaign.smtp_server_id ? campaign.smtp_server_id.toString() : '',
         name: campaign.name || '',
@@ -145,7 +212,16 @@ export default function CampaignEditorPage() {
         from_email: campaign.from_email || '',
         reply_to: campaign.reply_to || '',
         html_content: campaign.html_content || '',
+      }
+      
+      console.log('[Campaign Editor] Setting formData', {
+        campaignId: campaign.id,
+        oldSmtpServerId: formData.smtp_server_id,
+        newSmtpServerId: newFormData.smtp_server_id,
+        newFormData,
       })
+      
+      setFormData(newFormData)
       
       // 如果有定时发送时间，设置为定时模式
       if (campaign.scheduled_at) {

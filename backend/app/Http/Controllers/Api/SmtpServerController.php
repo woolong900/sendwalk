@@ -11,21 +11,44 @@ class SmtpServerController extends Controller
     public function index(Request $request)
     {
         $startTime = microtime(true);
-        \Log::info('[SMTP Servers API] Request started', [
+        $requestId = uniqid('smtp_', true); // 唯一请求ID用于追踪
+        
+        \Log::info('[SMTP Servers API] ========== Request started ==========', [
+            'request_id' => $requestId,
             'user_id' => $request->user()->id,
+            'user_email' => $request->user()->email,
             'timestamp' => now()->toDateTimeString(),
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
         ]);
 
         // Step 1: 查询服务器列表
         $queryStart = microtime(true);
-        $servers = SmtpServer::where('user_id', $request->user()->id)
-            ->latest()
-            ->get();
+        
+        \Log::info('[SMTP Servers API] Building query', [
+            'request_id' => $requestId,
+            'user_id' => $request->user()->id,
+        ]);
+        
+        $query = SmtpServer::where('user_id', $request->user()->id)->latest();
+        
+        \Log::info('[SMTP Servers API] Executing query', [
+            'request_id' => $requestId,
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+        ]);
+        
+        $servers = $query->get();
         $queryTime = (microtime(true) - $queryStart) * 1000;
         
         \Log::info('[SMTP Servers API] Query servers completed', [
+            'request_id' => $requestId,
             'count' => $servers->count(),
             'time_ms' => round($queryTime, 2),
+            'server_ids' => $servers->pluck('id')->toArray(),
+            'server_names' => $servers->pluck('name')->toArray(),
+            'servers_isEmpty' => $servers->isEmpty(),
+            'servers_isNotEmpty' => $servers->isNotEmpty(),
         ]);
 
         // Step 2: 批量查询所有服务器的速率限制状态（优化：1次查询）
@@ -101,14 +124,27 @@ class SmtpServerController extends Controller
 
         // Step 3: 返回响应
         $totalTime = (microtime(true) - $startTime) * 1000;
-        \Log::info('[SMTP Servers API] Request completed', [
+        
+        $responseData = [
+            'data' => $servers,
+        ];
+        
+        \Log::info('[SMTP Servers API] Preparing response', [
+            'request_id' => $requestId,
+            'servers_count' => $servers->count(),
+            'response_has_data' => isset($responseData['data']),
+            'response_data_count' => isset($responseData['data']) ? $responseData['data']->count() : null,
+            'response_data_empty' => isset($responseData['data']) ? $responseData['data']->isEmpty() : null,
+        ]);
+        
+        \Log::info('[SMTP Servers API] ========== Request completed ==========', [
+            'request_id' => $requestId,
             'total_time_ms' => round($totalTime, 2),
             'servers_count' => $servers->count(),
+            'final_server_ids' => $servers->pluck('id')->toArray(),
         ]);
 
-        return response()->json([
-            'data' => $servers,
-        ]);
+        return response()->json($responseData);
     }
 
     public function store(Request $request)
