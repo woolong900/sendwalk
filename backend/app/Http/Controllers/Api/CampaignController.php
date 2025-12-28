@@ -80,17 +80,20 @@ class CampaignController extends Controller
     public function show(Request $request, Campaign $campaign)
     {
         try {
-        if ($campaign->user_id !== $request->user()->id) {
-            return response()->json(['message' => '无权访问'], 403);
-        }
+            if ($campaign->user_id !== $request->user()->id) {
+                return response()->json(['message' => '无权访问'], 403);
+            }
 
             // 不加载 sends 关系，因为可能有大量发送记录
             // 编辑活动时不需要所有的发送记录
             $campaign->load(['list', 'lists', 'smtpServer']);
+            
+            // 手动添加 list_ids（因为从 $appends 中移除了以优化列表页性能）
+            $campaign->list_ids = $campaign->lists->pluck('id')->toArray();
 
-        return response()->json([
-            'data' => $campaign,
-        ]);
+            return response()->json([
+                'data' => $campaign,
+            ]);
         } catch (\Exception $e) {
             \Log::error('Failed to show campaign', [
                 'campaign_id' => $campaign->id,
