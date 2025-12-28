@@ -132,15 +132,24 @@ export default function CampaignEditorPage() {
     enabled: isEditing,
   })
 
-  // 加载活动数据（仅编辑模式）- 等待 smtpServers 加载完成以避免竞态条件
+  // 加载活动数据（仅编辑模式）- 等待必要数据加载完成以避免竞态条件
   useEffect(() => {
     if (!campaign) {
       return
     }
 
-    // 如果是编辑模式且有 smtp_server_id，等待 smtpServers 加载完成
-    if (isEditing && campaign.smtp_server_id && (!smtpServers || smtpServers.length === 0)) {
-      return
+    // 如果是编辑模式，等待必要的数据加载完成
+    if (isEditing) {
+      // 等待 smtpServers 加载（如果有 smtp_server_id）
+      if (campaign.smtp_server_id && (!smtpServers || smtpServers.length === 0)) {
+        return
+      }
+      
+      // 等待 lists 加载（如果有 list_ids）
+      const hasListIds = campaign.list_ids && campaign.list_ids.length > 0
+      if (hasListIds && (!lists || lists.length === 0)) {
+        return
+      }
     }
     
     const newFormData = {
@@ -162,7 +171,7 @@ export default function CampaignEditorPage() {
       setSendMode('schedule')
       setScheduledDateTime(new Date(campaign.scheduled_at))
     }
-  }, [campaign, smtpServers, isEditing])
+  }, [campaign, smtpServers, lists, isEditing])
 
 
   // 保存/更新活动
