@@ -128,26 +128,19 @@ class ProcessScheduledCampaigns extends Command
                 
                 if ($totalTasksCreated === 0) {
                     $this->warn("  ⚠️  活动 {$campaign->name} 没有待发送的订阅者，跳过");
-                continue;
-            }
-                
-                // 统计总收件人数（包括已发送和新创建的任务）
-                $totalRecipients = \DB::table('campaign_sends')
-                    ->where('campaign_id', $campaign->id)
-                    ->count();
-                
-                if ($totalRecipients === 0) {
-                    $totalRecipients = $totalTasksCreated;
+                    continue;
                 }
-
-            // 更新总收件人数
-            $campaign->update([
-                    'total_recipients' => $totalRecipients,
-            ]);
+                
+                // 🔥 关键修复：直接使用创建的任务数作为总收件人数
+                // 不要查询 campaign_sends，因为在创建过程中部分任务可能已经执行了
+                // 这会导致 total_recipients 被错误设置为一个很小的数字
+                $campaign->update([
+                    'total_recipients' => $totalTasksCreated,
+                ]);
 
                 $this->info("  🎉 活动 {$campaign->name} 任务创建完成");
                 $this->info("     总任务数: {$totalTasksCreated}");
-                $this->info("     总收件人: {$totalRecipients}");
+                $this->info("     总收件人: {$totalTasksCreated}");
                 $this->info("     队列: campaign_{$campaign->id}");
             } catch (\Exception $e) {
                 $this->error("  ❌ 创建任务失败: {$e->getMessage()}");
