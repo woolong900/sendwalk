@@ -57,53 +57,32 @@ class CampaignAnalyticsController extends Controller
             return response()->json(['message' => '无权访问此活动'], 403);
         }
 
-        // 按email分组统计打开次数
-        $subQuery = EmailOpen::selectRaw('
-                email,
-                subscriber_id,
-                COUNT(*) as open_count,
-                MAX(opened_at) as last_opened_at,
-                MIN(opened_at) as first_opened_at
-            ')
-            ->where('campaign_id', $campaignId)
-            ->groupBy('email', 'subscriber_id');
+        // ✅ 性能优化：使用单个查询直接获取所有需要的数据，避免 N+1 查询
+        // 使用子查询 + JOIN 获取每个邮箱的首次打开详情
+        $subQuery = \DB::table('email_opens as eo')
+            ->select([
+                'eo.email',
+                'eo.subscriber_id',
+                \DB::raw('COUNT(*) as open_count'),
+                \DB::raw('MAX(eo.opened_at) as last_opened_at'),
+                \DB::raw('MIN(eo.opened_at) as first_opened_at'),
+                // 使用 MIN 获取首次打开的 IP 和 User Agent
+                // 这里使用技巧：SUBSTRING_INDEX 配合 GROUP_CONCAT 获取最早记录的其他字段
+                \DB::raw('SUBSTRING_INDEX(GROUP_CONCAT(eo.ip_address ORDER BY eo.opened_at ASC), ",", 1) as first_ip_address'),
+                \DB::raw('SUBSTRING_INDEX(GROUP_CONCAT(eo.user_agent ORDER BY eo.opened_at ASC SEPARATOR "|||"), "|||", 1) as first_user_agent')
+            ])
+            ->where('eo.campaign_id', $campaignId)
+            ->groupBy('eo.email', 'eo.subscriber_id');
 
         // 支持搜索
         if ($request->search) {
-            $subQuery->where('email', 'like', '%' . $request->search . '%');
+            $subQuery->where('eo.email', 'like', '%' . $request->search . '%');
         }
 
         $subQuery->orderBy('last_opened_at', 'desc');
 
         $perPage = $request->per_page ?? 50;
         $groupedOpens = $subQuery->paginate($perPage);
-
-        // 为每个email获取首次打开的详细信息
-        $emails = $groupedOpens->pluck('email')->toArray();
-        
-        if (!empty($emails)) {
-            // 获取每个邮箱的首次打开记录
-            $firstOpenDetails = [];
-            foreach ($emails as $email) {
-                $firstOpen = EmailOpen::where('campaign_id', $campaignId)
-                    ->where('email', $email)
-                    ->orderBy('opened_at', 'asc')
-                    ->first();
-                if ($firstOpen) {
-                    $firstOpenDetails[$email] = $firstOpen;
-                }
-            }
-
-            // 合并数据
-            $data = $groupedOpens->getCollection()->map(function($open) use ($firstOpenDetails) {
-                $firstOpen = $firstOpenDetails[$open->email] ?? null;
-                $open->first_ip_address = $firstOpen->ip_address ?? null;
-                $open->first_user_agent = $firstOpen->user_agent ?? null;
-                return $open;
-            });
-
-            $groupedOpens->setCollection($data);
-        }
 
         return response()->json($groupedOpens);
     }
