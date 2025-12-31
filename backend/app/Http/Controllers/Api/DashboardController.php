@@ -49,7 +49,6 @@ class DashboardController extends Controller
                         'draft' => $campaignStats->draft_count ?? 0,
                     ],
                     'smtp_server_stats' => $this->getSmtpServerStatsOptimized($userId),
-                    'sending_rate' => $this->getSendingRateOptimized($userId),
                     'worker_count' => $this->getWorkerCount(),
                     'scheduler_running' => $this->getSchedulerStatus(),
                 ];
@@ -107,32 +106,6 @@ class DashboardController extends Controller
         ];
     }
     
-    private function getSendingRate($userId)
-    {
-        // 获取最近1分钟的发送数量
-        $campaignIds = Campaign::where('user_id', $userId)->pluck('id');
-        
-        $sentLast1Min = SendLog::whereIn('campaign_id', $campaignIds)
-            ->where('status', 'sent')
-            ->where('created_at', '>=', now()->subMinute())
-            ->count();
-        
-        return $sentLast1Min; // 邮件/分钟
-    }
-    
-    // 优化版本：使用 JOIN 避免子查询
-    // 这个查询已经限制在最近1分钟，性能良好
-    private function getSendingRateOptimized($userId)
-    {
-        $sentLast1Min = SendLog::join('campaigns', 'send_logs.campaign_id', '=', 'campaigns.id')
-            ->where('campaigns.user_id', $userId)
-            ->where('send_logs.status', 'sent')
-            ->where('send_logs.created_at', '>=', now()->subMinute())
-            ->count();
-        
-        return $sentLast1Min;
-    }
-
     private function getSendStats($userId)
     {
         // 获取用户的活动ID
@@ -169,9 +142,26 @@ class DashboardController extends Controller
         return $stats;
     }
     
-    // 优化版本：使用 JOIN 和单次查询获取所有时间段的数据
+    // 优化版本：避免 JOIN，直接使用 campaign_id IN (...) 
+    // 🔥 关键优化：
+    // 1. 先查 campaign_ids，再用 IN 子句查 send_logs
+    // 2. 在 WHERE 中限制 created_at，利用索引 idx_campaign_status_created
     private function getSendStatsOptimized($userId)
     {
+        // 先获取用户的活动ID列表（通常很小，几十到几百个）
+        $campaignIds = Campaign::where('user_id', $userId)->pluck('id')->toArray();
+        
+        // 如果没有活动，直接返回空结果
+        if (empty($campaignIds)) {
+            return [
+                '1min' => ['sent' => 0, 'failed' => 0, 'total' => 0],
+                '10min' => ['sent' => 0, 'failed' => 0, 'total' => 0],
+                '30min' => ['sent' => 0, 'failed' => 0, 'total' => 0],
+                '1hour' => ['sent' => 0, 'failed' => 0, 'total' => 0],
+                '1day' => ['sent' => 0, 'failed' => 0, 'total' => 0],
+            ];
+        }
+        
         $timeRanges = [
             '1min' => now()->subMinute(),
             '10min' => now()->subMinutes(10),
@@ -180,28 +170,29 @@ class DashboardController extends Controller
             '1day' => now()->subDay(),
         ];
 
-        // 使用单次查询获取所有时间段的统计
-        // 查询全部数据，依靠索引和缓存提升性能
+        // 🔥 优化：
+        // - 使用 whereIn(campaign_id) 代替 JOIN
+        // - 在 WHERE 中限制 created_at >= 1天前，大幅减少扫描范围
+        // - 可以利用索引 idx_campaign_status_created (campaign_id, status, created_at)
         $result = DB::table('send_logs')
-            ->join('campaigns', 'send_logs.campaign_id', '=', 'campaigns.id')
-            ->where('campaigns.user_id', $userId)
+            ->whereIn('campaign_id', $campaignIds)
+            ->where('created_at', '>=', $timeRanges['1day']) // 只扫描最近1天
             ->selectRaw("
-                SUM(CASE WHEN send_logs.status = 'sent' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as sent_1min,
-                SUM(CASE WHEN send_logs.status = 'failed' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as failed_1min,
-                SUM(CASE WHEN send_logs.status = 'sent' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as sent_10min,
-                SUM(CASE WHEN send_logs.status = 'failed' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as failed_10min,
-                SUM(CASE WHEN send_logs.status = 'sent' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as sent_30min,
-                SUM(CASE WHEN send_logs.status = 'failed' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as failed_30min,
-                SUM(CASE WHEN send_logs.status = 'sent' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as sent_1hour,
-                SUM(CASE WHEN send_logs.status = 'failed' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as failed_1hour,
-                SUM(CASE WHEN send_logs.status = 'sent' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as sent_1day,
-                SUM(CASE WHEN send_logs.status = 'failed' AND send_logs.created_at >= ? THEN 1 ELSE 0 END) as failed_1day
+                SUM(CASE WHEN status = 'sent' AND created_at >= ? THEN 1 ELSE 0 END) as sent_1min,
+                SUM(CASE WHEN status = 'failed' AND created_at >= ? THEN 1 ELSE 0 END) as failed_1min,
+                SUM(CASE WHEN status = 'sent' AND created_at >= ? THEN 1 ELSE 0 END) as sent_10min,
+                SUM(CASE WHEN status = 'failed' AND created_at >= ? THEN 1 ELSE 0 END) as failed_10min,
+                SUM(CASE WHEN status = 'sent' AND created_at >= ? THEN 1 ELSE 0 END) as sent_30min,
+                SUM(CASE WHEN status = 'failed' AND created_at >= ? THEN 1 ELSE 0 END) as failed_30min,
+                SUM(CASE WHEN status = 'sent' AND created_at >= ? THEN 1 ELSE 0 END) as sent_1hour,
+                SUM(CASE WHEN status = 'failed' AND created_at >= ? THEN 1 ELSE 0 END) as failed_1hour,
+                SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent_1day,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_1day
             ", [
                 $timeRanges['1min'], $timeRanges['1min'],
                 $timeRanges['10min'], $timeRanges['10min'],
                 $timeRanges['30min'], $timeRanges['30min'],
                 $timeRanges['1hour'], $timeRanges['1hour'],
-                $timeRanges['1day'], $timeRanges['1day'],
             ])
             ->first();
 

@@ -34,7 +34,6 @@ interface DashboardStats {
   total_sent: number
   avg_open_rate: number
   queue_length: number
-  sending_rate: number
   worker_count: number
   scheduler_running: boolean
   campaign_status_stats: CampaignStatusStats
