@@ -540,7 +540,7 @@ export default function CampaignsPage() {
                 <TableHead className="text-center">送达率</TableHead>
                 <TableHead className="text-center">打开率</TableHead>
                 <TableHead className="text-center">点击率</TableHead>
-                <TableHead className="text-center">取消订阅</TableHead>
+                <TableHead className="text-center">退订率</TableHead>
                 <TableHead className="text-center">投诉率</TableHead>
                 <TableHead className="text-center">弹回率</TableHead>
                 <TableHead className="text-center">时间</TableHead>
