@@ -649,54 +649,50 @@ class SendCampaignEmail implements ShouldQueue
     
     /**
      * 检查并标记活动为已完成
-     * 基于队列状态和实际完成状态，确保所有任务都已处理
+     * 
+     * 🔥 使用原子性数据库操作，避免竞态条件：
+     * - 单条 SQL 语句同时检查所有条件并更新
+     * - 多个 Worker 同时执行时，只有一个能成功更新
      */
     private function checkAndMarkCampaignComplete(): void
     {
-        // 🔥 关键修复：必须同时满足两个条件才能标记为完成：
-        // 1. 队列中没有剩余任务
-        // 2. 已处理的任务数 >= total_recipients
-        
         $queueName = 'campaign_' . $this->campaign->id;
+        $campaignId = $this->campaign->id;
         
-        // 检查队列中是否还有任务
-        $remainingJobs = \DB::table('jobs')->where('queue', $queueName)->count();
+        // 🔥 原子性更新：单条 SQL 同时检查所有条件
+        // 条件：
+        // 1. 状态为 sending（避免重复更新）
+        // 2. 队列中没有任务（包括 reserved 的）
+        // 3. 已处理数 >= total_recipients
+        $affected = \DB::update("
+            UPDATE campaigns 
+            SET status = 'sent', 
+                sent_at = NOW(),
+                updated_at = NOW()
+            WHERE id = ?
+            AND status = 'sending'
+            AND NOT EXISTS (
+                SELECT 1 FROM jobs WHERE queue = ?
+            )
+            AND (
+                SELECT COUNT(*) FROM campaign_sends 
+                WHERE campaign_id = ? AND status IN ('sent', 'failed')
+            ) >= total_recipients
+        ", [$campaignId, $queueName, $campaignId]);
         
-        if ($remainingJobs > 0) {
-            // 队列中还有任务，不能标记为完成
-            return;
-        }
-        
-        // 统计已完成的任务数（成功或失败）
-        $totalProcessed = CampaignSend::where('campaign_id', $this->campaign->id)
-            ->whereIn('status', ['sent', 'failed'])
-            ->count();
-        
-        // 只有当队列为空且已处理任务数达到预期时，才标记为完成
-        if ($totalProcessed >= $this->campaign->total_recipients) {
-            $this->campaign->update([
-                'status' => 'sent',
-                'sent_at' => now(),
-            ]);
+        if ($affected > 0) {
+            // 刷新模型以获取最新状态
+            $this->campaign->refresh();
             
-            \Log::info('Campaign completed successfully', [
-                'campaign_id' => $this->campaign->id,
+            \Log::info('Campaign completed successfully (atomic update)', [
+                'campaign_id' => $campaignId,
                 'queue' => $queueName,
                 'total_recipients' => $this->campaign->total_recipients,
-                'total_processed' => $totalProcessed,
                 'total_sent' => $this->campaign->total_sent,
                 'total_delivered' => $this->campaign->total_delivered,
             ]);
-        } else {
-            // 队列已空但任务数不匹配，记录警告
-            \Log::warning('Campaign queue empty but tasks not fully processed', [
-                'campaign_id' => $this->campaign->id,
-                'queue' => $queueName,
-                'total_recipients' => $this->campaign->total_recipients,
-                'total_processed' => $totalProcessed,
-                'remaining_jobs' => $remainingJobs,
-            ]);
         }
+        // 如果 affected = 0，说明条件不满足或已被其他 Worker 更新，无需处理
     }
     
     /**

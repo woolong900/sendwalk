@@ -157,7 +157,10 @@ class ProcessCampaignQueue extends Command
             $job = $this->getNextJob($queueName);
             
             if (!$job) {
-                // 没有任务，休眠后继续
+                // 队列为空，尝试标记活动为完成（原子操作，防止状态卡住）
+                $this->tryMarkCampaignComplete($campaignId, $queueName);
+                
+                // 休眠后继续
                 $this->comment("[" . date('H:i:s') . "] No jobs available, sleeping {$sleepSeconds}s");
                 sleep($sleepSeconds);
                 continue;
@@ -440,5 +443,39 @@ class ProcessCampaignQueue extends Command
 
         // 调度挂起的信号处理器
         pcntl_signal_dispatch();
+    }
+    
+    /**
+     * 尝试将活动标记为完成（原子操作）
+     * 
+     * 当 Worker 检测到队列为空时调用，作为备用机制
+     * 使用原子性 SQL 避免竞态条件
+     */
+    protected function tryMarkCampaignComplete(int $campaignId, string $queueName): void
+    {
+        // 原子性更新：单条 SQL 同时检查所有条件
+        $affected = DB::update("
+            UPDATE campaigns 
+            SET status = 'sent', 
+                sent_at = NOW(),
+                updated_at = NOW()
+            WHERE id = ?
+            AND status = 'sending'
+            AND NOT EXISTS (
+                SELECT 1 FROM jobs WHERE queue = ?
+            )
+            AND (
+                SELECT COUNT(*) FROM campaign_sends 
+                WHERE campaign_id = ? AND status IN ('sent', 'failed')
+            ) >= total_recipients
+        ", [$campaignId, $queueName, $campaignId]);
+        
+        if ($affected > 0) {
+            $this->info("✅ Campaign #{$campaignId} marked as completed");
+            Log::info('Campaign marked as completed by worker', [
+                'campaign_id' => $campaignId,
+                'queue' => $queueName,
+            ]);
+        }
     }
 }
