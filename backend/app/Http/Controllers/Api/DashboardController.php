@@ -18,41 +18,36 @@ class DashboardController extends Controller
     {
         $userId = $request->user()->id;
 
-        // 使用缓存（60秒过期，减轻数据库压力）
-        $cacheKey = "dashboard_stats_{$userId}";
-        
-        return response()->json([
-            'data' => \Cache::remember($cacheKey, 60, function () use ($userId) {
-                // 只查询活动状态统计（用于显示活动状态卡片）
-                $campaignStats = Campaign::where('user_id', $userId)
-                    ->selectRaw('
-                        SUM(CASE WHEN status = "sending" THEN 1 ELSE 0 END) as sending_count,
-                        SUM(CASE WHEN status = "scheduled" THEN 1 ELSE 0 END) as scheduled_count,
-                        SUM(CASE WHEN status = "sent" THEN 1 ELSE 0 END) as completed_count,
-                        SUM(CASE WHEN status = "draft" THEN 1 ELSE 0 END) as draft_count
-                    ')
-                    ->first();
+        // 实时查询，不使用缓存
+        $campaignStats = Campaign::where('user_id', $userId)
+            ->selectRaw('
+                SUM(CASE WHEN status = "sending" THEN 1 ELSE 0 END) as sending_count,
+                SUM(CASE WHEN status = "scheduled" THEN 1 ELSE 0 END) as scheduled_count,
+                SUM(CASE WHEN status = "sent" THEN 1 ELSE 0 END) as completed_count,
+                SUM(CASE WHEN status = "draft" THEN 1 ELSE 0 END) as draft_count
+            ')
+            ->first();
 
-                return [
-                    // 前端不再需要这些字段，但为了兼容性保留（返回0）
-                    'total_subscribers' => 0,
-                    'total_campaigns' => 0,
-                    'total_sent' => 0,
-                    'avg_open_rate' => 0,
-                    // 以下是仍然需要的数据
-                    'send_stats' => $this->getSendStatsOptimized($userId),
-                    'queue_length' => $this->getQueueLength(),
-                    'campaign_status_stats' => [
-                        'sending' => $campaignStats->sending_count ?? 0,
-                        'scheduled' => $campaignStats->scheduled_count ?? 0,
-                        'completed' => $campaignStats->completed_count ?? 0,
-                        'draft' => $campaignStats->draft_count ?? 0,
-                    ],
-                    'smtp_server_stats' => $this->getSmtpServerStatsOptimized($userId),
-                    'worker_count' => $this->getWorkerCount(),
-                    'scheduler_running' => $this->getSchedulerStatus(),
-                ];
-            }),
+        return response()->json([
+            'data' => [
+                // 前端不再需要这些字段，但为了兼容性保留（返回0）
+                'total_subscribers' => 0,
+                'total_campaigns' => 0,
+                'total_sent' => 0,
+                'avg_open_rate' => 0,
+                // 以下是仍然需要的数据
+                'send_stats' => $this->getSendStatsOptimized($userId),
+                'queue_length' => $this->getQueueLength(),
+                'campaign_status_stats' => [
+                    'sending' => $campaignStats->sending_count ?? 0,
+                    'scheduled' => $campaignStats->scheduled_count ?? 0,
+                    'completed' => $campaignStats->completed_count ?? 0,
+                    'draft' => $campaignStats->draft_count ?? 0,
+                ],
+                'smtp_server_stats' => $this->getSmtpServerStatsOptimized($userId),
+                'worker_count' => $this->getWorkerCount(),
+                'scheduler_running' => $this->getSchedulerStatus(),
+            ],
         ]);
     }
     
