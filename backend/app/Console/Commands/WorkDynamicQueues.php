@@ -30,6 +30,11 @@ class WorkDynamicQueues extends Command
     private $lastQueueRefresh = 0;
     private $queueRefreshInterval = 30; // Refresh queue list every 30 seconds
     private $currentQueues = [];
+    
+    /**
+     * 最大重试次数
+     */
+    private const MAX_ATTEMPTS = 5;
 
     /**
      * Execute the console command.
@@ -73,16 +78,16 @@ class WorkDynamicQueues extends Command
                 } catch (\Exception $e) {
                     $this->error("❌ Job failed: {$e->getMessage()}");
                     
-                    // Mark job as failed if tries exceeded
-                    if ($job->attempts >= $tries) {
+                    // 注意：attempts 已经在 getNextJob() 中递增了
+                    // 检查是否超过最大重试次数（使用 +1 因为 job 对象是递增前的值）
+                    if (($job->attempts + 1) >= self::MAX_ATTEMPTS) {
                         $this->failJob($job, $e);
                         DB::table('jobs')->where('id', $job->id)->delete();
                     } else {
-                        // Increment attempts
+                        // 释放任务以便重试（不再递增 attempts，因为已在 getNextJob 中递增）
                         DB::table('jobs')
                             ->where('id', $job->id)
                             ->update([
-                                'attempts' => $job->attempts + 1,
                                 'reserved_at' => null,
                             ]);
                     }
@@ -153,6 +158,14 @@ class WorkDynamicQueues extends Command
             ->first();
 
         if ($job) {
+            // 检查是否超过最大重试次数
+            if ($job->attempts >= self::MAX_ATTEMPTS) {
+                $this->warn("⚠️  Job #{$job->id} exceeded max attempts ({$job->attempts}), marking as failed");
+                $this->failJob($job, new \Exception("Job exceeded maximum attempts ({$job->attempts})"));
+                DB::table('jobs')->where('id', $job->id)->delete();
+                return null;
+            }
+            
             // Reserve the job
             DB::table('jobs')
                 ->where('id', $job->id)

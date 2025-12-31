@@ -70,6 +70,8 @@ class ProcessCampaignQueue extends Command
         
         $processedCount = 0;
         $lastCheck = time();
+        $isRateLimited = false; // 标记是否处于限流状态
+        $smtpServerId = $campaign->smtp_server_id;
         
         // 主循环
         while (!$this->shouldQuit) {
@@ -134,6 +136,23 @@ class ProcessCampaignQueue extends Command
                 $lastCheck = time();
             }
             
+            // 如果处于限流状态，先检查服务器是否可以发送
+            if ($isRateLimited) {
+                $smtpServer = \App\Models\SmtpServer::find($smtpServerId);
+                if ($smtpServer) {
+                    $rateLimitStatus = $smtpServer->checkRateLimits();
+                    if (!$rateLimitStatus['can_send']) {
+                        // 仍然处于限流状态，继续休眠
+                        $this->comment("[" . date('H:i:s') . "] Still rate limited (blocked by: {$rateLimitStatus['blocked_by']}), sleeping 30s");
+                        sleep(30);
+                        continue;
+                    }
+                    // 限流解除，可以继续获取任务
+                    $this->info("[" . date('H:i:s') . "] Rate limit cleared, resuming job processing");
+                    $isRateLimited = false;
+                }
+            }
+            
             // 获取下一个任务
             $job = $this->getNextJob($queueName);
             
@@ -148,7 +167,8 @@ class ProcessCampaignQueue extends Command
             $result = $this->processJob($job);
             
             if ($result === 'rate_limited') {
-                // 服务器超限，Worker 休眠
+                // 服务器超限，标记限流状态
+                $isRateLimited = true;
                 continue;
             }
             
@@ -160,6 +180,11 @@ class ProcessCampaignQueue extends Command
         }
     }
     
+    /**
+     * 最大重试次数
+     */
+    private const MAX_ATTEMPTS = 5;
+
     /**
      * 获取下一个任务（原子性操作，防止竞态条件）
      */
@@ -181,6 +206,14 @@ class ProcessCampaignQueue extends Command
                     ->first();
                 
                 if ($job) {
+                    // 检查是否超过最大重试次数
+                    if ($job->attempts >= self::MAX_ATTEMPTS) {
+                        $this->warn("⚠️  Job #{$job->id} exceeded max attempts ({$job->attempts}), marking as failed");
+                        $this->moveJobToFailed($job, new \Exception("Job exceeded maximum attempts ({$job->attempts})"));
+                        DB::table('jobs')->where('id', $job->id)->delete();
+                        return null;
+                    }
+                    
                     // 更新任务状态（仍在事务中）
                     DB::table('jobs')
                         ->where('id', $job->id)
@@ -202,6 +235,27 @@ class ProcessCampaignQueue extends Command
             
             return null;
         }
+    }
+    
+    /**
+     * 将任务移动到失败队列
+     */
+    private function moveJobToFailed($job, \Exception $exception)
+    {
+        DB::table('failed_jobs')->insert([
+            'uuid' => \Illuminate\Support\Str::uuid(),
+            'connection' => 'database',
+            'queue' => $job->queue,
+            'payload' => $job->payload,
+            'exception' => $exception->getMessage() . "\n" . $exception->getTraceAsString(),
+            'failed_at' => now(),
+        ]);
+        
+        Log::warning('Job moved to failed_jobs due to max attempts', [
+            'job_id' => $job->id,
+            'queue' => $job->queue,
+            'attempts' => $job->attempts,
+        ]);
     }
     
     /**
@@ -264,7 +318,7 @@ class ProcessCampaignQueue extends Command
             return 'success';
             
         } catch (\App\Exceptions\RateLimitException $e) {
-            // 服务器超限，Worker 休眠后定期检查
+            // 服务器超限，将任务放回队列
             $waitSeconds = $e->getWaitSeconds();
             $this->warn("[" . date('H:i:s') . "] Rate limit reached, estimated wait: {$waitSeconds}s");
             
@@ -274,23 +328,20 @@ class ProcessCampaignQueue extends Command
                 'queue' => $job->queue,
                 'attempts' => $job->attempts,
                 'wait_seconds' => $waitSeconds,
-                'sleep_seconds' => 60,
                 'message' => $e->getMessage(),
             ]);
             
             // 将任务放回队列（不延迟 available_at）
+            // 重要：同时将 attempts 减 1，因为这次不算真正的失败
             DB::table('jobs')
                 ->where('id', $job->id)
                 ->update([
                     'reserved_at' => null,
+                    'attempts' => DB::raw('GREATEST(attempts - 1, 0)'), // 回退 attempts，最小为 0
                 ]);
             
-            // Worker 休眠 60 秒后唤醒，重新检查滑动窗口
-            $sleepSeconds = 60;
-            $this->info("[" . date('H:i:s') . "] Sleeping {$sleepSeconds}s, will check rate limit again after wake up");
-            sleep($sleepSeconds);
-            
             // 任务处理完成（放回队列）
+            // 不在这里 sleep，由主循环处理限流状态
             $this->isProcessing = false;
             
             return 'rate_limited';
