@@ -107,6 +107,28 @@ if ($dryRun) {
     if (count($emails) > 20) {
         echo "  ... 还有 " . (count($emails) - 20) . " 个邮箱\n";
     }
+    
+    // 预览受影响的订阅者
+    $affectedBlacklisted = DB::table('subscribers')
+        ->whereIn('email', $emails)
+        ->where('status', 'blacklisted')
+        ->count();
+    $affectedBounced = DB::table('subscribers')
+        ->whereIn('email', $emails)
+        ->where('status', 'bounced')
+        ->count();
+    
+    echo "\n📊 受影响的订阅者:\n";
+    echo "  - status = blacklisted: {$affectedBlacklisted} 个\n";
+    echo "  - status = bounced: {$affectedBounced} 个\n";
+    
+    // 预览退信日志
+    $affectedBounceLogs = DB::table('bounce_logs')
+        ->whereIn('email', $emails)
+        ->whereBetween('created_at', [$startTime, $endTime])
+        ->count();
+    echo "  - bounce_logs 记录: {$affectedBounceLogs} 条\n";
+    
     echo "\n[预览模式] 没有执行任何更改\n";
     exit(0);
 }
@@ -122,24 +144,53 @@ try {
         ->delete();
     echo "✅ 删除了 {$deletedCount} 条黑名单记录\n";
     
-    // 恢复订阅者状态
-    $restoredSubscribers = DB::table('subscribers')
-        ->whereIn('email', $emails)
-        ->where('status', 'blacklisted')
-        ->update(['status' => 'active', 'updated_at' => now()]);
-    echo "✅ 恢复了 {$restoredSubscribers} 个订阅者的状态为 active\n";
-    
-    // 恢复 list_subscriber 状态
+    // 获取订阅者 IDs
     $subscriberIds = DB::table('subscribers')
         ->whereIn('email', $emails)
         ->pluck('id')
         ->toArray();
     
-    $restoredListSubscribers = DB::table('list_subscriber')
+    // 恢复订阅者状态（同时处理 blacklisted 和 bounced 状态）
+    $restoredFromBlacklisted = DB::table('subscribers')
+        ->whereIn('email', $emails)
+        ->where('status', 'blacklisted')
+        ->update(['status' => 'active', 'updated_at' => now()]);
+    
+    $restoredFromBounced = DB::table('subscribers')
+        ->whereIn('email', $emails)
+        ->where('status', 'bounced')
+        ->update([
+            'status' => 'active', 
+            'bounce_count' => 0,  // 重置退信计数
+            'last_bounce_at' => null,
+            'updated_at' => now()
+        ]);
+    
+    $totalRestoredSubscribers = $restoredFromBlacklisted + $restoredFromBounced;
+    echo "✅ 恢复了 {$totalRestoredSubscribers} 个订阅者的状态为 active\n";
+    echo "   - 从 blacklisted 恢复: {$restoredFromBlacklisted}\n";
+    echo "   - 从 bounced 恢复: {$restoredFromBounced}\n";
+    
+    // 恢复 list_subscriber 状态（同时处理两种状态）
+    $restoredListFromBlacklisted = DB::table('list_subscriber')
         ->whereIn('subscriber_id', $subscriberIds)
         ->where('status', 'blacklisted')
         ->update(['status' => 'active', 'updated_at' => now()]);
-    echo "✅ 恢复了 {$restoredListSubscribers} 个列表订阅关系的状态\n";
+    
+    $restoredListFromBounced = DB::table('list_subscriber')
+        ->whereIn('subscriber_id', $subscriberIds)
+        ->where('status', 'bounced')
+        ->update(['status' => 'active', 'updated_at' => now()]);
+    
+    $totalRestoredListSubscribers = $restoredListFromBlacklisted + $restoredListFromBounced;
+    echo "✅ 恢复了 {$totalRestoredListSubscribers} 个列表订阅关系的状态\n";
+    
+    // 删除相关的 bounce_logs 记录
+    $deletedBounceLogs = DB::table('bounce_logs')
+        ->whereIn('email', $emails)
+        ->whereBetween('created_at', [$startTime, $endTime])
+        ->delete();
+    echo "✅ 删除了 {$deletedBounceLogs} 条退信日志记录\n";
     
     DB::commit();
     
@@ -147,8 +198,9 @@ try {
     echo "  修复完成！\n";
     echo "========================================\n";
     echo "  删除黑名单: {$deletedCount} 条\n";
-    echo "  恢复订阅者: {$restoredSubscribers} 个\n";
-    echo "  恢复列表关系: {$restoredListSubscribers} 个\n";
+    echo "  恢复订阅者: {$totalRestoredSubscribers} 个\n";
+    echo "  恢复列表关系: {$totalRestoredListSubscribers} 个\n";
+    echo "  删除退信日志: {$deletedBounceLogs} 条\n";
     echo "========================================\n";
     
 } catch (\Exception $e) {

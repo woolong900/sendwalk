@@ -117,13 +117,19 @@ class BounceHandler
             ]);
         }
 
-        // 更新订阅者状态
+        // 更新订阅者状态为 blacklisted（与黑名单保持一致）
         if ($subscriberId) {
             Subscriber::where('id', $subscriberId)->update([
-                'status' => 'bounced',
+                'status' => 'blacklisted',
                 'bounce_count' => \DB::raw('bounce_count + 1'),
                 'last_bounce_at' => now(),
             ]);
+            
+            // 同时更新 list_subscriber 中间表
+            \DB::table('list_subscriber')
+                ->where('subscriber_id', $subscriberId)
+                ->where('status', '!=', 'blacklisted')
+                ->update(['status' => 'blacklisted', 'updated_at' => now()]);
         }
     }
 
@@ -180,7 +186,7 @@ class BounceHandler
                     'user_id' => $subscriber->lists()->first()?->user_id ?? 1, // 尝试获取用户ID
                     'email' => $email,
                     'reason' => 'soft_bounce',
-                    'notes' => "{$recentBounces}次软退信（{self::SOFT_BOUNCE_WINDOW_DAYS}天内）",
+                    'notes' => "{$recentBounces}次软退信（" . self::SOFT_BOUNCE_WINDOW_DAYS . "天内）",
                 ]);
                 
                 Log::info('已将软退信邮箱加入黑名单', [
@@ -189,9 +195,15 @@ class BounceHandler
                 ]);
             }
 
-            // 更新订阅者状态为 bounced
-            $subscriber->status = 'bounced';
+            // 更新订阅者状态为 blacklisted（与黑名单保持一致）
+            $subscriber->status = 'blacklisted';
             $subscriber->save();
+            
+            // 同时更新 list_subscriber 中间表
+            \DB::table('list_subscriber')
+                ->where('subscriber_id', $subscriberId)
+                ->where('status', '!=', 'blacklisted')
+                ->update(['status' => 'blacklisted', 'updated_at' => now()]);
         }
     }
 
