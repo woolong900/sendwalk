@@ -71,6 +71,7 @@ class ProcessCampaignQueue extends Command
         $processedCount = 0;
         $lastCheck = time();
         $isRateLimited = false; // 标记是否处于限流状态
+        $rateLimitBlockedBy = null; // 记录被哪种限制阻塞
         $smtpServerId = $campaign->smtp_server_id;
         
         // 主循环
@@ -136,20 +137,33 @@ class ProcessCampaignQueue extends Command
                 $lastCheck = time();
             }
             
-            // 如果处于限流状态，先检查服务器是否可以发送
+            // 如果处于限流状态，根据限制类型决定等待时间
             if ($isRateLimited) {
+                // 根据上次被阻塞的类型决定睡眠时间
+                // 秒级限制：只睡1秒；分钟级：睡5秒；小时级：睡30秒；天级：睡60秒
+                $sleepMap = [
+                    'second' => 1,
+                    'minute' => 5,
+                    'hour' => 30,
+                    'day' => 60,
+                ];
+                $rateLimitSleep = $sleepMap[$rateLimitBlockedBy] ?? 1;
+                
                 $smtpServer = \App\Models\SmtpServer::find($smtpServerId);
                 if ($smtpServer) {
                     $rateLimitStatus = $smtpServer->checkRateLimits();
                     if (!$rateLimitStatus['can_send']) {
-                        // 仍然处于限流状态，继续休眠
-                        $this->comment("[" . date('H:i:s') . "] Still rate limited (blocked by: {$rateLimitStatus['blocked_by']}), sleeping 30s");
-                        sleep(30);
+                        // 仍然处于限流状态，根据类型智能休眠
+                        $rateLimitBlockedBy = $rateLimitStatus['blocked_by'];
+                        $rateLimitSleep = $sleepMap[$rateLimitBlockedBy] ?? 1;
+                        $this->comment("[" . date('H:i:s') . "] Rate limited (blocked by: {$rateLimitBlockedBy}), sleeping {$rateLimitSleep}s");
+                        sleep($rateLimitSleep);
                         continue;
                     }
                     // 限流解除，可以继续获取任务
                     $this->info("[" . date('H:i:s') . "] Rate limit cleared, resuming job processing");
                     $isRateLimited = false;
+                    $rateLimitBlockedBy = null;
                 }
             }
             
@@ -170,8 +184,13 @@ class ProcessCampaignQueue extends Command
             $result = $this->processJob($job);
             
             if ($result === 'rate_limited') {
-                // 服务器超限，标记限流状态
+                // 服务器超限，标记限流状态，并获取具体限制类型
                 $isRateLimited = true;
+                $smtpServer = \App\Models\SmtpServer::find($smtpServerId);
+                if ($smtpServer) {
+                    $rateLimitStatus = $smtpServer->checkRateLimits();
+                    $rateLimitBlockedBy = $rateLimitStatus['blocked_by'] ?? 'second';
+                }
                 continue;
             }
             
