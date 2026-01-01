@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Send, Copy, Trash2, Edit, Filter, Search, Mail, XCircle, Eye, Pause, Play, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
+import { Plus, Send, Copy, Trash2, Edit, Filter, Search, Mail, XCircle, Eye, Pause, Play } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -818,47 +818,40 @@ export default function CampaignsPage() {
           {paginationMeta && paginationMeta.last_page > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t">
               <div className="text-sm text-muted-foreground">
-                共 {paginationMeta.total} 条，第 {paginationMeta.current_page}/{paginationMeta.last_page} 页
+                第 {paginationMeta.current_page} 页，共 {paginationMeta.last_page} 页
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex gap-2">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentPage(1)}
                   disabled={currentPage === 1}
-                  title="首页"
                 >
-                  <ChevronsLeft className="w-4 h-4" />
+                  首页
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
-                  title="上一页"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  上一页
                 </Button>
-                <span className="px-3 text-sm">
-                  {currentPage} / {paginationMeta.last_page}
-                </span>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentPage(p => Math.min(paginationMeta.last_page, p + 1))}
                   disabled={currentPage === paginationMeta.last_page}
-                  title="下一页"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  下一页
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCurrentPage(paginationMeta.last_page)}
                   disabled={currentPage === paginationMeta.last_page}
-                  title="尾页"
                 >
-                  <ChevronsRight className="w-4 h-4" />
+                  尾页
                 </Button>
               </div>
             </div>

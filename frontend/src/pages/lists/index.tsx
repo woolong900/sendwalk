@@ -389,9 +389,17 @@ export default function ListsPage() {
           {meta && meta.last_page > 1 && !searchTerm && (
             <div className="flex items-center justify-between border-t px-6 py-4">
               <p className="text-sm text-muted-foreground">
-                第 {meta.current_page} 页，共 {meta.last_page} 页 · 总共 {meta.total} 个列表
+                第 {meta.current_page} 页，共 {meta.last_page} 页
               </p>
               <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                >
+                  首页
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -407,6 +415,14 @@ export default function ListsPage() {
                   disabled={currentPage === meta.last_page}
                 >
                   下一页
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(meta.last_page)}
+                  disabled={currentPage === meta.last_page}
+                >
+                  尾页
                 </Button>
               </div>
             </div>

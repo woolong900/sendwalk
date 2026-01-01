@@ -224,7 +224,7 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
         {data && data.last_page > 1 && (
           <div className="flex items-center justify-between pt-4 border-t">
             <div className="text-sm text-muted-foreground">
-              共 {data.total} 条记录，第 {data.current_page} / {data.last_page} 页
+              第 {data.current_page} 页，共 {data.last_page} 页
             </div>
             <div className="flex gap-2">
               <Button

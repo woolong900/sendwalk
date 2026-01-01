@@ -148,7 +148,7 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
         {data && data.last_page > 1 && (
           <div className="flex items-center justify-between pt-4">
             <div className="text-sm text-muted-foreground">
-              第 {data.from || 0} - {data.to || 0} 条，共 {data.total} 条
+              第 {data.current_page} 页，共 {data.last_page} 页
             </div>
             <div className="flex gap-2">
               <Button
@@ -309,7 +309,7 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
         {data && data.last_page > 1 && (
           <div className="flex items-center justify-between pt-4">
             <div className="text-sm text-muted-foreground">
-              第 {data.from || 0} - {data.to || 0} 条，共 {data.total} 条
+              第 {data.current_page} 页，共 {data.last_page} 页
             </div>
             <div className="flex gap-2">
               <Button
@@ -452,7 +452,7 @@ export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: 
         {data && data.last_page > 1 && (
           <div className="flex items-center justify-between pt-4">
             <div className="text-sm text-muted-foreground">
-              第 {data.from || 0} - {data.to || 0} 条，共 {data.total} 条
+              第 {data.current_page} 页，共 {data.last_page} 页
             </div>
             <div className="flex gap-2">
               <Button
