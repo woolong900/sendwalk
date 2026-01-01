@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Send, Copy, Trash2, Edit, Filter, Search, Mail, XCircle, Eye, Pause, Play } from 'lucide-react'
+import { Plus, Send, Copy, Trash2, Edit, Filter, Search, Mail, XCircle, Eye, Pause, Play, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -93,11 +93,24 @@ interface Campaign {
   created_at: string
 }
 
+interface PaginationMeta {
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
+}
+
+interface CampaignsResponse {
+  data: Campaign[]
+  meta: PaginationMeta
+}
+
 export default function CampaignsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
   const [previewCampaign, setPreviewCampaign] = useState<Campaign | null>(null)
   const [previewUnsubscribeUrl, setPreviewUnsubscribeUrl] = useState<string>('')
   const [previewSubscriberEmail, setPreviewSubscriberEmail] = useState<string>('')
@@ -142,13 +155,31 @@ export default function CampaignsPage() {
     }
   }
 
-  const { data: campaigns, isLoading } = useQuery<Campaign[]>({
-    queryKey: ['campaigns'],
+  const { data: campaignsData, isLoading } = useQuery<CampaignsResponse>({
+    queryKey: ['campaigns', currentPage, searchTerm, statusFilter],
     queryFn: async () => {
-      const response = await api.get('/campaigns')
-      return response.data.data
+      const params = new URLSearchParams()
+      params.append('page', currentPage.toString())
+      if (searchTerm) params.append('search', searchTerm)
+      if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter)
+      const response = await api.get(`/campaigns?${params.toString()}`)
+      return response.data
     },
   })
+
+  const campaigns = campaignsData?.data
+  const paginationMeta = campaignsData?.meta
+  
+  // 搜索或筛选改变时重置页码
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+    setCurrentPage(1)
+  }
+  
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value)
+    setCurrentPage(1)
+  }
 
   // 获取自定义标签
   const { data: customTags } = useQuery<CustomTag[]>({
@@ -159,13 +190,8 @@ export default function CampaignsPage() {
     },
   })
 
-  // 筛选和搜索
-  const filteredCampaigns = campaigns?.filter((campaign) => {
-    const matchesSearch = campaign.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         campaign.subject.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || campaign.status === statusFilter
-    return matchesSearch && matchesStatus
-  })
+  // 筛选和搜索现在由后端处理
+  const filteredCampaigns = campaigns
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
@@ -421,12 +447,12 @@ export default function CampaignsPage() {
               <Input
                 placeholder="搜索活动名称或主题..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
               />
             </div>
             <div className="flex gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
                 <SelectTrigger className="w-[160px]">
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="筛选状态" />
@@ -443,7 +469,7 @@ export default function CampaignsPage() {
           </div>
           {(searchTerm || statusFilter !== 'all') && (
             <div className="mt-3 text-sm text-muted-foreground">
-              找到 {filteredCampaigns?.length || 0} 个活动
+              找到 {paginationMeta?.total || 0} 个活动
             </div>
           )}
         </CardContent>
@@ -510,8 +536,8 @@ export default function CampaignsPage() {
             <p className="text-lg font-medium mb-2">没有找到匹配的活动</p>
             <p className="text-muted-foreground mb-4">尝试调整搜索条件或筛选器</p>
             <Button variant="outline" onClick={() => {
-              setSearchTerm('')
-              setStatusFilter('all')
+              handleSearchChange('')
+              handleStatusFilterChange('all')
             }}>
               清除筛选
             </Button>
@@ -787,6 +813,56 @@ export default function CampaignsPage() {
             </TableBody>
             </Table>
           </div>
+          
+          {/* 分页组件 */}
+          {paginationMeta && paginationMeta.last_page > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <div className="text-sm text-muted-foreground">
+                共 {paginationMeta.total} 条，第 {paginationMeta.current_page}/{paginationMeta.last_page} 页
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  title="首页"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  title="上一页"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="px-3 text-sm">
+                  {currentPage} / {paginationMeta.last_page}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(paginationMeta.last_page, p + 1))}
+                  disabled={currentPage === paginationMeta.last_page}
+                  title="下一页"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(paginationMeta.last_page)}
+                  disabled={currentPage === paginationMeta.last_page}
+                  title="尾页"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 

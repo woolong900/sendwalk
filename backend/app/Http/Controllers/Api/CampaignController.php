@@ -10,16 +10,30 @@ class CampaignController extends Controller
 {
     public function index(Request $request)
     {
-        $campaigns = Campaign::where('user_id', $request->user()->id)
+        $query = Campaign::where('user_id', $request->user()->id)
             ->with(['lists:id,name', 'smtpServer:id,name,type'])
             ->select([
                 'id', 'user_id', 'list_id', 'smtp_server_id', 'name', 'subject', 
                 'status', 'scheduled_at', 'sent_at', 'created_at', 'updated_at',
                 'total_recipients', 'total_sent', 'total_delivered', 'total_opened', 
                 'total_clicked', 'total_bounced', 'total_complained', 'total_unsubscribed'
-            ])
-            ->latest()
-            ->paginate(15);
+            ]);
+        
+        // 搜索：按名称或主题搜索
+        if ($request->has('search') && $request->search) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('subject', 'like', "%{$search}%");
+            });
+        }
+        
+        // 状态筛选
+        if ($request->has('status') && $request->status && $request->status !== 'all') {
+            $query->where('status', $request->status);
+        }
+        
+        $campaigns = $query->latest()->paginate(15);
 
         // 手动添加 list_ids 以避免在每次序列化时都查询
         $campaigns->getCollection()->transform(function ($campaign) {
