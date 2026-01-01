@@ -252,16 +252,22 @@ export default function CampaignsPage() {
     }
   }
 
-  // 打开预览并获取真实的取消订阅 token
+  // 打开预览并获取完整的活动数据（包括 html_content）
   const handlePreview = async (campaign: Campaign) => {
-    setPreviewCampaign(campaign)
-    
     try {
-      const response = await api.get(`/campaigns/${campaign.id}/preview-token`)
-      setPreviewUnsubscribeUrl(response.data.unsubscribe_url || '')
-      setPreviewSubscriberEmail(response.data.subscriber_email || '')
+      // 先获取完整的活动数据（列表 API 不返回 html_content）
+      const campaignResponse = await api.get(`/campaigns/${campaign.id}`)
+      const fullCampaign = campaignResponse.data.data || campaignResponse.data
+      setPreviewCampaign(fullCampaign)
+      
+      // 获取预览 token
+      const tokenResponse = await api.get(`/campaigns/${campaign.id}/preview-token`)
+      setPreviewUnsubscribeUrl(tokenResponse.data.unsubscribe_url || '')
+      setPreviewSubscriberEmail(tokenResponse.data.subscriber_email || '')
     } catch (error) {
-      console.error('Failed to get preview token:', error)
+      console.error('Failed to get preview data:', error)
+      // 回退：使用列表中的数据
+      setPreviewCampaign(campaign)
       // 使用默认的示例 URL 和邮箱
       const exampleToken = 'eyJpdiI6IkV4YW1wbGVJdiIsInZhbHVlIjoiRXhhbXBsZVRva2VuRm9yUHJldmlldyIsIm1hYyI6ImV4YW1wbGVfbWFjX2hhc2gifQ'
       setPreviewUnsubscribeUrl(`${window.location.origin}/unsubscribe?token=${exampleToken}`)
