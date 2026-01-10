@@ -11,6 +11,8 @@ class EmailOpen extends Model
         'subscriber_id',
         'email',
         'ip_address',
+        'country_code',
+        'country_name',
         'user_agent',
         'opened_at',
     ];

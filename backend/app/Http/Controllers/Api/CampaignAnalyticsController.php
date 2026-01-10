@@ -69,6 +69,8 @@ class CampaignAnalyticsController extends Controller
                 // 使用 MIN 获取首次打开的 IP 和 User Agent
                 // 这里使用技巧：SUBSTRING_INDEX 配合 GROUP_CONCAT 获取最早记录的其他字段
                 \DB::raw('SUBSTRING_INDEX(GROUP_CONCAT(eo.ip_address ORDER BY eo.opened_at ASC), ",", 1) as first_ip_address'),
+                \DB::raw('SUBSTRING_INDEX(GROUP_CONCAT(IFNULL(eo.country_code, "") ORDER BY eo.opened_at ASC), ",", 1) as first_country_code'),
+                \DB::raw('SUBSTRING_INDEX(GROUP_CONCAT(IFNULL(eo.country_name, "") ORDER BY eo.opened_at ASC SEPARATOR "|||"), "|||", 1) as first_country_name'),
                 \DB::raw('SUBSTRING_INDEX(GROUP_CONCAT(eo.user_agent ORDER BY eo.opened_at ASC SEPARATOR "|||"), "|||", 1) as first_user_agent')
             ])
             ->where('eo.campaign_id', $campaignId)

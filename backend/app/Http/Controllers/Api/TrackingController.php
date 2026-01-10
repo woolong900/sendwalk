@@ -9,11 +9,19 @@ use App\Models\EmailOpen;
 use App\Models\Link;
 use App\Models\LinkClick;
 use App\Models\Subscriber;
+use App\Services\GeoIpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class TrackingController extends Controller
 {
+    protected GeoIpService $geoIpService;
+
+    public function __construct(GeoIpService $geoIpService)
+    {
+        $this->geoIpService = $geoIpService;
+    }
+
     /**
      * Track email open
      */
@@ -26,13 +34,19 @@ class TrackingController extends Controller
 
             if ($send) {
                 $subscriber = Subscriber::find($subscriberId);
+                $ip = $request->ip();
+                
+                // 获取 IP 的国家信息
+                $geoInfo = $this->geoIpService->getCountryByIp($ip);
                 
                 // 记录每一次打开（无论是否首次）
                 EmailOpen::create([
                     'campaign_id' => $campaignId,
                     'subscriber_id' => $subscriberId,
                     'email' => $subscriber ? $subscriber->email : '',
-                    'ip_address' => $request->ip(),
+                    'ip_address' => $ip,
+                    'country_code' => $geoInfo['country_code'],
+                    'country_name' => $geoInfo['country_name'],
                     'user_agent' => $request->userAgent(),
                     'opened_at' => now(),
                 ]);

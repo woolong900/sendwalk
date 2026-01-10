@@ -377,12 +377,13 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
         </div>
 
         <div className="flex-1 overflow-auto border rounded-lg">
-          <Table className="min-w-[1010px]">
+          <Table className="min-w-[1110px]">
             <colgroup>
               <col className="w-[250px]" />
               <col className="w-[100px]" />
-              <col className="w-[150px]" />
-              <col className="w-[350px]" />
+              <col className="w-[130px]" />
+              <col className="w-[100px]" />
+              <col className="w-[300px]" />
               <col className="w-[160px]" />
             </colgroup>
             <TableHeader>
@@ -390,6 +391,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                 <TableHead>邮箱地址</TableHead>
                 <TableHead>打开次数</TableHead>
                 <TableHead>IP地址</TableHead>
+                <TableHead>国家/地区</TableHead>
                 <TableHead>User Agent</TableHead>
                 <TableHead>打开时间</TableHead>
               </TableRow>
@@ -397,13 +399,13 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
             <TableBody>
               {isLoadingOpens ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     加载中...
                   </TableCell>
                 </TableRow>
               ) : !opensData?.data || opensData.data.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     暂无打开记录
                   </TableCell>
                 </TableRow>
@@ -438,6 +440,16 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                           <TableCell className="font-mono text-xs whitespace-nowrap">
                             {open.first_ip_address || '-'}
                           </TableCell>
+                          <TableCell className="text-xs whitespace-nowrap">
+                            {open.first_country_name ? (
+                              <span className="inline-flex items-center gap-1">
+                                <span className="text-muted-foreground">{open.first_country_code}</span>
+                                <span>{open.first_country_name}</span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap" title={open.first_user_agent}>
                             <div className="truncate">{open.first_user_agent || '-'}</div>
                           </TableCell>
@@ -455,6 +467,16 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                                 <TableCell></TableCell>
                                 <TableCell className="font-mono text-xs whitespace-nowrap">
                                   {detail.ip_address || '-'}
+                                </TableCell>
+                                <TableCell className="text-xs whitespace-nowrap">
+                                  {detail.country_name ? (
+                                    <span className="inline-flex items-center gap-1">
+                                      <span className="text-muted-foreground">{detail.country_code}</span>
+                                      <span>{detail.country_name}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
                                 </TableCell>
                                 <TableCell className="text-xs text-muted-foreground truncate" title={detail.user_agent}>
                                   {detail.user_agent || '-'}
