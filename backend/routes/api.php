@@ -109,6 +109,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // SMTP Servers
     Route::apiResource('smtp-servers', SmtpServerController::class);
     Route::post('smtp-servers/{smtpServer}/test', [SmtpServerController::class, 'test']);
+    Route::post('smtp-servers/{smtpServer}/duplicate', [SmtpServerController::class, 'duplicate']);
     Route::get('smtp-servers/{smtpServer}/rate-limit-status', [SmtpServerController::class, 'getRateLimitStatus']);
 
     // Tags

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Server, Trash2, Edit, Check, X, Zap } from 'lucide-react'
+import { Plus, Server, Trash2, Edit, Check, X, Zap, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -170,6 +170,17 @@ export default function SettingsPage() {
       toast.success('连接测试成功')
     },
     // onError 已由全局拦截器处理，无需重复显示
+  })
+
+  // 复制服务器
+  const duplicateMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return api.post(`/smtp-servers/${id}/duplicate`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['smtp-servers'] })
+      toast.success('服务器复制成功')
+    },
   })
 
   const resetForm = () => {
@@ -797,6 +808,17 @@ export default function SettingsPage() {
                       >
                         <Zap className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                         测试
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => duplicateMutation.mutate(server.id)}
+                        disabled={duplicateMutation.isPending}
+                        className="text-xs md:text-sm"
+                        title="复制服务器"
+                      >
+                        <Copy className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                        复制
                       </Button>
                       <Button
                         variant="outline"

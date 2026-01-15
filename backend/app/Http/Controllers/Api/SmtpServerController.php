@@ -222,6 +222,31 @@ class SmtpServerController extends Controller
         ]);
     }
 
+    /**
+     * 复制 SMTP 服务器
+     */
+    public function duplicate(Request $request, SmtpServer $smtpServer)
+    {
+        if ($smtpServer->user_id !== $request->user()->id) {
+            return response()->json(['message' => '无权访问'], 403);
+        }
+
+        // 复制服务器，修改名称并重置一些字段
+        $newServer = $smtpServer->replicate();
+        $newServer->name = $smtpServer->name . ' (副本)';
+        $newServer->is_default = false; // 副本不能是默认服务器
+        $newServer->emails_sent_today = 0; // 重置发送计数
+        $newServer->last_reset_date = null;
+        $newServer->created_at = now();
+        $newServer->updated_at = now();
+        $newServer->save();
+
+        return response()->json([
+            'message' => 'SMTP服务器复制成功',
+            'data' => $newServer,
+        ], 201);
+    }
+
     public function test(Request $request, SmtpServer $smtpServer)
     {
         if ($smtpServer->user_id !== $request->user()->id) {
