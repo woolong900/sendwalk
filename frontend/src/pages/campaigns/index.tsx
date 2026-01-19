@@ -549,8 +549,8 @@ export default function CampaignsPage() {
             <Table className="min-w-[1700px]">
               <colgroup>
                 <col className="w-[60px]" />
-                <col className="w-[200px]" />
                 <col className="w-[120px]" />
+                <col className="w-[200px]" />
                 <col className="w-[80px]" />
                 <col className="w-[150px]" />
                 <col className="w-[160px]" />
@@ -597,7 +597,7 @@ export default function CampaignsPage() {
                       <TooltipTrigger asChild>
                         <div className="flex items-center gap-1 text-sm cursor-help">
                           <Server className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                          <span className="truncate max-w-[100px]">
+                          <span className="truncate max-w-[180px]">
                             {campaign.smtp_server?.name || '-'}
                           </span>
                         </div>
