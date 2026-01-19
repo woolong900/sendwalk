@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Send, Copy, Trash2, Edit, Filter, Search, Mail, XCircle, Eye, Pause, Play } from 'lucide-react'
+import { Plus, Send, Copy, Trash2, Edit, Filter, Search, Mail, XCircle, Eye, Pause, Play, Server } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -546,10 +546,11 @@ export default function CampaignsPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <Table className="min-w-[1590px]">
+            <Table className="min-w-[1700px]">
               <colgroup>
                 <col className="w-[60px]" />
                 <col className="w-[200px]" />
+                <col className="w-[120px]" />
                 <col className="w-[80px]" />
                 <col className="w-[150px]" />
                 <col className="w-[160px]" />
@@ -566,6 +567,7 @@ export default function CampaignsPage() {
               <TableRow>
                 <TableHead>ID</TableHead>
                 <TableHead>标题</TableHead>
+                <TableHead>服务器</TableHead>
                 <TableHead className="text-center">状态</TableHead>
                 <TableHead>列表</TableHead>
                 <TableHead className="text-center">发送进度</TableHead>
@@ -589,6 +591,23 @@ export default function CampaignsPage() {
                   </TableCell>
                   <TableCell className="whitespace-nowrap">
                     <div className="font-medium truncate">{campaign.name}</div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-1 text-sm cursor-help">
+                          <Server className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                          <span className="truncate max-w-[100px]">
+                            {campaign.smtp_server?.name || '-'}
+                          </span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <div className="max-w-xs">
+                          {campaign.smtp_server?.name || '未指定服务器'}
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   </TableCell>
                   <TableCell className="text-center whitespace-nowrap">
                     {getStatusBadge(campaign.status)}
