@@ -139,10 +139,15 @@ class SubscriberController extends Controller
             'processed_count' => $subscribers->count(),
         ]);
 
-        // 构建响应
+        // 构建响应（邮箱脱敏处理）
         $responseStart = microtime(true);
+        $maskedItems = collect($subscribers->items())->map(function ($subscriber) {
+            $subscriber->email = maskEmail($subscriber->email);
+            return $subscriber;
+        })->all();
+        
         $response = response()->json([
-            'data' => $subscribers->items(),
+            'data' => $maskedItems,
             'meta' => [
                 'current_page' => $subscribers->currentPage(),
                 'last_page' => $subscribers->lastPage(),

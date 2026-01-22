@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { api } from '@/lib/api'
+import { maskEmail } from '@/lib/utils'
 import { useConfirm } from '@/hooks/use-confirm'
 
 interface BlacklistEntry {
@@ -636,7 +637,7 @@ export default function BlacklistPage() {
                         />
                       </TableCell>
                       <TableCell className="font-mono text-sm whitespace-nowrap">
-                        <div className="truncate">{entry.email}</div>
+                        <div className="truncate">{maskEmail(entry.email)}</div>
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {entry.reason ? (

@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, maskEmail } from '@/lib/utils'
 
 interface DeliveriesDialogProps {
   campaignId: number | null
@@ -122,7 +122,7 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
                     <TableCell className="whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <div className="truncate">{delivery.email}</div>
+                        <div className="truncate">{maskEmail(delivery.email)}</div>
                       </div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
@@ -274,7 +274,7 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
                     <TableCell className="whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <div className="truncate">{bounce.email}</div>
+                        <div className="truncate">{maskEmail(bounce.email)}</div>
                       </div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
@@ -431,7 +431,7 @@ export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: 
                     <TableCell className="whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <div className="truncate">{unsubscribe.email}</div>
+                        <div className="truncate">{maskEmail(unsubscribe.email)}</div>
                       </div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">

@@ -88,9 +88,22 @@ class BlacklistController extends Controller
             ]);
         }
 
-        // 步骤4: 构建JSON响应
+        // 步骤4: 构建JSON响应（邮箱脱敏处理）
         $responseStart = microtime(true);
-        $response = response()->json($blacklist);
+        
+        // 对邮箱进行脱敏
+        $maskedData = collect($blacklist->items())->map(function ($item) {
+            $item->email = maskEmail($item->email);
+            return $item;
+        })->all();
+        
+        $response = response()->json([
+            'data' => $maskedData,
+            'current_page' => $blacklist->currentPage(),
+            'last_page' => $blacklist->lastPage(),
+            'per_page' => $blacklist->perPage(),
+            'total' => $blacklist->total(),
+        ]);
         $responseDuration = (microtime(true) - $responseStart) * 1000;
         
         $totalDuration = (microtime(true) - $startTime) * 1000;

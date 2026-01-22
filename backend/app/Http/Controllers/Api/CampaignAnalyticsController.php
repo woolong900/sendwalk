@@ -42,6 +42,12 @@ class CampaignAnalyticsController extends Controller
         $perPage = $request->per_page ?? 50;
         $logs = $query->paginate($perPage);
 
+        // 邮箱脱敏处理
+        $logs->getCollection()->transform(function($log) {
+            $log->email = maskEmail($log->email);
+            return $log;
+        });
+
         return response()->json($logs);
     }
 
@@ -86,6 +92,12 @@ class CampaignAnalyticsController extends Controller
         $perPage = $request->per_page ?? 50;
         $groupedOpens = $subQuery->paginate($perPage);
 
+        // 邮箱脱敏处理
+        $groupedOpens->getCollection()->transform(function($item) {
+            $item->email = maskEmail($item->email);
+            return $item;
+        });
+
         return response()->json($groupedOpens);
     }
 
@@ -115,7 +127,13 @@ class CampaignAnalyticsController extends Controller
         // 跳过第一条（首次打开已在主行显示）
         $details = $allDetails->skip(1);
 
-        return response()->json(['data' => $details->values()]);
+        // 邮箱脱敏处理
+        $maskedDetails = $details->map(function($item) {
+            $item->email = maskEmail($item->email);
+            return $item;
+        });
+
+        return response()->json(['data' => $maskedDetails->values()]);
     }
 
     /**
@@ -173,6 +191,12 @@ class CampaignAnalyticsController extends Controller
         $perPage = $request->per_page ?? 50;
         $reports = $query->paginate($perPage);
 
+        // 邮箱脱敏处理
+        $reports->getCollection()->transform(function($report) {
+            $report->email = maskEmail($report->email);
+            return $report;
+        });
+
         return response()->json($reports);
     }
 
@@ -199,6 +223,12 @@ class CampaignAnalyticsController extends Controller
 
         $perPage = $request->per_page ?? 50;
         $bounces = $query->paginate($perPage);
+
+        // 邮箱脱敏处理
+        $bounces->getCollection()->transform(function($bounce) {
+            $bounce->email = maskEmail($bounce->email);
+            return $bounce;
+        });
 
         return response()->json($bounces);
     }
@@ -238,11 +268,11 @@ class CampaignAnalyticsController extends Controller
         $perPage = $request->per_page ?? 50;
         $unsubscribes = $query->paginate($perPage);
 
-        // 格式化数据
+        // 格式化数据（含邮箱脱敏）
         $unsubscribes->getCollection()->transform(function($item) {
             return [
                 'id' => $item->id,
-                'email' => $item->subscriber->email ?? 'N/A',
+                'email' => maskEmail($item->subscriber->email ?? 'N/A'),
                 'list_name' => $item->list->name ?? 'N/A',
                 'unsubscribed_at' => $item->unsubscribed_at,
                 'subscriber' => $item->subscriber,
@@ -276,6 +306,12 @@ class CampaignAnalyticsController extends Controller
 
         $perPage = $request->per_page ?? 50;
         $deliveries = $query->paginate($perPage);
+
+        // 邮箱脱敏处理
+        $deliveries->getCollection()->transform(function($delivery) {
+            $delivery->email = maskEmail($delivery->email);
+            return $delivery;
+        });
 
         return response()->json($deliveries);
     }

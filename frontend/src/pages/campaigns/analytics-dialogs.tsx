@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { api } from '@/lib/api'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, maskEmail } from '@/lib/utils'
 
 interface SendLogsDialogProps {
   campaignId: number | null
@@ -179,8 +179,8 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
                   
                   return (
                     <TableRow key={log.id}>
-                      <TableCell className="font-mono text-sm whitespace-nowrap" title={log.email}>
-                        <div className="truncate">{log.email}</div>
+                      <TableCell className="font-mono text-sm whitespace-nowrap" title={maskEmail(log.email)}>
+                        <div className="truncate">{maskEmail(log.email)}</div>
                       </TableCell>
                       <TableCell className="font-mono text-sm whitespace-nowrap" title={log.from_email}>
                         <div className="truncate">{log.from_email || '-'}</div>
@@ -415,8 +415,8 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                     return (
                       <>
                         <TableRow key={open.email} className="hover:bg-muted/30">
-                          <TableCell className="font-mono text-sm whitespace-nowrap" title={open.email}>
-                            <div className="truncate">{open.email}</div>
+                          <TableCell className="font-mono text-sm whitespace-nowrap" title={maskEmail(open.email)}>
+                            <div className="truncate">{maskEmail(open.email)}</div>
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             {open.open_count > 1 ? (
@@ -624,7 +624,7 @@ export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: 
                     <TableCell className="whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <div className="truncate">{report.email}</div>
+                        <div className="truncate">{maskEmail(report.email)}</div>
                       </div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">

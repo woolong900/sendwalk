@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { api } from '@/lib/api'
+import { maskEmail } from '@/lib/utils'
 import { useConfirm } from '@/hooks/use-confirm'
 
 interface SendLog {
@@ -668,7 +669,7 @@ export default function SendMonitorPage() {
                               [{log.from_email || log.campaign_name}]
                             </span>
                             <span className="text-slate-400">→</span>
-                            <span className="text-cyan-400 break-all">{log.email}</span>
+                            <span className="text-cyan-400 break-all">{maskEmail(log.email)}</span>
                             {log.smtp_server_name && (
                               <>
                                 <span className="text-slate-500">via</span>

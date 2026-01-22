@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { api } from '@/lib/api'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, maskEmail } from '@/lib/utils'
 import { useConfirm } from '@/hooks/use-confirm'
 
 interface Subscriber {
@@ -470,7 +470,7 @@ export default function SubscribersPage() {
                     <TableCell className="whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">{subscriber.email}</span>
+                        <span className="truncate">{maskEmail(subscriber.email)}</span>
                       </div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">

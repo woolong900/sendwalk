@@ -32,3 +32,22 @@ export function formatPercentage(value: number, total: number): string {
   return `${((value / total) * 100).toFixed(2)}%`
 }
 
+/**
+ * 邮箱脱敏处理
+ * example@gmail.com → exa***@gmail.com
+ * ab@gmail.com → a***@gmail.com
+ * a@gmail.com → ***@gmail.com
+ */
+export function maskEmail(email: string): string {
+  if (!email || !email.includes('@')) return email
+  
+  const [localPart, domain] = email.split('@')
+  
+  if (localPart.length <= 1) {
+    return `***@${domain}`
+  } else if (localPart.length <= 3) {
+    return `${localPart[0]}***@${domain}`
+  } else {
+    return `${localPart.slice(0, 3)}***@${domain}`
+  }
+}

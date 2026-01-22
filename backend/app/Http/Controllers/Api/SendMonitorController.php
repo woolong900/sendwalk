@@ -79,8 +79,14 @@ class SendMonitorController extends Controller
                 ->values();
         }
 
+        // 邮箱脱敏处理
+        $maskedLogs = $logs->map(function($log) {
+            $log->email = maskEmail($log->email);
+            return $log;
+        });
+
         return response()->json([
-            'data' => $logs,
+            'data' => $maskedLogs,
         ]);
     }
 
@@ -111,8 +117,14 @@ class SendMonitorController extends Controller
         // Get paginated logs
         $logs = $query->paginate($perPage, ['*'], 'page', $page);
 
+        // 邮箱脱敏处理
+        $maskedItems = collect($logs->items())->map(function($log) {
+            $log->email = maskEmail($log->email);
+            return $log;
+        })->all();
+
         return response()->json([
-            'data' => $logs->items(),
+            'data' => $maskedItems,
             'meta' => [
                 'current_page' => $logs->currentPage(),
                 'last_page' => $logs->lastPage(),

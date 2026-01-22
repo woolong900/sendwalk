@@ -506,7 +506,7 @@ class CampaignController extends Controller
 
         return response()->json([
             'unsubscribe_url' => $unsubscribeUrl,
-            'subscriber_email' => $subscriber->email,
+            'subscriber_email' => maskEmail($subscriber->email),
         ]);
     }
 }
