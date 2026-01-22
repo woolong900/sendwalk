@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Subscriber;
 use App\Models\Campaign;
-use App\Models\Blacklist;
 use App\Models\BounceLog;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -90,37 +89,20 @@ class BounceHandler
     }
 
     /**
-     * 处理硬退信：立即加入黑名单
+     * 处理硬退信：记录退信信息（不自动加入黑名单）
      */
     private function handleHardBounce(string $email, ?int $subscriberId): void
     {
         Log::info('处理硬退信', [
             'email' => $email,
             'subscriber_id' => $subscriberId,
-            'action' => '立即加入黑名单',
+            'action' => '记录退信信息',
         ]);
 
-        // 检查是否已在黑名单
-        $exists = Blacklist::where('email', $email)->exists();
-        
-        if (!$exists) {
-            // 添加到黑名单
-            Blacklist::create([
-                'user_id' => $this->getUserIdFromSubscriber($subscriberId),
-                'email' => $email,
-                'reason' => 'hard_bounce',
-                'notes' => '硬退信：邮箱不存在或永久拒收',
-            ]);
-            
-            Log::info('已将硬退信邮箱加入黑名单', [
-                'email' => $email,
-            ]);
-        }
-
-        // 更新订阅者状态为 blacklisted（与黑名单保持一致）
+        // 更新订阅者的退信计数和状态
         if ($subscriberId) {
             Subscriber::where('id', $subscriberId)->update([
-                'status' => 'blacklisted',
+                'status' => 'bounced',
                 'bounce_count' => \DB::raw('bounce_count + 1'),
                 'last_bounce_at' => now(),
             ]);
@@ -128,13 +110,13 @@ class BounceHandler
             // 同时更新 list_subscriber 中间表
             \DB::table('list_subscriber')
                 ->where('subscriber_id', $subscriberId)
-                ->where('status', '!=', 'blacklisted')
-                ->update(['status' => 'blacklisted', 'updated_at' => now()]);
+                ->where('status', '!=', 'bounced')
+                ->update(['status' => 'bounced', 'updated_at' => now()]);
         }
     }
 
     /**
-     * 处理软退信：累计次数，超过阈值加入黑名单
+     * 处理软退信：累计次数（不自动加入黑名单）
      */
     private function handleSoftBounce(string $email, ?int $subscriberId): void
     {
@@ -168,42 +150,14 @@ class BounceHandler
             'threshold' => self::SOFT_BOUNCE_THRESHOLD,
         ]);
 
-        // 检查是否超过阈值
+        // 如果超过阈值，仅记录警告日志，不加入黑名单
         if ($recentBounces >= self::SOFT_BOUNCE_THRESHOLD) {
-            Log::warning('软退信超过阈值，加入黑名单', [
+            Log::warning('软退信超过阈值', [
                 'email' => $email,
                 'subscriber_id' => $subscriberId,
                 'recent_bounces' => $recentBounces,
                 'window_days' => self::SOFT_BOUNCE_WINDOW_DAYS,
             ]);
-
-            // 检查是否已在黑名单
-            $exists = Blacklist::where('email', $email)->exists();
-            
-            if (!$exists) {
-                // 添加到黑名单
-                Blacklist::create([
-                    'user_id' => $subscriber->lists()->first()?->user_id ?? 1, // 尝试获取用户ID
-                    'email' => $email,
-                    'reason' => 'soft_bounce',
-                    'notes' => "{$recentBounces}次软退信（" . self::SOFT_BOUNCE_WINDOW_DAYS . "天内）",
-                ]);
-                
-                Log::info('已将软退信邮箱加入黑名单', [
-                    'email' => $email,
-                    'bounce_count' => $recentBounces,
-                ]);
-            }
-
-            // 更新订阅者状态为 blacklisted（与黑名单保持一致）
-            $subscriber->status = 'blacklisted';
-            $subscriber->save();
-            
-            // 同时更新 list_subscriber 中间表
-            \DB::table('list_subscriber')
-                ->where('subscriber_id', $subscriberId)
-                ->where('status', '!=', 'blacklisted')
-                ->update(['status' => 'blacklisted', 'updated_at' => now()]);
         }
     }
 
@@ -292,25 +246,5 @@ class BounceHandler
         return 'soft';
     }
 
-    /**
-     * 从订阅者获取用户ID
-     */
-    private function getUserIdFromSubscriber(?int $subscriberId): int
-    {
-        if (!$subscriberId) {
-            return 1; // 默认用户ID
-        }
-
-        $subscriber = Subscriber::find($subscriberId);
-        
-        if (!$subscriber) {
-            return 1;
-        }
-
-        // 尝试从订阅者的列表中获取用户ID
-        $list = $subscriber->lists()->first();
-        
-        return $list?->user_id ?? 1;
-    }
 }
 
