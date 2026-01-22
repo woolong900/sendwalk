@@ -270,6 +270,9 @@ export default function CampaignEditorPage() {
       return
     }
     
+    // 即时反馈
+    toast.loading('正在处理...', { id: 'send-campaign' })
+    
     // 先保存修改
     try {
       if (isEditing) {
@@ -278,9 +281,11 @@ export default function CampaignEditorPage() {
       }
       
       sendMutation.mutate({ campaignId: parseInt(id) })
+      toast.dismiss('send-campaign')
     } catch (error) {
       // 保存失败，不继续发送
       setIsSaveBeforeSend(false)
+      toast.dismiss('send-campaign')
       console.error('保存失败:', error)
     }
   }
@@ -295,6 +300,9 @@ export default function CampaignEditorPage() {
       return
     }
 
+    // 即时反馈
+    toast.loading('正在处理...', { id: 'schedule-campaign' })
+
     // 先保存修改
     try {
       if (isEditing) {
@@ -304,10 +312,12 @@ export default function CampaignEditorPage() {
       
       const scheduledAt = format(scheduledDateTime, 'yyyy-MM-dd HH:mm:ss')
       sendMutation.mutate({ campaignId: parseInt(id), scheduledAt })
+      toast.dismiss('schedule-campaign')
       setIsSendDialogOpen(false)
     } catch (error) {
       // 保存失败，不继续定时发送
       setIsSaveBeforeSend(false)
+      toast.dismiss('schedule-campaign')
       console.error('保存失败:', error)
     }
   }
@@ -1089,15 +1099,36 @@ export default function CampaignEditorPage() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsSendDialogOpen(false)}
+                disabled={saveMutation.isPending || sendMutation.isPending}
               >
                 取消
               </Button>
               <Button
                 type="button"
                 onClick={sendMode === 'now' ? handleSendNow : handleScheduleSend}
-                disabled={sendMutation.isPending}
+                disabled={saveMutation.isPending || sendMutation.isPending}
               >
-                {sendMutation.isPending ? '处理中...' : sendMode === 'now' ? '立即发送' : '定时发送'}
+                {saveMutation.isPending ? (
+                  <>
+                    <Clock className="w-4 h-4 mr-2 animate-spin" />
+                    保存中...
+                  </>
+                ) : sendMutation.isPending ? (
+                  <>
+                    <Clock className="w-4 h-4 mr-2 animate-spin" />
+                    发送中...
+                  </>
+                ) : sendMode === 'now' ? (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    立即发送
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-4 h-4 mr-2" />
+                    定时发送
+                  </>
+                )}
               </Button>
             </div>
           </div>
