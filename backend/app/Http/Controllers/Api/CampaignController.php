@@ -265,25 +265,27 @@ class CampaignController extends Controller
             return response()->json(['message' => '无权访问'], 403);
         }
 
-        $newCampaign = $campaign->replicate();
+        // 只复制必要的字段，避免复制大型内容字段导致慢
+        $newCampaign = new Campaign();
+        $newCampaign->user_id = $campaign->user_id;
+        $newCampaign->smtp_server_id = $campaign->smtp_server_id;
+        $newCampaign->subject = $campaign->subject;
+        $newCampaign->preview_text = $campaign->preview_text;
+        $newCampaign->from_name = $campaign->from_name;
+        $newCampaign->from_email = $campaign->from_email;
+        $newCampaign->reply_to = $campaign->reply_to;
+        $newCampaign->html_content = $campaign->html_content;
+        $newCampaign->plain_content = $campaign->plain_content;
         
         // 智能命名：如果标题以 #数字 结尾，则数字加1；否则加上 #1
         $originalName = $campaign->name;
         if (preg_match('/#(\d+)$/', $originalName, $matches)) {
-            // 标题以 #数字 结尾，提取数字并加1
-            $number = (int)$matches[1];
-            $newNumber = $number + 1;
-            $newCampaign->name = preg_replace('/#(\d+)$/', '#' . $newNumber, $originalName);
+            $newCampaign->name = preg_replace('/#(\d+)$/', '#' . ((int)$matches[1] + 1), $originalName);
         } else {
-            // 标题不以 #数字 结尾，加上 #1
             $newCampaign->name = $originalName . '#1';
         }
         
         $newCampaign->status = 'draft';
-        $newCampaign->scheduled_at = null;
-        $newCampaign->sent_at = null;
-        
-        // 重置统计字段
         $newCampaign->total_recipients = 0;
         $newCampaign->total_sent = 0;
         $newCampaign->total_delivered = 0;
@@ -301,12 +303,10 @@ class CampaignController extends Controller
             $newCampaign->lists()->attach($listIds);
         }
 
-        // 重新加载关系数据
-        $newCampaign->load('lists', 'smtpServer');
-
+        // 立即返回，不加载关系数据（前端会刷新列表）
         return response()->json([
             'message' => '邮件活动已复制',
-            'data' => $newCampaign,
+            'data' => ['id' => $newCampaign->id, 'name' => $newCampaign->name],
         ], 201);
     }
 
