@@ -866,6 +866,23 @@ export default function CampaignEditorPage() {
                           variant="outline"
                           onClick={() => {
                             const date = new Date()
+                            date.setHours(18, 30, 0, 0)
+                            // 如果已过今晚6点半，切换为立即发送
+                            if (date <= new Date()) {
+                              setSendMode('now')
+                              return
+                            }
+                            setScheduledDateTime(date)
+                          }}
+                        >
+                          今晚6点半
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const date = new Date()
                             date.setDate(date.getDate() + 1)
                             date.setHours(9, 0, 0, 0)
                             setScheduledDateTime(date)
@@ -1033,6 +1050,23 @@ export default function CampaignEditorPage() {
                       }}
                     >
                       1小时后
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const date = new Date()
+                        date.setHours(18, 30, 0, 0)
+                        // 如果已过今晚6点半，切换为立即发送
+                        if (date <= new Date()) {
+                          setSendMode('now')
+                          return
+                        }
+                        setScheduledDateTime(date)
+                      }}
+                    >
+                      今晚6点半
                     </Button>
                     <Button
                       type="button"
