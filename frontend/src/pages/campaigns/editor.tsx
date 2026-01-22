@@ -270,9 +270,6 @@ export default function CampaignEditorPage() {
       return
     }
     
-    // 即时反馈
-    toast.loading('正在处理...', { id: 'send-campaign' })
-    
     // 先保存修改
     try {
       if (isEditing) {
@@ -281,11 +278,9 @@ export default function CampaignEditorPage() {
       }
       
       sendMutation.mutate({ campaignId: parseInt(id) })
-      toast.dismiss('send-campaign')
     } catch (error) {
       // 保存失败，不继续发送
       setIsSaveBeforeSend(false)
-      toast.dismiss('send-campaign')
       console.error('保存失败:', error)
     }
   }
@@ -300,9 +295,6 @@ export default function CampaignEditorPage() {
       return
     }
 
-    // 即时反馈
-    toast.loading('正在处理...', { id: 'schedule-campaign' })
-
     // 先保存修改
     try {
       if (isEditing) {
@@ -312,12 +304,10 @@ export default function CampaignEditorPage() {
       
       const scheduledAt = format(scheduledDateTime, 'yyyy-MM-dd HH:mm:ss')
       sendMutation.mutate({ campaignId: parseInt(id), scheduledAt })
-      toast.dismiss('schedule-campaign')
       setIsSendDialogOpen(false)
     } catch (error) {
       // 保存失败，不继续定时发送
       setIsSaveBeforeSend(false)
-      toast.dismiss('schedule-campaign')
       console.error('保存失败:', error)
     }
   }
