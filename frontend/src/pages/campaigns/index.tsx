@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Send, Copy, Trash2, Edit, Filter, Search, Mail, XCircle, Eye, Pause, Play, Server } from 'lucide-react'
+import { Plus, Send, Copy, Trash2, Edit, Filter, Search, Mail, XCircle, Eye, Pause, Play, Server, Loader2 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -111,6 +111,7 @@ export default function CampaignsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
+  const [duplicatingId, setDuplicatingId] = useState<number | null>(null)
   const [previewCampaign, setPreviewCampaign] = useState<Campaign | null>(null)
   const [previewUnsubscribeUrl, setPreviewUnsubscribeUrl] = useState<string>('')
   const [previewSubscriberEmail, setPreviewSubscriberEmail] = useState<string>('')
@@ -206,13 +207,17 @@ export default function CampaignsPage() {
 
   const duplicateMutation = useMutation({
     mutationFn: async (id: number) => {
+      setDuplicatingId(id)
       return api.post(`/campaigns/${id}/duplicate`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       toast.success('活动已复制')
+      setDuplicatingId(null)
     },
-    // onError 已由全局拦截器处理
+    onError: () => {
+      setDuplicatingId(null)
+    },
   })
 
   const cancelMutation = useMutation({
@@ -772,10 +777,14 @@ export default function CampaignsPage() {
                         variant="ghost"
                         className="px-1.5"
                         onClick={() => duplicateMutation.mutate(campaign.id)}
-                        disabled={duplicateMutation.isPending}
+                        disabled={duplicatingId === campaign.id}
                         title="复制"
                       >
-                        <Copy className="w-4 h-4" />
+                        {duplicatingId === campaign.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
                       </Button>
                       {(campaign.status === 'scheduled' || campaign.status === 'sending') && (
                         <Button
