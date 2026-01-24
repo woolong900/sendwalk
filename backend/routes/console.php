@@ -29,9 +29,13 @@ Schedule::command('sendlogs:cleanup --days=30')
 
 // Laravel 数据库队列会自动处理失败重试，不需要 queue:work
 
-// 检测 DOMAIN 标签中的域名状态（每10分钟）
-// --auto-remove: 自动移除异常域名
-// --notify: 发送通知（记录到日志）
+// 检测域名状态（每10分钟）
+// 检测内容：
+//   1. Tag (DOMAIN) 中的网站域名 - HTTP/HTTPS 可达性
+//   2. SMTP 服务器发件人域名 - DNS 记录（MX/SPF/DMARC）
+// 选项：
+//   --auto-remove: 自动从 Tag 中移除异常域名
+//   --notify: 发送通知（记录到日志）
 Schedule::command('domains:check --auto-remove --notify')
     ->everyTenMinutes()
     ->runInBackground()
