@@ -13,7 +13,8 @@ class FixStuckCampaigns extends Command
      * The name and signature of the console command.
      */
     protected $signature = 'campaigns:fix-stuck 
-                            {--timeout=300 : 任务卡住超过多少秒后释放（默认5分钟）}';
+                            {--timeout=300 : 任务卡住超过多少秒后释放（默认5分钟）}
+                            {--force : 保留选项，向后兼容（现在队列为空即自动完成）}';
 
     /**
      * The console command description.
