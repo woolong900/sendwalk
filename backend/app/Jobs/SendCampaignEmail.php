@@ -650,20 +650,19 @@ class SendCampaignEmail implements ShouldQueue
     /**
      * 检查并标记活动为已完成
      * 
-     * 🔥 使用原子性数据库操作，避免竞态条件：
-     * - 单条 SQL 语句同时检查所有条件并更新
-     * - 多个 Worker 同时执行时，只有一个能成功更新
+     * 🔥 简单原则：队列为空 = 活动完成
+     * - 任务创建是同步的，全部创建完成后才开始发送
+     * - 队列检查包含所有任务（包括正在执行的 reserved 任务）
+     * - 任务要么成功要么失败，都会从队列中移除
+     * 
+     * 使用原子性 UPDATE 避免多个 Worker 同时标记
      */
     private function checkAndMarkCampaignComplete(): void
     {
         $queueName = 'campaign_' . $this->campaign->id;
         $campaignId = $this->campaign->id;
         
-        // 🔥 原子性更新：单条 SQL 同时检查所有条件
-        // 条件：
-        // 1. 状态为 sending（避免重复更新）
-        // 2. 队列中没有任务（包括 reserved 的）
-        // 3. 已处理数 >= total_recipients
+        // 🔥 原子性更新：队列为空 = 活动完成
         $affected = \DB::update("
             UPDATE campaigns 
             SET status = 'sent', 
@@ -674,17 +673,11 @@ class SendCampaignEmail implements ShouldQueue
             AND NOT EXISTS (
                 SELECT 1 FROM jobs WHERE queue = ?
             )
-            AND (
-                SELECT COUNT(*) FROM campaign_sends 
-                WHERE campaign_id = ? AND status IN ('sent', 'failed')
-            ) >= total_recipients
-        ", [$campaignId, $queueName, $campaignId]);
+        ", [$campaignId, $queueName]);
         
         if ($affected > 0) {
-            // 刷新模型以获取最新状态
             $this->campaign->refresh();
-            
-            \Log::info('Campaign completed successfully (atomic update)', [
+            \Log::info('Campaign completed (queue empty)', [
                 'campaign_id' => $campaignId,
                 'queue' => $queueName,
                 'total_recipients' => $this->campaign->total_recipients,
@@ -692,7 +685,6 @@ class SendCampaignEmail implements ShouldQueue
                 'total_delivered' => $this->campaign->total_delivered,
             ]);
         }
-        // 如果 affected = 0，说明条件不满足或已被其他 Worker 更新，无需处理
     }
     
     /**

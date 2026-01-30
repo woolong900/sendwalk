@@ -467,12 +467,13 @@ class ProcessCampaignQueue extends Command
     /**
      * 尝试将活动标记为完成（原子操作）
      * 
-     * 当 Worker 检测到队列为空时调用，作为备用机制
-     * 使用原子性 SQL 避免竞态条件
+     * 当 Worker 检测到队列为空时调用
+     * 
+     * 🔥 简单原则：队列为空 = 活动完成
+     * 使用原子性 SQL 避免多个 Worker 同时标记
      */
     protected function tryMarkCampaignComplete(int $campaignId, string $queueName): void
     {
-        // 原子性更新：单条 SQL 同时检查所有条件
         $affected = DB::update("
             UPDATE campaigns 
             SET status = 'sent', 
@@ -483,15 +484,11 @@ class ProcessCampaignQueue extends Command
             AND NOT EXISTS (
                 SELECT 1 FROM jobs WHERE queue = ?
             )
-            AND (
-                SELECT COUNT(*) FROM campaign_sends 
-                WHERE campaign_id = ? AND status IN ('sent', 'failed')
-            ) >= total_recipients
-        ", [$campaignId, $queueName, $campaignId]);
+        ", [$campaignId, $queueName]);
         
         if ($affected > 0) {
             $this->info("✅ Campaign #{$campaignId} marked as completed");
-            Log::info('Campaign marked as completed by worker', [
+            Log::info('Campaign marked as completed by worker (queue empty)', [
                 'campaign_id' => $campaignId,
                 'queue' => $queueName,
             ]);

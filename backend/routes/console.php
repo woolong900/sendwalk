@@ -12,6 +12,12 @@ Artisan::command('inspire', function () {
 Schedule::command('campaigns:process-scheduled')->everyMinute();
 Schedule::command('automations:process')->everyMinute();
 
+// 修复卡住的活动（每5分钟，超时阈值5分钟）
+Schedule::command('campaigns:fix-stuck --timeout=300')
+    ->everyFiveMinutes()
+    ->runInBackground()
+    ->withoutOverlapping();
+
 // 清理已完成的旧任务（每天凌晨2点）
 Schedule::command('queue:clean')
     ->dailyAt('02:00')
