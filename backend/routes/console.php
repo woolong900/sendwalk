@@ -47,3 +47,8 @@ Schedule::command('domains:check --auto-remove --notify')
     ->runInBackground()
     ->withoutOverlapping();
 
+// 同步所有自动列表的订阅者（每天中午12点）
+Schedule::command('lists:sync-auto')
+    ->dailyAt('12:00')
+    ->runInBackground()
+    ->withoutOverlapping();

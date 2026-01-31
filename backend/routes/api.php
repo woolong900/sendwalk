@@ -60,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Lists
     Route::apiResource('lists', ListController::class);
     Route::post('lists/{list}/import', [ListController::class, 'import']);
+    Route::post('lists/preview-auto', [ListController::class, 'previewAutoList']);
 
     // Subscribers
     Route::apiResource('subscribers', SubscriberController::class);
