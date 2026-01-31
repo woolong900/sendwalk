@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -207,7 +207,6 @@ export default function ListsPage() {
       type: 'manual',
       conditions: getDefaultConditions(),
     })
-    setPreviewCount(null)
   }
 
   const handleCreate = () => {
@@ -643,7 +642,7 @@ export default function ListsPage() {
                         <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                         <span className="font-semibold">{list.subscribers_count || 0}</span>
                         {list.type === 'auto' && (
-                          <Settings2 className="w-3 h-3 text-muted-foreground" title="动态计算" />
+                          <Settings2 className="w-3 h-3 text-muted-foreground" />
                         )}
                       </div>
                     </TableCell>
