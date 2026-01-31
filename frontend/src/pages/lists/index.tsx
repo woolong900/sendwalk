@@ -292,8 +292,8 @@ export default function ListsPage() {
     list.description?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  // 条件配置 UI
-  const ConditionsEditor = () => (
+  // 条件编辑器 JSX
+  const conditionsEditorJSX = (
     <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
       <div className="flex items-center justify-between">
         <Label className="text-sm font-medium">条件配置</Label>
@@ -399,66 +399,6 @@ export default function ListsPage() {
         添加条件
       </Button>
     </div>
-  )
-
-  // 表单内容
-  const FormContent = ({ isEdit = false }: { isEdit?: boolean }) => (
-    <>
-      <div className="space-y-2">
-        <Label htmlFor={isEdit ? 'edit-name' : 'name'}>
-          列表名称 <span className="text-red-500">*</span>
-        </Label>
-        <Input
-          id={isEdit ? 'edit-name' : 'name'}
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="例如：新闻订阅者"
-          required
-        />
-      </div>
-      
-      <div className="space-y-2">
-        <Label htmlFor={isEdit ? 'edit-description' : 'description'}>描述</Label>
-        <Input
-          id={isEdit ? 'edit-description' : 'description'}
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          placeholder="列表的用途说明"
-        />
-      </div>
-
-      <div className="space-y-3">
-        <Label>列表类型</Label>
-        <RadioGroup
-          value={formData.type}
-          onValueChange={(value: 'manual' | 'auto') => setFormData({ ...formData, type: value })}
-          className="flex gap-4"
-        >
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="manual" id={isEdit ? 'edit-manual' : 'manual'} />
-            <Label htmlFor={isEdit ? 'edit-manual' : 'manual'} className="font-normal cursor-pointer">
-              <div className="flex items-center gap-1.5">
-                <Users className="w-4 h-4" />
-                手动列表
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">手动添加或上传联系人</p>
-            </Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="auto" id={isEdit ? 'edit-auto' : 'auto'} />
-            <Label htmlFor={isEdit ? 'edit-auto' : 'auto'} className="font-normal cursor-pointer">
-              <div className="flex items-center gap-1.5">
-                <Zap className="w-4 h-4" />
-                自动列表
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">根据条件自动引用联系人</p>
-            </Label>
-          </div>
-        </RadioGroup>
-      </div>
-
-      {formData.type === 'auto' && <ConditionsEditor />}
-    </>
   )
 
   return (
@@ -734,7 +674,61 @@ export default function ListsPage() {
             <DialogDescription>创建一个新的邮件订阅者列表</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-5">
-            <FormContent />
+            <div className="space-y-2">
+              <Label htmlFor="name">
+                列表名称 <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="例如：新闻订阅者"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="description">描述</Label>
+              <Input
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="列表的用途说明"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <Label>列表类型</Label>
+              <RadioGroup
+                value={formData.type}
+                onValueChange={(value: 'manual' | 'auto') => setFormData({ ...formData, type: value })}
+                className="flex gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="manual" id="manual" />
+                  <Label htmlFor="manual" className="font-normal cursor-pointer">
+                    <div className="flex items-center gap-1.5">
+                      <Users className="w-4 h-4" />
+                      手动列表
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">手动添加或上传联系人</p>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="auto" id="auto" />
+                  <Label htmlFor="auto" className="font-normal cursor-pointer">
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="w-4 h-4" />
+                      自动列表
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">根据条件自动引用联系人</p>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {formData.type === 'auto' && conditionsEditorJSX}
+
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"
@@ -759,7 +753,61 @@ export default function ListsPage() {
             <DialogDescription>修改邮件列表信息</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleUpdate} className="space-y-5">
-            <FormContent isEdit />
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">
+                列表名称 <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="edit-name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="例如：新闻订阅者"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">描述</Label>
+              <Input
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="列表的用途说明"
+              />
+            </div>
+
+            <div className="space-y-3">
+              <Label>列表类型</Label>
+              <RadioGroup
+                value={formData.type}
+                onValueChange={(value: 'manual' | 'auto') => setFormData({ ...formData, type: value })}
+                className="flex gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="manual" id="edit-manual" />
+                  <Label htmlFor="edit-manual" className="font-normal cursor-pointer">
+                    <div className="flex items-center gap-1.5">
+                      <Users className="w-4 h-4" />
+                      手动列表
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">手动添加或上传联系人</p>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="auto" id="edit-auto" />
+                  <Label htmlFor="edit-auto" className="font-normal cursor-pointer">
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="w-4 h-4" />
+                      自动列表
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">根据条件自动引用联系人</p>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {formData.type === 'auto' && conditionsEditorJSX}
+
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"
