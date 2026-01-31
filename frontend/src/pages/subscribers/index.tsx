@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, Mail, Trash2, Upload, CheckCircle, List, RefreshCw, Loader } from 'lucide-react'
+import { Plus, Search, Mail, Trash2, Upload, CheckCircle, List, RefreshCw, Loader, Zap } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -57,8 +57,15 @@ interface MailingList {
   id: number
   name: string
   description: string
-
-  
+  type: 'manual' | 'auto'
+  conditions?: {
+    logic: 'and' | 'or'
+    rules: Array<{
+      type: string
+      list_id?: number
+      value?: boolean
+    }>
+  }
   subscribers_count: number
 }
 
@@ -305,7 +312,15 @@ export default function SubscribersPage() {
               邮件列表
             </Link>
             <span>/</span>
-            <span className="text-foreground font-medium">{mailingList?.name || '订阅者'}</span>
+            <span className="text-foreground font-medium flex items-center gap-1.5">
+              {mailingList?.name || '订阅者'}
+              {mailingList?.type === 'auto' && (
+                <Badge variant="secondary" className="bg-purple-100 text-purple-700 text-xs">
+                  <Zap className="w-3 h-3 mr-0.5" />
+                  自动
+                </Badge>
+              )}
+            </span>
           </div>
           <h1 className="text-xl md:text-2xl font-bold tracking-tight">订阅者管理</h1>
           <p className="text-muted-foreground mt-2">管理和组织您的订阅者</p>

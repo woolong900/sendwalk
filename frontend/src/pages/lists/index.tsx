@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit, Trash2, Users, Search, ListFilter, Clock } from 'lucide-react'
+import { Plus, Edit, Trash2, Users, Search, ListFilter, Clock, Zap, Settings2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,17 +26,41 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { api } from '@/lib/api'
 import { formatDateTime } from '@/lib/utils'
 import { useConfirm } from '@/hooks/use-confirm'
+
+// 条件规则类型
+type RuleType = 'in_list' | 'not_in_list' | 'has_opened' | 'has_delivered'
+
+interface ConditionRule {
+  type: RuleType
+  list_id?: number
+  value?: boolean
+}
+
+interface Conditions {
+  logic: 'and' | 'or'
+  rules: ConditionRule[]
+}
 
 interface MailingList {
   id: number
   name: string
   description: string
+  type: 'manual' | 'auto'
+  conditions: Conditions | null
   subscribers_count: number
   unsubscribed_count: number
   created_at: string
@@ -58,6 +82,20 @@ interface ListsResponse {
   }
 }
 
+// 条件规则选项
+const ruleTypeOptions: { value: RuleType; label: string; needsList: boolean; needsValue: boolean }[] = [
+  { value: 'in_list', label: '存在于列表', needsList: true, needsValue: false },
+  { value: 'not_in_list', label: '不存在于列表', needsList: true, needsValue: false },
+  { value: 'has_opened', label: '是否打开过邮件', needsList: false, needsValue: true },
+  { value: 'has_delivered', label: '是否送达过邮件', needsList: false, needsValue: true },
+]
+
+// 默认空条件
+const getDefaultConditions = (): Conditions => ({
+  logic: 'and',
+  rules: [{ type: 'in_list', list_id: undefined }],
+})
+
 export default function ListsPage() {
   const { confirm, ConfirmDialog } = useConfirm()
   
@@ -67,9 +105,13 @@ export default function ListsPage() {
   const [editingList, setEditingList] = useState<MailingList | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  
+  // 表单数据
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    type: 'manual' as 'manual' | 'auto',
+    conditions: getDefaultConditions(),
   })
 
   const queryClient = useQueryClient()
@@ -83,30 +125,55 @@ export default function ListsPage() {
     },
   })
   
+  // 获取所有列表（用于条件选择）
+  const { data: allListsResponse } = useQuery<{ data: MailingList[] }>({
+    queryKey: ['lists-all'],
+    queryFn: async () => {
+      const response = await api.get('/lists?all=true')
+      return response.data
+    },
+  })
+  
   const lists = listsResponse?.data || []
   const meta = listsResponse?.meta
   const stats = listsResponse?.stats
+  const allLists = allListsResponse?.data || []
 
   // 创建列表
   const createMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      return api.post('/lists', data)
+      const payload: Record<string, unknown> = {
+        name: data.name,
+        description: data.description,
+        type: data.type,
+      }
+      if (data.type === 'auto') {
+        payload.conditions = data.conditions
+      }
+      return api.post('/lists', payload)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lists'] })
       queryClient.invalidateQueries({ queryKey: ['lists-all'] })
       toast.success('列表创建成功')
       setIsCreateOpen(false)
-      setCurrentPage(1) // 返回第一页
+      setCurrentPage(1)
       resetForm()
     },
-    // onError 已由全局拦截器处理
   })
 
   // 更新列表
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: typeof formData }) => {
-      return api.put(`/lists/${id}`, data)
+      const payload: Record<string, unknown> = {
+        name: data.name,
+        description: data.description,
+        type: data.type,
+      }
+      if (data.type === 'auto') {
+        payload.conditions = data.conditions
+      }
+      return api.put(`/lists/${id}`, payload)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lists'] })
@@ -116,7 +183,6 @@ export default function ListsPage() {
       setEditingList(null)
       resetForm()
     },
-    // onError 已由全局拦截器处理
   })
 
   // 删除列表
@@ -128,16 +194,20 @@ export default function ListsPage() {
       queryClient.invalidateQueries({ queryKey: ['lists'] })
       queryClient.invalidateQueries({ queryKey: ['lists-all'] })
       toast.success('列表删除成功')
-      // 如果删除后当前页为空且不是第一页，返回上一页
       if (lists.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1)
       }
     },
-    // onError 已由全局拦截器处理
   })
 
   const resetForm = () => {
-    setFormData({ name: '', description: '' })
+    setFormData({
+      name: '',
+      description: '',
+      type: 'manual',
+      conditions: getDefaultConditions(),
+    })
+    setPreviewCount(null)
   }
 
   const handleCreate = () => {
@@ -155,6 +225,8 @@ export default function ListsPage() {
     setFormData({
       name: list.name,
       description: list.description || '',
+      type: list.type || 'manual',
+      conditions: list.conditions || getDefaultConditions(),
     })
     setIsEditOpen(true)
   }
@@ -179,10 +251,215 @@ export default function ListsPage() {
     }
   }
 
+  // 添加条件规则
+  const addRule = () => {
+    setFormData({
+      ...formData,
+      conditions: {
+        ...formData.conditions,
+        rules: [...formData.conditions.rules, { type: 'in_list', list_id: undefined }],
+      },
+    })
+  }
+
+  // 删除条件规则
+  const removeRule = (index: number) => {
+    const newRules = formData.conditions.rules.filter((_, i) => i !== index)
+    setFormData({
+      ...formData,
+      conditions: {
+        ...formData.conditions,
+        rules: newRules.length > 0 ? newRules : [{ type: 'in_list', list_id: undefined }],
+      },
+    })
+  }
+
+  // 更新条件规则
+  const updateRule = (index: number, updates: Partial<ConditionRule>) => {
+    const newRules = [...formData.conditions.rules]
+    newRules[index] = { ...newRules[index], ...updates }
+    setFormData({
+      ...formData,
+      conditions: {
+        ...formData.conditions,
+        rules: newRules,
+      },
+    })
+  }
+
   // 搜索过滤
   const filteredLists = lists.filter((list) =>
     list.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     list.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  // 条件配置 UI
+  const ConditionsEditor = () => (
+    <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-medium">条件配置</Label>
+        <Select
+          value={formData.conditions.logic}
+          onValueChange={(value: 'and' | 'or') =>
+            setFormData({
+              ...formData,
+              conditions: { ...formData.conditions, logic: value },
+            })
+          }
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="and">全部满足 (AND)</SelectItem>
+            <SelectItem value="or">任一满足 (OR)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-3">
+        {formData.conditions.rules.map((rule, index) => {
+          const ruleOption = ruleTypeOptions.find(r => r.value === rule.type)
+          return (
+            <div key={index} className="flex items-center gap-2">
+              <Select
+                value={rule.type}
+                onValueChange={(value: RuleType) => {
+                  const newRuleOption = ruleTypeOptions.find(r => r.value === value)
+                  updateRule(index, {
+                    type: value,
+                    list_id: newRuleOption?.needsList ? rule.list_id : undefined,
+                    value: newRuleOption?.needsValue ? true : undefined,
+                  })
+                }}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ruleTypeOptions.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {ruleOption?.needsList && (
+                <Select
+                  value={rule.list_id?.toString() || ''}
+                  onValueChange={(value) => updateRule(index, { list_id: parseInt(value) })}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="选择列表" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allLists
+                      .filter(l => l.type !== 'auto') // 不能选择自动列表
+                      .map(list => (
+                        <SelectItem key={list.id} value={list.id.toString()}>
+                          {list.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {ruleOption?.needsValue && (
+                <Select
+                  value={rule.value === true ? 'true' : 'false'}
+                  onValueChange={(value) => updateRule(index, { value: value === 'true' })}
+                >
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">是</SelectItem>
+                    <SelectItem value="false">否</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+
+              {formData.conditions.rules.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeRule(index)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <Button type="button" variant="outline" size="sm" onClick={addRule}>
+        <Plus className="w-4 h-4 mr-1" />
+        添加条件
+      </Button>
+    </div>
+  )
+
+  // 表单内容
+  const FormContent = ({ isEdit = false }: { isEdit?: boolean }) => (
+    <>
+      <div className="space-y-2">
+        <Label htmlFor={isEdit ? 'edit-name' : 'name'}>
+          列表名称 <span className="text-red-500">*</span>
+        </Label>
+        <Input
+          id={isEdit ? 'edit-name' : 'name'}
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          placeholder="例如：新闻订阅者"
+          required
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor={isEdit ? 'edit-description' : 'description'}>描述</Label>
+        <Input
+          id={isEdit ? 'edit-description' : 'description'}
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          placeholder="列表的用途说明"
+        />
+      </div>
+
+      <div className="space-y-3">
+        <Label>列表类型</Label>
+        <RadioGroup
+          value={formData.type}
+          onValueChange={(value: 'manual' | 'auto') => setFormData({ ...formData, type: value })}
+          className="flex gap-4"
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="manual" id={isEdit ? 'edit-manual' : 'manual'} />
+            <Label htmlFor={isEdit ? 'edit-manual' : 'manual'} className="font-normal cursor-pointer">
+              <div className="flex items-center gap-1.5">
+                <Users className="w-4 h-4" />
+                手动列表
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">手动添加或上传联系人</p>
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem value="auto" id={isEdit ? 'edit-auto' : 'auto'} />
+            <Label htmlFor={isEdit ? 'edit-auto' : 'auto'} className="font-normal cursor-pointer">
+              <div className="flex items-center gap-1.5">
+                <Zap className="w-4 h-4" />
+                自动列表
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">根据条件自动引用联系人</p>
+            </Label>
+          </div>
+        </RadioGroup>
+      </div>
+
+      {formData.type === 'auto' && <ConditionsEditor />}
+    </>
   )
 
   return (
@@ -263,37 +540,39 @@ export default function ListsPage() {
 
       {/* 列表表格 */}
       {isLoading ? (
-        // 加载中显示骨架屏
         <Card>
           <div className="overflow-x-auto">
-            <Table className="min-w-[700px]">
+            <Table className="min-w-[800px]">
               <colgroup>
                 <col className="w-[50px]" />
                 <col className="w-[200px]" />
+                <col className="w-[80px]" />
                 <col className="w-[120px]" />
                 <col className="w-[180px]" />
                 <col className="w-[150px]" />
               </colgroup>
               <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>标题</TableHead>
-                <TableHead className="text-center">订阅者</TableHead>
-                <TableHead>创建时间</TableHead>
-                <TableHead className="text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {[...Array(5)].map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-12" /></TableCell>
-                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-40" /></TableCell>
-                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
-                  <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-32" /></TableCell>
-                  <TableCell className="whitespace-nowrap"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>标题</TableHead>
+                  <TableHead>类型</TableHead>
+                  <TableHead className="text-center">订阅者</TableHead>
+                  <TableHead>创建时间</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
+              </TableHeader>
+              <TableBody>
+                {[...Array(5)].map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-12" /></TableCell>
+                    <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-40" /></TableCell>
+                    <TableCell className="whitespace-nowrap"><Skeleton className="h-5 w-14" /></TableCell>
+                    <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-16 mx-auto" /></TableCell>
+                    <TableCell className="whitespace-nowrap"><Skeleton className="h-4 w-32" /></TableCell>
+                    <TableCell className="whitespace-nowrap"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
             </Table>
           </div>
         </Card>
@@ -312,76 +591,94 @@ export default function ListsPage() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <Table className="min-w-[700px]">
+            <Table className="min-w-[800px]">
               <colgroup>
                 <col className="w-[50px]" />
                 <col className="w-[200px]" />
+                <col className="w-[80px]" />
                 <col className="w-[120px]" />
                 <col className="w-[180px]" />
                 <col className="w-[150px]" />
               </colgroup>
               <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>标题</TableHead>
-                <TableHead className="text-center">订阅者</TableHead>
-                <TableHead>创建时间</TableHead>
-                <TableHead className="text-right">操作</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredLists.map((list) => (
-                <TableRow 
-                  key={list.id}
-                  className="cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => navigate(`/lists/${list.id}/subscribers`)}
-                >
-                  <TableCell className="font-mono text-muted-foreground whitespace-nowrap">
-                    #{list.id}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <div className="font-medium text-primary truncate">
-                      {list.name}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center whitespace-nowrap">
-                    <div className="flex items-center justify-center gap-1">
-                      <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      <span className="font-semibold">{list.subscribers_count || 0}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Clock className="w-4 h-4 flex-shrink-0" />
-                      {formatDateTime(list.created_at)}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end -space-x-px">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEdit(list)}
-                        title="编辑"
-                        className="px-1.5"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(list)}
-                        disabled={deleteMutation.isPending}
-                        title="删除"
-                        className="px-1.5"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>标题</TableHead>
+                  <TableHead>类型</TableHead>
+                  <TableHead className="text-center">订阅者</TableHead>
+                  <TableHead>创建时间</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
+              </TableHeader>
+              <TableBody>
+                {filteredLists.map((list) => (
+                  <TableRow 
+                    key={list.id}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => navigate(`/lists/${list.id}/subscribers`)}
+                  >
+                    <TableCell className="font-mono text-muted-foreground whitespace-nowrap">
+                      #{list.id}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <div className="font-medium text-primary truncate">
+                        {list.name}
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {list.type === 'auto' ? (
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                          <Zap className="w-3 h-3 mr-1" />
+                          自动
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                          <Users className="w-3 h-3 mr-1" />
+                          手动
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1">
+                        <Users className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="font-semibold">{list.subscribers_count || 0}</span>
+                        {list.type === 'auto' && (
+                          <Settings2 className="w-3 h-3 text-muted-foreground" title="动态计算" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <Clock className="w-4 h-4 flex-shrink-0" />
+                        {formatDateTime(list.created_at)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end -space-x-px">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(list)}
+                          title="编辑"
+                          className="px-1.5"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(list)}
+                          disabled={deleteMutation.isPending}
+                          title="删除"
+                          className="px-1.5"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
             </Table>
           </div>
           
@@ -432,33 +729,13 @@ export default function ListsPage() {
 
       {/* 创建对话框 */}
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>创建新列表</DialogTitle>
             <DialogDescription>创建一个新的邮件订阅者列表</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                列表名称 <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="例如：新闻订阅者"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">描述</Label>
-              <Input
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="列表的用途说明"
-              />
-            </div>
+            <FormContent />
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"
@@ -477,33 +754,13 @@ export default function ListsPage() {
 
       {/* 编辑对话框 */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>编辑列表</DialogTitle>
             <DialogDescription>修改邮件列表信息</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleUpdate} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">
-                列表名称 <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="edit-name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="例如：新闻订阅者"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-description">描述</Label>
-              <Input
-                id="edit-description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="列表的用途说明"
-              />
-            </div>
+            <FormContent isEdit />
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="button"
