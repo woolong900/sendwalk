@@ -128,10 +128,10 @@ class CampaignController extends Controller
             return response()->json(['message' => '无权访问'], 403);
         }
 
-        // 只有正在发送或已完成的活动不能修改
-        if (in_array($campaign->status, ['sending', 'completed', 'failed'])) {
+        // 已取消、正在发送、已完成的活动不能修改
+        if (in_array($campaign->status, ['cancelled', 'sending', 'sent', 'completed', 'failed'])) {
             return response()->json([
-                'message' => '无法修改正在发送或已完成的活动',
+                'message' => '无法修改已取消、正在发送或已完成的活动',
             ], 422);
         }
 
@@ -436,10 +436,9 @@ class CampaignController extends Controller
         $previousStatus = $campaign->status;
         $queueName = 'campaign_' . $campaign->id;
 
-        // 立即更新活动状态（快速响应用户）
+        // 立即更新活动状态为已取消（快速响应用户）
         $campaign->update([
-            'status' => 'draft',
-            'scheduled_at' => null,
+            'status' => 'cancelled',
         ]);
 
         // 异步删除队列任务（不阻塞响应）
@@ -458,7 +457,7 @@ class CampaignController extends Controller
         })->afterResponse();
 
         return response()->json([
-            'message' => '活动已取消，已恢复为草稿状态',
+            'message' => '活动已取消',
             'data' => $campaign,
         ]);
     }
