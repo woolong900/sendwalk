@@ -433,30 +433,33 @@ class CampaignController extends Controller
             ], 400);
         }
 
-        // 从 jobs 表中删除该活动队列的所有任务
+        $previousStatus = $campaign->status;
         $queueName = 'campaign_' . $campaign->id;
-        $deletedCount = \DB::table('jobs')
-            ->where('queue', $queueName)
-            ->delete();
 
-        \Log::info('Cancelled campaign and cleaned queue', [
-            'campaign_id' => $campaign->id,
-            'campaign_name' => $campaign->name,
-            'queue' => $queueName,
-            'previous_status' => $campaign->status,
-            'deleted_jobs_count' => $deletedCount,
-        ]);
-
-        // 更新活动状态为草稿，清空定时时间
+        // 立即更新活动状态（快速响应用户）
         $campaign->update([
             'status' => 'draft',
             'scheduled_at' => null,
         ]);
 
+        // 异步删除队列任务（不阻塞响应）
+        dispatch(function () use ($campaign, $queueName, $previousStatus) {
+            $deletedCount = \DB::table('jobs')
+                ->where('queue', $queueName)
+                ->delete();
+
+            \Log::info('Cancelled campaign and cleaned queue', [
+                'campaign_id' => $campaign->id,
+                'campaign_name' => $campaign->name,
+                'queue' => $queueName,
+                'previous_status' => $previousStatus,
+                'deleted_jobs_count' => $deletedCount,
+            ]);
+        })->afterResponse();
+
         return response()->json([
             'message' => '活动已取消，已恢复为草稿状态',
             'data' => $campaign,
-            'deleted_jobs' => $deletedCount,
         ]);
     }
 
