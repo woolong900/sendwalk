@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Models\MailingList;
-use App\Models\Subscriber;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +12,7 @@ class SyncAutoListSubscribers implements ShouldQueue
 {
     use Queueable;
 
-    public $timeout = 1800; // 30 分钟超时
+    public $timeout = 3600; // 1 小时超时
     public $tries = 3; // 最多重试 3 次
 
     /**
@@ -55,77 +54,71 @@ class SyncAutoListSubscribers implements ShouldQueue
                     'list_id' => $this->listId,
                     'conditions' => $list->conditions,
                 ]);
+                // 清空列表
+                DB::table('list_subscriber')->where('list_id', $this->listId)->delete();
+                $list->update(['subscribers_count' => 0]);
                 return;
             }
 
-            // 获取所有符合条件的订阅者 ID
-            $subscriberIds = $query->pluck('id')->toArray();
-            $totalCount = count($subscriberIds);
-
-            Log::info('找到符合条件的订阅者', [
+            // 第一步：清空列表（直接 SQL 删除，高效）
+            $deletedCount = DB::table('list_subscriber')
+                ->where('list_id', $this->listId)
+                ->delete();
+            
+            Log::info('已清空自动列表', [
                 'list_id' => $this->listId,
-                'count' => $totalCount,
+                'deleted_count' => $deletedCount,
             ]);
 
-            if ($totalCount === 0) {
-                // 清空列表中的所有订阅者
-                $list->subscribers()->detach();
-                $list->update(['subscribers_count' => 0]);
-                Log::info('自动列表同步完成，无符合条件的订阅者', ['list_id' => $this->listId]);
-                return;
+            // 第二步：使用游标分批插入，避免内存溢出
+            $insertedCount = 0;
+            $batchSize = 2000;
+            $now = now();
+            $batch = [];
+
+            // 使用 cursor 逐条获取，避免一次性加载所有数据到内存
+            foreach ($query->cursor() as $subscriber) {
+                $batch[] = [
+                    'list_id' => $this->listId,
+                    'subscriber_id' => $subscriber->id,
+                    'status' => 'active',
+                    'subscribed_at' => $now,
+                    'source' => 'auto_list',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ];
+
+                if (count($batch) >= $batchSize) {
+                    DB::table('list_subscriber')->insert($batch);
+                    $insertedCount += count($batch);
+                    
+                    // 每 10000 条记录日志
+                    if ($insertedCount % 10000 === 0) {
+                        Log::info('自动列表同步进度', [
+                            'list_id' => $this->listId,
+                            'inserted' => $insertedCount,
+                        ]);
+                    }
+                    
+                    $batch = [];
+                }
             }
 
-            // 使用事务批量同步
-            DB::transaction(function () use ($list, $subscriberIds, $totalCount) {
-                // 获取当前列表中已有的订阅者 ID
-                $existingIds = $list->subscribers()->pluck('subscribers.id')->toArray();
-                
-                // 计算需要添加和删除的订阅者
-                $toAdd = array_diff($subscriberIds, $existingIds);
-                $toRemove = array_diff($existingIds, $subscriberIds);
-
-                Log::info('自动列表订阅者变更', [
-                    'list_id' => $list->id,
-                    'to_add' => count($toAdd),
-                    'to_remove' => count($toRemove),
-                    'unchanged' => count(array_intersect($subscriberIds, $existingIds)),
-                ]);
-
-                // 删除不再符合条件的订阅者
-                if (!empty($toRemove)) {
-                    $list->subscribers()->detach($toRemove);
-                }
-
-                // 批量添加新订阅者（分批处理，每批 1000 条）
-                $chunks = array_chunk($toAdd, 1000);
-                foreach ($chunks as $chunk) {
-                    $attachData = [];
-                    $now = now();
-                    foreach ($chunk as $subscriberId) {
-                        $attachData[$subscriberId] = [
-                            'status' => 'active',
-                            'subscribed_at' => $now,
-                            'source' => 'auto_list',
-                        ];
-                    }
-                    $list->subscribers()->attach($attachData);
-                }
-            });
+            // 插入剩余数据
+            if (!empty($batch)) {
+                DB::table('list_subscriber')->insert($batch);
+                $insertedCount += count($batch);
+            }
 
             // 更新 subscribers_count 字段
-            $finalCount = DB::table('list_subscriber')
-                ->where('list_id', $list->id)
-                ->where('status', 'active')
-                ->count();
-            
-            $list->update(['subscribers_count' => $finalCount]);
+            $list->update(['subscribers_count' => $insertedCount]);
 
-            $duration = round((microtime(true) - $startTime) * 1000, 2);
+            $duration = round((microtime(true) - $startTime), 2);
             
             Log::info('自动列表同步完成', [
                 'list_id' => $this->listId,
-                'total_subscribers' => $finalCount,
-                'duration_ms' => $duration,
+                'total_subscribers' => $insertedCount,
+                'duration_seconds' => $duration,
             ]);
 
         } catch (\Exception $e) {
