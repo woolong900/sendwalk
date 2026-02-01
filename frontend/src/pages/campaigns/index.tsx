@@ -752,7 +752,7 @@ export default function CampaignsPage() {
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-0.5">
-                      {(campaign.status === 'draft' || campaign.status === 'scheduled' || campaign.status === 'cancelled') && (
+                      {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
                         <Button
                           size="sm"
                           variant="ghost"
