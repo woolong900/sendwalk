@@ -57,21 +57,14 @@ class SubscriberController extends Controller
 
     /**
      * 优化的列表订阅者查询
-     * 使用 JOIN 代替 whereHas，使用缓存的 total 代替 COUNT 查询
+     * 使用游标分页避免 OFFSET 性能问题，避免 COUNT 查询
      */
     private function getSubscribersByList(Request $request, $listId, $startTime)
     {
-        // 获取列表信息（包含缓存的 subscribers_count）
-        $list = MailingList::find($listId);
-        if (!$list) {
-            return response()->json(['message' => '列表不存在'], 404);
-        }
-
         $perPage = 15;
-        $page = (int) $request->get('page', 1);
-        $offset = ($page - 1) * $perPage;
+        $hasFilters = $request->has('search') || $request->has('status');
         
-        // 构建优化的查询：从 list_subscriber 开始 JOIN subscribers
+        // 构建基础查询
         $query = DB::table('list_subscriber')
             ->join('subscribers', 'list_subscriber.subscriber_id', '=', 'subscribers.id')
             ->where('list_subscriber.list_id', $listId)
@@ -92,22 +85,22 @@ class SubscriberController extends Controller
             });
         }
         
-        // 如果有搜索或状态过滤，需要精确计算 total
-        // 否则使用缓存的 subscribers_count
-        $hasFilters = $request->has('search') || $request->has('status');
-        
+        // 获取 total：无过滤时从缓存读取，有过滤时才查询
         if ($hasFilters) {
-            // 有过滤条件时，需要精确计算总数
             $total = (clone $query)->count();
         } else {
-            // 无过滤条件时，使用缓存的总数
-            $total = $list->subscribers_count ?? 0;
+            // 直接查询缓存的 subscribers_count，避免加载整个模型
+            $total = DB::table('lists')
+                ->where('id', $listId)
+                ->value('subscribers_count') ?? 0;
         }
         
-        $lastPage = max(1, (int) ceil($total / $perPage));
+        // 使用游标分页：基于 subscriber_id 而不是 OFFSET
+        // 前端传递 after_id 参数表示上一页最后一条记录的 ID
+        $afterId = $request->get('after_id');
+        $page = (int) $request->get('page', 1);
         
-        // 获取当前页数据
-        $items = $query
+        $dataQuery = (clone $query)
             ->select([
                 'subscribers.id',
                 'subscribers.email',
@@ -119,10 +112,17 @@ class SubscriberController extends Controller
                 'list_subscriber.subscribed_at',
                 'list_subscriber.unsubscribed_at as list_unsubscribed_at',
             ])
-            ->orderBy('list_subscriber.subscribed_at', 'desc')
-            ->offset($offset)
-            ->limit($perPage)
-            ->get();
+            ->orderBy('list_subscriber.subscriber_id', 'desc');
+        
+        // 如果有 after_id，使用游标分页（更快）
+        if ($afterId) {
+            $dataQuery->where('list_subscriber.subscriber_id', '<', $afterId);
+        } else if ($page > 1) {
+            // 兼容传统 OFFSET 分页（较慢，但兼容前端）
+            $dataQuery->offset(($page - 1) * $perPage);
+        }
+        
+        $items = $dataQuery->limit($perPage)->get();
         
         // 处理数据
         $maskedItems = $items->map(function ($item) {
@@ -138,6 +138,12 @@ class SubscriberController extends Controller
                 'created_at' => $item->created_at,
             ];
         })->all();
+        
+        $lastPage = $total > 0 ? max(1, (int) ceil($total / $perPage)) : 1;
+        $hasMore = count($items) === $perPage;
+        
+        // 获取最后一条记录的 ID，用于下一页的游标
+        $lastId = $items->isNotEmpty() ? $items->last()->id : null;
         
         $duration = round((microtime(true) - $startTime) * 1000, 2);
         
@@ -157,6 +163,8 @@ class SubscriberController extends Controller
                 'last_page' => $lastPage,
                 'per_page' => $perPage,
                 'total' => $total,
+                'has_more' => $hasMore,
+                'next_cursor' => $lastId, // 用于游标分页
             ],
         ]);
     }
