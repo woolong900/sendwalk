@@ -4,66 +4,30 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Subscriber;
+use App\Models\MailingList;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SubscriberController extends Controller
 {
     public function index(Request $request)
     {
         $startTime = microtime(true);
-        $requestId = uniqid('req_');
+        $listId = $request->get('list_id');
         
-        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 开始处理列表请求', [
-            'request_id' => $requestId,
-            'user_id' => $request->user()->id ?? 'N/A',
-            'list_id' => $request->get('list_id'),
-            'status' => $request->get('status'),
-            'search' => $request->get('search'),
-            'page' => $request->get('page', 1),
-            'timestamp' => now()->toIso8601String(),
-        ]);
-        
-        $query = Subscriber::query();
-
-        // Filter by list
-        $listFilterStart = microtime(true);
-        if ($request->has('list_id')) {
-            $listId = $request->list_id;
-            
-            \Illuminate\Support\Facades\Log::info('[性能-订阅者] 添加列表过滤', [
-                'request_id' => $requestId,
-                'list_id' => $listId,
-            ]);
-            
-            // ✅ 性能优化：合并为单个 whereHas，避免双重子查询
-            $query->whereHas('lists', function ($q) use ($listId, $request) {
-                $q->where('lists.id', $listId);
-                
-                // 当按列表过滤时，状态过滤应该使用 list_subscriber.status
-                if ($request->has('status')) {
-                    $q->where('list_subscriber.status', $request->status);
-                }
-            });
-            
-            // 加载订阅者在该列表中的状态
-            $query->with(['lists' => function ($q) use ($listId) {
-                $q->where('lists.id', $listId);
-            }]);
-        } else {
-            // 没有列表过滤时，使用 subscribers.status
-            if ($request->has('status')) {
-                $query->where('status', $request->status);
-            }
+        // 如果有 list_id，使用优化的 JOIN 查询
+        if ($listId) {
+            return $this->getSubscribersByList($request, $listId, $startTime);
         }
-        $listFilterDuration = (microtime(true) - $listFilterStart) * 1000;
         
-        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 列表过滤条件添加完成', [
-            'request_id' => $requestId,
-            'duration_ms' => round($listFilterDuration, 2),
-        ]);
-
-        // Search
-        $searchStart = microtime(true);
+        // 没有 list_id 的通用查询
+        $query = Subscriber::query();
+        
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        }
+        
         if ($request->has('search')) {
             $search = $request->search;
             $query->where(function ($q) use ($search) {
@@ -71,82 +35,16 @@ class SubscriberController extends Controller
                     ->orWhere('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%");
             });
-            $searchDuration = (microtime(true) - $searchStart) * 1000;
-            
-            \Illuminate\Support\Facades\Log::info('[性能-订阅者] 搜索条件添加完成', [
-                'request_id' => $requestId,
-                'search_term' => $search,
-                'duration_ms' => round($searchDuration, 2),
-            ]);
         }
-
-        // 获取SQL并记录
-        $sql = $query->latest()->toSql();
-        $bindings = $query->getBindings();
         
-        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 准备执行SQL', [
-            'request_id' => $requestId,
-            'sql' => $sql,
-            'bindings_count' => count($bindings),
-        ]);
-
-        // 执行数据库查询
-        $dbQueryStart = microtime(true);
         $subscribers = $query->latest()->paginate(15);
-        $dbQueryDuration = (microtime(true) - $dbQueryStart) * 1000;
         
-        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 数据库查询完成', [
-            'request_id' => $requestId,
-            'duration_ms' => round($dbQueryDuration, 2),
-            'total_records' => $subscribers->total(),
-            'current_page' => $subscribers->currentPage(),
-            'per_page' => $subscribers->perPage(),
-            'last_page' => $subscribers->lastPage(),
-            'returned_count' => $subscribers->count(),
-        ]);
-        
-        // 如果查询超过200ms，记录警告
-        if ($dbQueryDuration > 200) {
-            \Illuminate\Support\Facades\Log::warning('[性能-订阅者] 数据库查询慢', [
-                'request_id' => $requestId,
-                'duration_ms' => round($dbQueryDuration, 2),
-                'threshold_ms' => 200,
-                'has_list_filter' => $request->has('list_id'),
-                'has_status_filter' => $request->has('status'),
-                'has_search' => $request->has('search'),
-            ]);
-        }
-        
-        // 如果有 list_id，为每个订阅者添加在该列表中的状态
-        $postProcessStart = microtime(true);
-        if ($request->has('list_id')) {
-            $items = $subscribers->items();
-            foreach ($items as $subscriber) {
-                if ($subscriber->lists->isNotEmpty()) {
-                    $subscriber->list_status = $subscriber->lists[0]->pivot->status;
-                    $subscriber->list_unsubscribed_at = $subscriber->lists[0]->pivot->unsubscribed_at;
-                } else {
-                    $subscriber->list_status = 'active';
-                    $subscriber->list_unsubscribed_at = null;
-                }
-            }
-        }
-        $postProcessDuration = (microtime(true) - $postProcessStart) * 1000;
-        
-        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 后处理完成', [
-            'request_id' => $requestId,
-            'duration_ms' => round($postProcessDuration, 2),
-            'processed_count' => $subscribers->count(),
-        ]);
-
-        // 构建响应（邮箱脱敏处理）
-        $responseStart = microtime(true);
         $maskedItems = collect($subscribers->items())->map(function ($subscriber) {
             $subscriber->email = maskEmail($subscriber->email);
             return $subscriber;
         })->all();
-        
-        $response = response()->json([
+
+        return response()->json([
             'data' => $maskedItems,
             'meta' => [
                 'current_page' => $subscribers->currentPage(),
@@ -155,33 +53,112 @@ class SubscriberController extends Controller
                 'total' => $subscribers->total(),
             ],
         ]);
-        $responseDuration = (microtime(true) - $responseStart) * 1000;
+    }
+
+    /**
+     * 优化的列表订阅者查询
+     * 使用 JOIN 代替 whereHas，使用缓存的 total 代替 COUNT 查询
+     */
+    private function getSubscribersByList(Request $request, $listId, $startTime)
+    {
+        // 获取列表信息（包含缓存的 subscribers_count）
+        $list = MailingList::find($listId);
+        if (!$list) {
+            return response()->json(['message' => '列表不存在'], 404);
+        }
+
+        $perPage = 15;
+        $page = (int) $request->get('page', 1);
+        $offset = ($page - 1) * $perPage;
         
-        $totalDuration = (microtime(true) - $startTime) * 1000;
+        // 构建优化的查询：从 list_subscriber 开始 JOIN subscribers
+        $query = DB::table('list_subscriber')
+            ->join('subscribers', 'list_subscriber.subscriber_id', '=', 'subscribers.id')
+            ->where('list_subscriber.list_id', $listId)
+            ->whereNull('subscribers.deleted_at');
         
-        \Illuminate\Support\Facades\Log::info('[性能-订阅者] 请求处理完成', [
-            'request_id' => $requestId,
-            'list_filter_ms' => round($listFilterDuration, 2),
-            'db_query_ms' => round($dbQueryDuration, 2),
-            'post_process_ms' => round($postProcessDuration, 2),
-            'response_build_ms' => round($responseDuration, 2),
-            'total_duration_ms' => round($totalDuration, 2),
-            'total_records' => $subscribers->total(),
-            'returned_count' => $subscribers->count(),
-        ]);
+        // 状态过滤
+        if ($request->has('status')) {
+            $query->where('list_subscriber.status', $request->status);
+        }
         
-        // 如果总耗时超过1秒，记录警告
-        if ($totalDuration > 1000) {
-            \Illuminate\Support\Facades\Log::warning('[性能-订阅者] 请求处理慢', [
-                'request_id' => $requestId,
-                'total_duration_ms' => round($totalDuration, 2),
-                'threshold_ms' => 1000,
-                'db_query_ms' => round($dbQueryDuration, 2),
-                'percentage_in_db' => round(($dbQueryDuration / $totalDuration) * 100, 1) . '%',
+        // 搜索过滤
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('subscribers.email', 'like', "%{$search}%")
+                    ->orWhere('subscribers.first_name', 'like', "%{$search}%")
+                    ->orWhere('subscribers.last_name', 'like', "%{$search}%");
+            });
+        }
+        
+        // 如果有搜索或状态过滤，需要精确计算 total
+        // 否则使用缓存的 subscribers_count
+        $hasFilters = $request->has('search') || $request->has('status');
+        
+        if ($hasFilters) {
+            // 有过滤条件时，需要精确计算总数
+            $total = (clone $query)->count();
+        } else {
+            // 无过滤条件时，使用缓存的总数
+            $total = $list->subscribers_count ?? 0;
+        }
+        
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        
+        // 获取当前页数据
+        $items = $query
+            ->select([
+                'subscribers.id',
+                'subscribers.email',
+                'subscribers.first_name',
+                'subscribers.last_name',
+                'subscribers.status',
+                'subscribers.created_at',
+                'list_subscriber.status as list_status',
+                'list_subscriber.subscribed_at',
+                'list_subscriber.unsubscribed_at as list_unsubscribed_at',
+            ])
+            ->orderBy('list_subscriber.subscribed_at', 'desc')
+            ->offset($offset)
+            ->limit($perPage)
+            ->get();
+        
+        // 处理数据
+        $maskedItems = $items->map(function ($item) {
+            return [
+                'id' => $item->id,
+                'email' => maskEmail($item->email),
+                'first_name' => $item->first_name,
+                'last_name' => $item->last_name,
+                'status' => $item->status,
+                'list_status' => $item->list_status,
+                'subscribed_at' => $item->subscribed_at,
+                'list_unsubscribed_at' => $item->list_unsubscribed_at,
+                'created_at' => $item->created_at,
+            ];
+        })->all();
+        
+        $duration = round((microtime(true) - $startTime) * 1000, 2);
+        
+        if ($duration > 500) {
+            Log::warning('[性能-订阅者] 列表查询慢', [
+                'list_id' => $listId,
+                'duration_ms' => $duration,
+                'page' => $page,
+                'has_filters' => $hasFilters,
             ]);
         }
 
-        return $response;
+        return response()->json([
+            'data' => $maskedItems,
+            'meta' => [
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+            ],
+        ]);
     }
 
     public function store(Request $request)
