@@ -84,13 +84,16 @@ class ListController extends Controller
             'custom_fields' => $request->custom_fields,
         ]);
 
-        // 如果是自动列表，异步同步订阅者
+        // 如果是自动列表，同步订阅者（在响应后执行，不阻塞用户）
         if ($list->isAutoList()) {
-            SyncAutoListSubscribers::dispatch($list->id)->onQueue('default');
+            $listId = $list->id;
+            dispatch(function () use ($listId) {
+                (new SyncAutoListSubscribers($listId))->handle();
+            })->afterResponse();
         }
 
         return response()->json([
-            'message' => $list->isAutoList() ? '列表创建成功，正在后台同步订阅者' : '列表创建成功',
+            'message' => $list->isAutoList() ? '列表创建成功，正在同步订阅者' : '列表创建成功',
             'data' => $list,
         ], 201);
     }
@@ -144,13 +147,16 @@ class ListController extends Controller
 
         $list->update($updateData);
 
-        // 如果需要同步订阅者，异步执行
+        // 如果需要同步订阅者，在响应后执行
         if ($needSync) {
-            SyncAutoListSubscribers::dispatch($list->id)->onQueue('default');
+            $listId = $list->id;
+            dispatch(function () use ($listId) {
+                (new SyncAutoListSubscribers($listId))->handle();
+            })->afterResponse();
         }
 
         return response()->json([
-            'message' => $needSync ? '列表更新成功，正在后台同步订阅者' : '列表更新成功',
+            'message' => $needSync ? '列表更新成功，正在同步订阅者' : '列表更新成功',
             'data' => $list,
         ]);
     }

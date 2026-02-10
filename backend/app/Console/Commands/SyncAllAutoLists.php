@@ -37,11 +37,20 @@ class SyncAllAutoLists extends Command
         $this->info("找到 {$autoLists->count()} 个自动列表，开始同步...");
 
         foreach ($autoLists as $list) {
-            $this->line("  - 分发同步任务: [{$list->id}] {$list->name}");
-            SyncAutoListSubscribers::dispatch($list->id)->onQueue('default');
+            $this->line("  - 开始同步: [{$list->id}] {$list->name}");
+            $startTime = microtime(true);
+            
+            try {
+                (new SyncAutoListSubscribers($list->id))->handle();
+                $elapsed = round(microtime(true) - $startTime, 2);
+                $list->refresh();
+                $this->info("    ✓ 同步完成，订阅者数量: {$list->subscribers_count}，耗时: {$elapsed}s");
+            } catch (\Exception $e) {
+                $this->error("    ✗ 同步失败: {$e->getMessage()}");
+            }
         }
 
-        $this->info('所有自动列表同步任务已分发到队列');
+        $this->info('所有自动列表同步完成');
 
         return Command::SUCCESS;
     }
