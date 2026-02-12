@@ -154,7 +154,6 @@ class DiagnoseAutoList extends Command
                 'subscriber_id' => $subscriber->id,
                 'status' => 'active',
                 'subscribed_at' => $now,
-                'source' => 'auto_list',
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
