@@ -146,7 +146,7 @@ class OrderController extends Controller
             ->pluck('send_count', 'domain')
             ->toArray();
         
-        // 2. 按发件域名(utm_medium)统计订单 - 需要合并发信量
+        // 2. 按发件域名(utm_medium)统计订单
         $ordersByUtmMedium = Order::query()
             ->whereDate('paid_at', '>=', $startDate)
             ->whereDate('paid_at', '<=', $endDate)
@@ -155,12 +155,19 @@ class OrderController extends Controller
             ->selectRaw('utm_medium as domain, COUNT(*) as order_count, SUM(total_price) as total_amount')
             ->groupBy('utm_medium')
             ->get()
-            ->map(function ($item) use ($sendCountByDomain) {
-                $item->send_count = $sendCountByDomain[$item->domain] ?? 0;
-                return $item;
-            })
-            ->sortByDesc('send_count')
-            ->values();
+            ->keyBy('domain')
+            ->toArray();
+        
+        // 3. 合并发信域名和订单域名，包括有发信但无订单的域名
+        $allSendingDomains = collect($sendCountByDomain)->map(function ($sendCount, $domain) use ($ordersByUtmMedium) {
+            $orderData = $ordersByUtmMedium[$domain] ?? null;
+            return [
+                'domain' => $domain,
+                'send_count' => $sendCount,
+                'order_count' => $orderData ? $orderData['order_count'] : 0,
+                'total_amount' => $orderData ? round($orderData['total_amount'], 2) : 0,
+            ];
+        })->values()->sortByDesc('send_count')->values();
         
         // 3. 按落地页域名(domain)统计 - 按出单量倒序
         $byLandingDomain = Order::query()
@@ -210,7 +217,7 @@ class OrderController extends Controller
                 'total_amount' => round($totalAmount, 2),
                 'total_send_count' => $totalSendCount,
             ],
-            'by_sending_domain' => $ordersByUtmMedium,
+            'by_sending_domain' => $allSendingDomains,
             'by_landing_domain' => $byLandingDomain,
             'domains_without_orders' => $domainsWithoutOrders,
         ]);
