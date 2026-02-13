@@ -342,6 +342,7 @@ export default function OrdersPage() {
                       <TableHead className="w-[100px]">支付方式</TableHead>
                       <TableHead className="w-[150px]">支付时间</TableHead>
                       <TableHead className="w-[100px]">UTM来源</TableHead>
+                      <TableHead className="w-[100px]">UTM媒介</TableHead>
                       <TableHead className="w-[150px]">域名</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -377,6 +378,11 @@ export default function OrdersPage() {
                         <TableCell>
                           {order.utm_source ? (
                             <Badge variant="outline">{order.utm_source}</Badge>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {order.utm_medium ? (
+                            <Badge variant="outline">{order.utm_medium}</Badge>
                           ) : '-'}
                         </TableCell>
                         <TableCell>
