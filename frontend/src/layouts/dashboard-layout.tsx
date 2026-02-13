@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   FileText,
+  ShoppingCart,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ const navigation = [
   { name: '发送服务器', href: '/smtp-servers', icon: Server },
   { name: '自定义标签', href: '/tags', icon: Tag },
   { name: '发送监控', href: '/monitor', icon: Activity },
+  { name: '订单管理', href: '/orders', icon: ShoppingCart },
 ]
 
 export default function DashboardLayout() {

@@ -52,3 +52,9 @@ Schedule::command('lists:sync-auto')
     ->dailyAt('12:00')
     ->runInBackground()
     ->withoutOverlapping();
+
+// 同步订单数据（每天下午4点，同步最近2天的订单）
+Schedule::command('orders:sync --days=2')
+    ->dailyAt('16:00')
+    ->runInBackground()
+    ->withoutOverlapping();

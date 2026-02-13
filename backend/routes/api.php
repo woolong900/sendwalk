@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\SendMonitorController;
 use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TemplateController;
 use App\Http\Controllers\UnsubscribeController;
+use App\Http\Controllers\Api\OrderController;
 
 /*
 |--------------------------------------------------------------------------
@@ -130,6 +131,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('stats', [SendMonitorController::class, 'getStats']);
         Route::get('queue-status', [SendMonitorController::class, 'getQueueStatus']);
         Route::delete('logs', [SendMonitorController::class, 'clearLogs']);
+    });
+
+    // Orders
+    Route::prefix('orders')->group(function () {
+        Route::get('/', [OrderController::class, 'index']);
+        Route::get('/stats', [OrderController::class, 'stats']);
+        Route::get('/{order}', [OrderController::class, 'show']);
+        Route::post('/sync', [OrderController::class, 'sync']);
     });
 });
 

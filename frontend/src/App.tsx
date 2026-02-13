@@ -22,6 +22,7 @@ import TemplatesPage from '@/pages/templates'
 import TemplateEditorPage from '@/pages/templates/editor'
 import SmtpServersPage from '@/pages/settings'
 import SendMonitorPage from '@/pages/monitor'
+import OrdersPage from '@/pages/orders'
 
 // Public Pages
 import UnsubscribePage from '@/pages/unsubscribe'
@@ -74,6 +75,7 @@ function App() {
           <Route path="templates/create" element={<TemplateEditorPage />} />
           <Route path="templates/:id/edit" element={<TemplateEditorPage />} />
           <Route path="monitor" element={<SendMonitorPage />} />
+          <Route path="orders" element={<OrdersPage />} />
           <Route path="smtp-servers" element={<SmtpServersPage />} />
         </Route>
 
