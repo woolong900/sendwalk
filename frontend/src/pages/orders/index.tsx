@@ -140,8 +140,9 @@ export default function OrdersPage() {
     return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
 
-  const formatAmount = (amount: number) => {
-    return `$${amount.toFixed(2)}`
+  const formatAmount = (amount: number | string | null | undefined) => {
+    const num = Number(amount) || 0
+    return `$${num.toFixed(2)}`
   }
 
   const orders = ordersData?.data || []
