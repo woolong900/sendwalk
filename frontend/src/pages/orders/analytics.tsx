@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BarChart3, AlertTriangle, TrendingUp, DollarSign, Package, Mail, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { BarChart3, AlertTriangle, TrendingUp, DollarSign, Package, Mail, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -105,10 +105,17 @@ export default function OrderAnalyticsPage() {
   // 落地页域名表格排序状态
   const [landingSort, setLandingSort] = useState<SortConfig>({ key: 'order_count', direction: 'desc' })
 
-  const { data, isLoading } = useQuery<AnalyticsData>({
-    queryKey: ['order-analytics', selectedRange],
+  const [forceRefresh, setForceRefresh] = useState(false)
+  
+  const { data, isLoading, isFetching } = useQuery<AnalyticsData>({
+    queryKey: ['order-analytics', selectedRange, forceRefresh],
     queryFn: async () => {
-      const response = await api.get(`/orders/analytics?range=${selectedRange}`)
+      const params = new URLSearchParams({ range: selectedRange })
+      if (forceRefresh) {
+        params.append('refresh', 'true')
+        setForceRefresh(false) // 重置刷新标志
+      }
+      const response = await api.get(`/orders/analytics?${params}`)
       return response.data
     },
   })
@@ -184,15 +191,29 @@ export default function OrderAnalyticsPage() {
     return data.by_sending_domain.filter(d => d.order_count === 0).length
   }, [data?.by_sending_domain])
 
+  // 刷新数据（强制清除服务端缓存）
+  const handleRefresh = () => {
+    setForceRefresh(true)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl md:text-2xl font-bold">数据分析</h1>
           <p className="text-muted-foreground mt-1">
-            订单数据多维度分析
+            订单数据多维度分析（数据缓存5分钟）
           </p>
         </div>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={handleRefresh}
+          disabled={isFetching}
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+          刷新数据
+        </Button>
       </div>
 
       {/* 时间范围选择器 */}

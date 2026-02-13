@@ -131,96 +131,149 @@ class OrderController extends Controller
     public function analytics(Request $request)
     {
         $range = $request->input('range', 'today');
+        $refresh = $request->boolean('refresh', false);
         
         // 计算时间范围
         [$startDate, $endDate] = $this->getDateRange($range);
         
-        // 1. 按发件域名统计发信量（从SendLog获取，按from_email的域名分组）
-        $sendCountByDomain = SendLog::query()
-            ->where('status', 'sent')
-            ->where('created_at', '>=', $startDate)
-            ->where('created_at', '<=', $endDate)
-            ->whereNotNull('from_email')
-            ->selectRaw("SUBSTRING_INDEX(from_email, '@', -1) as domain, COUNT(*) as send_count")
-            ->groupBy(DB::raw("SUBSTRING_INDEX(from_email, '@', -1)"))
-            ->pluck('send_count', 'domain')
-            ->toArray();
+        // 使用缓存，缓存5分钟
+        $cacheKey = "order_analytics_{$range}_" . $startDate->format('Ymd');
+        $cacheTtl = 300; // 5分钟
         
-        // 2. 按发件域名(utm_medium)统计订单
-        $ordersByUtmMedium = Order::query()
-            ->whereDate('paid_at', '>=', $startDate)
-            ->whereDate('paid_at', '<=', $endDate)
-            ->whereNotNull('utm_medium')
-            ->where('utm_medium', '!=', '')
-            ->selectRaw('utm_medium as domain, COUNT(*) as order_count, SUM(total_price) as total_amount')
-            ->groupBy('utm_medium')
-            ->get()
-            ->keyBy('domain')
-            ->toArray();
+        // 如果请求刷新，清除缓存
+        if ($refresh) {
+            cache()->forget($cacheKey);
+        }
         
-        // 3. 合并发信域名和订单域名，包括有发信但无订单的域名
-        $allSendingDomains = collect($sendCountByDomain)->map(function ($sendCount, $domain) use ($ordersByUtmMedium) {
-            $orderData = $ordersByUtmMedium[$domain] ?? null;
-            return [
-                'domain' => $domain,
-                'send_count' => $sendCount,
-                'order_count' => $orderData ? $orderData['order_count'] : 0,
-                'total_amount' => $orderData ? round($orderData['total_amount'], 2) : 0,
+        return response()->json(
+            cache()->remember($cacheKey, $cacheTtl, function () use ($startDate, $endDate, $range) {
+                return $this->computeAnalytics($startDate, $endDate, $range);
+            })
+        );
+    }
+    
+    /**
+     * 计算分析数据
+     */
+    private function computeAnalytics($startDate, $endDate, $range): array
+    {
+        $startDateStr = $startDate->toDateTimeString();
+        $endDateStr = $endDate->toDateTimeString();
+        
+        // 使用单条 SQL 获取订单汇总和按 utm_medium 分组的数据
+        $orderStats = DB::select("
+            SELECT 
+                COUNT(*) as total_orders,
+                COALESCE(SUM(total_price), 0) as total_amount
+            FROM orders 
+            WHERE paid_at >= ? AND paid_at <= ?
+        ", [$startDateStr, $endDateStr]);
+        
+        $totalOrders = $orderStats[0]->total_orders ?? 0;
+        $totalAmount = round($orderStats[0]->total_amount ?? 0, 2);
+        
+        // 按 utm_medium 统计订单（发件域名）
+        $ordersByUtmMedium = DB::select("
+            SELECT 
+                utm_medium as domain,
+                COUNT(*) as order_count,
+                SUM(total_price) as total_amount
+            FROM orders 
+            WHERE paid_at >= ? AND paid_at <= ?
+                AND utm_medium IS NOT NULL 
+                AND utm_medium != ''
+            GROUP BY utm_medium
+        ", [$startDateStr, $endDateStr]);
+        
+        $ordersByDomainMap = [];
+        foreach ($ordersByUtmMedium as $row) {
+            $ordersByDomainMap[$row->domain] = [
+                'order_count' => (int) $row->order_count,
+                'total_amount' => round((float) $row->total_amount, 2),
             ];
-        })->values()->sortByDesc('send_count')->values();
+        }
         
-        // 3. 按落地页域名(domain)统计 - 按出单量倒序
-        $byLandingDomain = Order::query()
-            ->whereDate('paid_at', '>=', $startDate)
-            ->whereDate('paid_at', '<=', $endDate)
-            ->whereNotNull('domain')
-            ->where('domain', '!=', '')
-            ->selectRaw('domain, COUNT(*) as order_count, SUM(total_price) as total_amount')
-            ->groupBy('domain')
-            ->orderByDesc('order_count')
-            ->get();
+        // 按落地页域名统计
+        $byLandingDomain = DB::select("
+            SELECT 
+                domain,
+                COUNT(*) as order_count,
+                SUM(total_price) as total_amount
+            FROM orders 
+            WHERE paid_at >= ? AND paid_at <= ?
+                AND domain IS NOT NULL 
+                AND domain != ''
+            GROUP BY domain
+            ORDER BY order_count DESC
+        ", [$startDateStr, $endDateStr]);
         
-        // 4. 获取DOMAIN标签中的所有域名，找出未出单的域名
-        $domainTag = Tag::where('name', 'DOMAIN')->first();
-        $allDomains = $domainTag ? $domainTag->getValuesArray() : [];
+        // 转换为数组格式
+        $byLandingDomain = array_map(function ($row) {
+            return [
+                'domain' => $row->domain,
+                'order_count' => (int) $row->order_count,
+                'total_amount' => round((float) $row->total_amount, 2),
+            ];
+        }, $byLandingDomain);
         
-        // 已出单的域名列表
-        $domainsWithOrders = $byLandingDomain->pluck('domain')->toArray();
-        
-        // 未出单的域名
-        $domainsWithoutOrders = array_values(array_diff($allDomains, $domainsWithOrders));
-        
-        // 汇总统计
-        $totalOrders = Order::query()
-            ->whereDate('paid_at', '>=', $startDate)
-            ->whereDate('paid_at', '<=', $endDate)
-            ->count();
-            
-        $totalAmount = Order::query()
-            ->whereDate('paid_at', '>=', $startDate)
-            ->whereDate('paid_at', '<=', $endDate)
-            ->sum('total_price');
-        
-        // 总发信量
+        // 发信统计 - 使用索引优化的查询
+        // 先获取总发信量（这个查询可以使用 idx_status_created 索引）
         $totalSendCount = SendLog::query()
             ->where('status', 'sent')
             ->where('created_at', '>=', $startDate)
             ->where('created_at', '<=', $endDate)
             ->count();
         
-        return response()->json([
+        // 按发件域名统计发信量 - 使用原生 SQL 减少 PHP 处理
+        $sendCountByDomain = DB::select("
+            SELECT 
+                SUBSTRING_INDEX(from_email, '@', -1) as domain,
+                COUNT(*) as send_count
+            FROM send_logs 
+            WHERE status = 'sent' 
+                AND created_at >= ? 
+                AND created_at <= ?
+                AND from_email IS NOT NULL
+            GROUP BY SUBSTRING_INDEX(from_email, '@', -1)
+            ORDER BY send_count DESC
+        ", [$startDateStr, $endDateStr]);
+        
+        // 合并发信域名和订单数据
+        $allSendingDomains = [];
+        foreach ($sendCountByDomain as $row) {
+            $domain = $row->domain;
+            $orderData = $ordersByDomainMap[$domain] ?? null;
+            $allSendingDomains[] = [
+                'domain' => $domain,
+                'send_count' => (int) $row->send_count,
+                'order_count' => $orderData ? $orderData['order_count'] : 0,
+                'total_amount' => $orderData ? $orderData['total_amount'] : 0,
+            ];
+        }
+        
+        // 获取 DOMAIN 标签中的所有域名，找出未出单的域名
+        $domainTag = Tag::where('name', 'DOMAIN')->first();
+        $allDomains = $domainTag ? $domainTag->getValuesArray() : [];
+        
+        // 已出单的落地页域名列表
+        $domainsWithOrders = array_column($byLandingDomain, 'domain');
+        
+        // 未出单的域名
+        $domainsWithoutOrders = array_values(array_diff($allDomains, $domainsWithOrders));
+        
+        return [
             'range' => $range,
             'start_date' => $startDate->toDateString(),
             'end_date' => $endDate->toDateString(),
             'summary' => [
                 'total_orders' => $totalOrders,
-                'total_amount' => round($totalAmount, 2),
+                'total_amount' => $totalAmount,
                 'total_send_count' => $totalSendCount,
             ],
             'by_sending_domain' => $allSendingDomains,
             'by_landing_domain' => $byLandingDomain,
             'domains_without_orders' => $domainsWithoutOrders,
-        ]);
+        ];
     }
     
     /**
