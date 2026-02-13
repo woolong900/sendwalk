@@ -137,6 +137,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('orders')->group(function () {
         Route::get('/', [OrderController::class, 'index']);
         Route::get('/stats', [OrderController::class, 'stats']);
+        Route::get('/analytics', [OrderController::class, 'analytics']);
         Route::get('/{order}', [OrderController::class, 'show']);
         Route::post('/sync', [OrderController::class, 'sync']);
     });

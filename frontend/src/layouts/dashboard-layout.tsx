@@ -13,6 +13,7 @@ import {
   X,
   FileText,
   ShoppingCart,
+  BarChart3,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,7 @@ const navigation = [
   { name: '自定义标签', href: '/tags', icon: Tag },
   { name: '发送监控', href: '/monitor', icon: Activity },
   { name: '订单管理', href: '/orders', icon: ShoppingCart },
+  { name: '数据分析', href: '/orders/analytics', icon: BarChart3 },
 ]
 
 export default function DashboardLayout() {

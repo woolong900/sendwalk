@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\Tag;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class OrderController extends Controller
@@ -117,5 +119,97 @@ class OrderController extends Controller
             'message' => '同步任务已启动',
             'mode' => $all ? '全量同步' : "同步最近{$days}天订单",
         ]);
+    }
+    
+    /**
+     * 订单数据分析
+     * 
+     * @param string $range 时间范围: today, yesterday, 3days, week, month
+     */
+    public function analytics(Request $request)
+    {
+        $range = $request->input('range', 'today');
+        
+        // 计算时间范围
+        [$startDate, $endDate] = $this->getDateRange($range);
+        
+        // 1. 按发件域名(utm_medium)统计 - 按发信量倒序
+        $bySendingDomain = Order::query()
+            ->whereDate('paid_at', '>=', $startDate)
+            ->whereDate('paid_at', '<=', $endDate)
+            ->whereNotNull('utm_medium')
+            ->where('utm_medium', '!=', '')
+            ->selectRaw('utm_medium as domain, COUNT(*) as order_count, SUM(total_price) as total_amount')
+            ->groupBy('utm_medium')
+            ->orderByDesc('order_count')
+            ->get();
+        
+        // 2. 按落地页域名(domain)统计 - 按出单量倒序
+        $byLandingDomain = Order::query()
+            ->whereDate('paid_at', '>=', $startDate)
+            ->whereDate('paid_at', '<=', $endDate)
+            ->whereNotNull('domain')
+            ->where('domain', '!=', '')
+            ->selectRaw('domain, COUNT(*) as order_count, SUM(total_price) as total_amount')
+            ->groupBy('domain')
+            ->orderByDesc('order_count')
+            ->get();
+        
+        // 3. 获取DOMAIN标签中的所有域名，找出未出单的域名
+        $domainTag = Tag::where('name', 'DOMAIN')->first();
+        $allDomains = $domainTag ? $domainTag->getValuesArray() : [];
+        
+        // 已出单的域名列表
+        $domainsWithOrders = $byLandingDomain->pluck('domain')->toArray();
+        
+        // 未出单的域名
+        $domainsWithoutOrders = array_values(array_diff($allDomains, $domainsWithOrders));
+        
+        // 汇总统计
+        $totalOrders = Order::query()
+            ->whereDate('paid_at', '>=', $startDate)
+            ->whereDate('paid_at', '<=', $endDate)
+            ->count();
+            
+        $totalAmount = Order::query()
+            ->whereDate('paid_at', '>=', $startDate)
+            ->whereDate('paid_at', '<=', $endDate)
+            ->sum('total_price');
+        
+        return response()->json([
+            'range' => $range,
+            'start_date' => $startDate->toDateString(),
+            'end_date' => $endDate->toDateString(),
+            'summary' => [
+                'total_orders' => $totalOrders,
+                'total_amount' => round($totalAmount, 2),
+            ],
+            'by_sending_domain' => $bySendingDomain,
+            'by_landing_domain' => $byLandingDomain,
+            'domains_without_orders' => $domainsWithoutOrders,
+        ]);
+    }
+    
+    /**
+     * 根据范围参数计算起止日期
+     */
+    private function getDateRange(string $range): array
+    {
+        $now = Carbon::now();
+        
+        switch ($range) {
+            case 'today':
+                return [$now->copy()->startOfDay(), $now->copy()->endOfDay()];
+            case 'yesterday':
+                return [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()];
+            case '3days':
+                return [$now->copy()->subDays(2)->startOfDay(), $now->copy()->endOfDay()];
+            case 'week':
+                return [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay()];
+            case 'month':
+                return [$now->copy()->subDays(29)->startOfDay(), $now->copy()->endOfDay()];
+            default:
+                return [$now->copy()->startOfDay(), $now->copy()->endOfDay()];
+        }
     }
 }
