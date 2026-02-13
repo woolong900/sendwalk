@@ -87,9 +87,13 @@ export default function DashboardLayout() {
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
-              // 改进的激活状态判断：首页精确匹配，其他页面前缀匹配
-              const isActive = item.href === '/' 
-                ? location.pathname === '/'
+              // 改进的激活状态判断
+              // 1. 首页精确匹配
+              // 2. 需要精确匹配的路由（如 /orders 和 /orders/analytics）
+              // 3. 其他页面前缀匹配
+              const exactMatchPaths = ['/', '/orders']
+              const isActive = exactMatchPaths.includes(item.href)
+                ? location.pathname === item.href
                 : location.pathname.startsWith(item.href)
               
               return (

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BarChart3, AlertTriangle, TrendingUp, DollarSign, Package } from 'lucide-react'
+import { BarChart3, AlertTriangle, TrendingUp, DollarSign, Package, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -27,9 +27,11 @@ interface AnalyticsData {
   summary: {
     total_orders: number
     total_amount: number
+    total_send_count: number
   }
   by_sending_domain: {
     domain: string
+    send_count: number
     order_count: number
     total_amount: number
   }[]
@@ -99,7 +101,22 @@ export default function OrderAnalyticsPage() {
       ) : data ? (
         <>
           {/* 汇总统计卡片 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  {getRangeLabel(selectedRange)}发信量
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-blue-600">{data.summary.total_send_count.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {data.start_date} ~ {data.end_date}
+                </p>
+              </CardContent>
+            </Card>
+            
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
@@ -109,9 +126,6 @@ export default function OrderAnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">{data.summary.total_orders.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {data.start_date} ~ {data.end_date}
-                </p>
               </CardContent>
             </Card>
             
@@ -151,7 +165,7 @@ export default function OrderAnalyticsPage() {
                   按发件域名统计
                 </CardTitle>
                 <CardDescription>
-                  UTM媒介 = 发件域名，按出单量倒序排列
+                  按发信量倒序排列
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -165,6 +179,7 @@ export default function OrderAnalyticsPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>发件域名</TableHead>
+                          <TableHead className="text-right">发信量</TableHead>
                           <TableHead className="text-right">出单量</TableHead>
                           <TableHead className="text-right">成交金额</TableHead>
                         </TableRow>
@@ -176,6 +191,9 @@ export default function OrderAnalyticsPage() {
                               <div className="truncate max-w-[200px]" title={item.domain}>
                                 {item.domain}
                               </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant="outline" className="text-blue-600">{item.send_count.toLocaleString()}</Badge>
                             </TableCell>
                             <TableCell className="text-right">
                               <Badge variant="secondary">{item.order_count}</Badge>

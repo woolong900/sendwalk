@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\SendLog;
 use App\Models\Tag;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
@@ -133,18 +135,34 @@ class OrderController extends Controller
         // 计算时间范围
         [$startDate, $endDate] = $this->getDateRange($range);
         
-        // 1. 按发件域名(utm_medium)统计 - 按发信量倒序
-        $bySendingDomain = Order::query()
+        // 1. 按发件域名统计发信量（从SendLog获取，按from_email的域名分组）
+        $sendCountByDomain = SendLog::query()
+            ->where('status', 'sent')
+            ->where('created_at', '>=', $startDate)
+            ->where('created_at', '<=', $endDate)
+            ->whereNotNull('from_email')
+            ->selectRaw("SUBSTRING_INDEX(from_email, '@', -1) as domain, COUNT(*) as send_count")
+            ->groupBy(DB::raw("SUBSTRING_INDEX(from_email, '@', -1)"))
+            ->pluck('send_count', 'domain')
+            ->toArray();
+        
+        // 2. 按发件域名(utm_medium)统计订单 - 需要合并发信量
+        $ordersByUtmMedium = Order::query()
             ->whereDate('paid_at', '>=', $startDate)
             ->whereDate('paid_at', '<=', $endDate)
             ->whereNotNull('utm_medium')
             ->where('utm_medium', '!=', '')
             ->selectRaw('utm_medium as domain, COUNT(*) as order_count, SUM(total_price) as total_amount')
             ->groupBy('utm_medium')
-            ->orderByDesc('order_count')
-            ->get();
+            ->get()
+            ->map(function ($item) use ($sendCountByDomain) {
+                $item->send_count = $sendCountByDomain[$item->domain] ?? 0;
+                return $item;
+            })
+            ->sortByDesc('send_count')
+            ->values();
         
-        // 2. 按落地页域名(domain)统计 - 按出单量倒序
+        // 3. 按落地页域名(domain)统计 - 按出单量倒序
         $byLandingDomain = Order::query()
             ->whereDate('paid_at', '>=', $startDate)
             ->whereDate('paid_at', '<=', $endDate)
@@ -155,7 +173,7 @@ class OrderController extends Controller
             ->orderByDesc('order_count')
             ->get();
         
-        // 3. 获取DOMAIN标签中的所有域名，找出未出单的域名
+        // 4. 获取DOMAIN标签中的所有域名，找出未出单的域名
         $domainTag = Tag::where('name', 'DOMAIN')->first();
         $allDomains = $domainTag ? $domainTag->getValuesArray() : [];
         
@@ -176,6 +194,13 @@ class OrderController extends Controller
             ->whereDate('paid_at', '<=', $endDate)
             ->sum('total_price');
         
+        // 总发信量
+        $totalSendCount = SendLog::query()
+            ->where('status', 'sent')
+            ->where('created_at', '>=', $startDate)
+            ->where('created_at', '<=', $endDate)
+            ->count();
+        
         return response()->json([
             'range' => $range,
             'start_date' => $startDate->toDateString(),
@@ -183,8 +208,9 @@ class OrderController extends Controller
             'summary' => [
                 'total_orders' => $totalOrders,
                 'total_amount' => round($totalAmount, 2),
+                'total_send_count' => $totalSendCount,
             ],
-            'by_sending_domain' => $bySendingDomain,
+            'by_sending_domain' => $ordersByUtmMedium,
             'by_landing_domain' => $byLandingDomain,
             'domains_without_orders' => $domainsWithoutOrders,
         ]);
