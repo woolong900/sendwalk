@@ -18,29 +18,42 @@ class SmtpServerController extends Controller
         if ($servers->isNotEmpty()) {
             $serverIds = $servers->pluck('id')->toArray();
             
-            // 一次查询获取所有服务器最近1小时的发送日志
             $oneHourAgo = now()->subHour();
             $oneMinuteAgo = now()->subMinute();
             $oneSecondAgo = now()->subSecond();
             
-            $logs = \App\Models\SendLog::whereIn('smtp_server_id', $serverIds)
+            // 使用数据库聚合查询代替加载所有记录到内存
+            // 分别查询每个时间窗口的计数
+            $hourCounts = \App\Models\SendLog::whereIn('smtp_server_id', $serverIds)
                 ->whereIn('status', ['sent', 'failed'])
                 ->where('created_at', '>=', $oneHourAgo)
-                ->select('smtp_server_id', 'created_at')
-                ->get();
+                ->selectRaw('smtp_server_id, COUNT(*) as count')
+                ->groupBy('smtp_server_id')
+                ->pluck('count', 'smtp_server_id')
+                ->toArray();
             
-            // 在内存中按服务器分组
-            $logsByServer = $logs->groupBy('smtp_server_id');
+            $minuteCounts = \App\Models\SendLog::whereIn('smtp_server_id', $serverIds)
+                ->whereIn('status', ['sent', 'failed'])
+                ->where('created_at', '>=', $oneMinuteAgo)
+                ->selectRaw('smtp_server_id, COUNT(*) as count')
+                ->groupBy('smtp_server_id')
+                ->pluck('count', 'smtp_server_id')
+                ->toArray();
+            
+            $secondCounts = \App\Models\SendLog::whereIn('smtp_server_id', $serverIds)
+                ->whereIn('status', ['sent', 'failed'])
+                ->where('created_at', '>=', $oneSecondAgo)
+                ->selectRaw('smtp_server_id, COUNT(*) as count')
+                ->groupBy('smtp_server_id')
+                ->pluck('count', 'smtp_server_id')
+                ->toArray();
             
             // 为每个服务器计算速率限制状态
-            $servers->each(function ($server) use ($logsByServer, $oneSecondAgo, $oneMinuteAgo) {
-                $serverLogs = $logsByServer->get($server->id, collect());
-                
-                // 在内存中统计各时间窗口
+            $servers->each(function ($server) use ($hourCounts, $minuteCounts, $secondCounts) {
                 $counts = [
-                    'second' => $serverLogs->where('created_at', '>=', $oneSecondAgo)->count(),
-                    'minute' => $serverLogs->where('created_at', '>=', $oneMinuteAgo)->count(),
-                    'hour'   => $serverLogs->count(),
+                    'second' => $secondCounts[$server->id] ?? 0,
+                    'minute' => $minuteCounts[$server->id] ?? 0,
+                    'hour'   => $hourCounts[$server->id] ?? 0,
                     'day'    => $server->emails_sent_today,
                 ];
                 
