@@ -19,17 +19,18 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
+// 菜单配置，adminOnly 表示仅管理员可见
 const navigation = [
-  { name: '仪表盘', href: '/', icon: LayoutDashboard },
+  { name: '仪表盘', href: '/', icon: LayoutDashboard, adminOnly: true },
   { name: '邮件列表', href: '/lists', icon: List },
   { name: '黑名单', href: '/blacklist', icon: Ban },
   { name: '邮件活动', href: '/campaigns', icon: Mail },
   { name: '邮件模板', href: '/templates', icon: FileText },
   { name: '发送服务器', href: '/smtp-servers', icon: Server },
   { name: '自定义标签', href: '/tags', icon: Tag },
-  { name: '发送监控', href: '/monitor', icon: Activity },
-  { name: '订单管理', href: '/orders', icon: ShoppingCart },
-  { name: '数据分析', href: '/orders/analytics', icon: BarChart3 },
+  { name: '发送监控', href: '/monitor', icon: Activity, adminOnly: true },
+  { name: '订单管理', href: '/orders', icon: ShoppingCart, adminOnly: true },
+  { name: '数据分析', href: '/orders/analytics', icon: BarChart3, adminOnly: true },
 ]
 
 export default function DashboardLayout() {
@@ -86,33 +87,35 @@ export default function DashboardLayout() {
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-            {navigation.map((item) => {
-              // 改进的激活状态判断
-              // 1. 首页精确匹配
-              // 2. 需要精确匹配的路由（如 /orders 和 /orders/analytics）
-              // 3. 其他页面前缀匹配
-              const exactMatchPaths = ['/', '/orders']
-              const isActive = exactMatchPaths.includes(item.href)
-                ? location.pathname === item.href
-                : location.pathname.startsWith(item.href)
-              
-              return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  onClick={closeSidebar}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                  )}
-                >
-                  <item.icon className="w-5 h-5" />
-                  {item.name}
-                </Link>
-              )
-            })}
+            {navigation
+              .filter((item) => !item.adminOnly || user?.role === 'admin')
+              .map((item) => {
+                // 改进的激活状态判断
+                // 1. 首页精确匹配
+                // 2. 需要精确匹配的路由（如 /orders 和 /orders/analytics）
+                // 3. 其他页面前缀匹配
+                const exactMatchPaths = ['/', '/orders']
+                const isActive = exactMatchPaths.includes(item.href)
+                  ? location.pathname === item.href
+                  : location.pathname.startsWith(item.href)
+                
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    onClick={closeSidebar}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                    )}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    {item.name}
+                  </Link>
+                )
+              })}
           </nav>
 
           {/* User Profile */}

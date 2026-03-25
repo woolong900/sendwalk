@@ -40,6 +40,28 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+// 管理员路由保护
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuthStore()
+
+  if (user?.role !== 'admin') {
+    return <Navigate to="/campaigns" replace />
+  }
+
+  return <>{children}</>
+}
+
+// 根路径重定向（管理员去仪表盘，普通用户去活动列表）
+function RootRedirect() {
+  const { user } = useAuthStore()
+  
+  if (user?.role === 'admin') {
+    return <DashboardPage />
+  }
+  
+  return <Navigate to="/campaigns" replace />
+}
+
 function App() {
   return (
     <>
@@ -64,7 +86,10 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<DashboardPage />} />
+          {/* 根路径：管理员显示仪表盘，普通用户跳转到活动列表 */}
+          <Route index element={<RootRedirect />} />
+          
+          {/* 普通用户可访问的页面 */}
           <Route path="lists" element={<ListsPage />} />
           <Route path="blacklist" element={<BlacklistPage />} />
           <Route path="lists/:listId/subscribers" element={<SubscribersPage />} />
@@ -75,10 +100,12 @@ function App() {
           <Route path="templates" element={<TemplatesPage />} />
           <Route path="templates/create" element={<TemplateEditorPage />} />
           <Route path="templates/:id/edit" element={<TemplateEditorPage />} />
-          <Route path="monitor" element={<SendMonitorPage />} />
-          <Route path="orders" element={<OrdersPage />} />
-          <Route path="orders/analytics" element={<OrderAnalyticsPage />} />
           <Route path="smtp-servers" element={<SmtpServersPage />} />
+          
+          {/* 仅管理员可访问的页面 */}
+          <Route path="monitor" element={<AdminRoute><SendMonitorPage /></AdminRoute>} />
+          <Route path="orders" element={<AdminRoute><OrdersPage /></AdminRoute>} />
+          <Route path="orders/analytics" element={<AdminRoute><OrderAnalyticsPage /></AdminRoute>} />
         </Route>
 
         {/* Fallback */}
