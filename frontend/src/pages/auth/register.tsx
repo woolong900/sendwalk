@@ -4,29 +4,31 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
 
-const registerSchema = z
-  .object({
-    name: z.string().min(2, '姓名至少2个字符'),
-    email: z.string().email('请输入有效的邮箱地址'),
-    password: z.string().min(6, '密码至少6个字符'),
-    password_confirmation: z.string(),
-  })
-  .refine((data) => data.password === data.password_confirmation, {
-    message: '两次密码输入不一致',
-    path: ['password_confirmation'],
-  })
-
-type RegisterFormData = z.infer<typeof registerSchema>
-
 export default function RegisterPage() {
+  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
+
+  const registerSchema = z
+    .object({
+      name: z.string().min(2, t('common.error')),
+      email: z.string().email(t('auth.invalidCredentials')),
+      password: z.string().min(6, t('auth.invalidCredentials')),
+      password_confirmation: z.string(),
+    })
+    .refine((data) => data.password === data.password_confirmation, {
+      message: t('auth.invalidCredentials'),
+      path: ['password_confirmation'],
+    })
+
+  type RegisterFormData = z.infer<typeof registerSchema>
 
   const {
     register,
@@ -40,7 +42,7 @@ export default function RegisterPage() {
     setIsLoading(true)
     try {
       await api.post('/auth/register', data)
-      toast.success('注册成功，请登录')
+      toast.success(t('auth.registerSuccess'))
       navigate('/auth/login')
     } catch (error) {
       console.error('Register error:', error)
@@ -52,16 +54,16 @@ export default function RegisterPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>注册</CardTitle>
-        <CardDescription>创建您的账号以开始使用</CardDescription>
+        <CardTitle>{t('auth.register')}</CardTitle>
+        <CardDescription>{t('auth.signUp')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">姓名</Label>
+            <Label htmlFor="name">{t('common.name')}</Label>
             <Input
               id="name"
-              placeholder="您的姓名"
+              placeholder={t('common.name')}
               {...register('name')}
               disabled={isLoading}
             />
@@ -69,7 +71,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">邮箱</Label>
+            <Label htmlFor="email">{t('auth.email')}</Label>
             <Input
               id="email"
               type="email"
@@ -81,7 +83,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">密码</Label>
+            <Label htmlFor="password">{t('auth.password')}</Label>
             <Input
               id="password"
               type="password"
@@ -95,7 +97,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password_confirmation">确认密码</Label>
+            <Label htmlFor="password_confirmation">{t('auth.confirmPassword')}</Label>
             <Input
               id="password_confirmation"
               type="password"
@@ -109,13 +111,13 @@ export default function RegisterPage() {
           </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? '注册中...' : '注册'}
+            {isLoading ? t('common.loading') : t('auth.register')}
           </Button>
 
           <div className="text-center text-sm">
-            <span className="text-muted-foreground">已有账号？ </span>
+            <span className="text-muted-foreground">{t('auth.hasAccount')} </span>
             <Link to="/auth/login" className="text-primary hover:underline">
-              立即登录
+              {t('auth.signIn')}
             </Link>
           </div>
         </form>

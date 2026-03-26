@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Edit, Trash2, Users, Search, ListFilter, Clock, Zap, Settings2, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -83,11 +84,11 @@ interface ListsResponse {
 }
 
 // 条件规则选项
-const ruleTypeOptions: { value: RuleType; label: string; needsList: boolean; needsValue: boolean }[] = [
-  { value: 'in_list', label: '存在于列表', needsList: true, needsValue: false },
-  { value: 'not_in_list', label: '不存在于列表', needsList: true, needsValue: false },
-  { value: 'has_opened', label: '是否打开过邮件', needsList: false, needsValue: true },
-  { value: 'has_delivered', label: '是否送达过邮件', needsList: false, needsValue: true },
+const ruleTypeOptions: { value: RuleType; labelKey: string; needsList: boolean; needsValue: boolean }[] = [
+  { value: 'in_list', labelKey: 'lists.inList', needsList: true, needsValue: false },
+  { value: 'not_in_list', labelKey: 'lists.notInList', needsList: true, needsValue: false },
+  { value: 'has_opened', labelKey: 'lists.hasOpened', needsList: false, needsValue: true },
+  { value: 'has_delivered', labelKey: 'lists.hasDelivered', needsList: false, needsValue: true },
 ]
 
 // 默认空条件
@@ -97,6 +98,7 @@ const getDefaultConditions = (): Conditions => ({
 })
 
 export default function ListsPage() {
+  const { t } = useTranslation()
   const { confirm, ConfirmDialog } = useConfirm()
   
   const navigate = useNavigate()
@@ -155,7 +157,7 @@ export default function ListsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lists'] })
       queryClient.invalidateQueries({ queryKey: ['lists-all'] })
-      toast.success('列表创建成功')
+      toast.success(t('lists.createSuccess'))
       setIsCreateOpen(false)
       setCurrentPage(1)
       resetForm()
@@ -178,7 +180,7 @@ export default function ListsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lists'] })
       queryClient.invalidateQueries({ queryKey: ['lists-all'] })
-      toast.success('列表更新成功')
+      toast.success(t('lists.updateSuccess'))
       setIsEditOpen(false)
       setEditingList(null)
       resetForm()
@@ -193,7 +195,7 @@ export default function ListsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['lists'] })
       queryClient.invalidateQueries({ queryKey: ['lists-all'] })
-      toast.success('列表删除成功')
+      toast.success(t('lists.deleteSuccess'))
       if (lists.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1)
       }
@@ -239,10 +241,10 @@ export default function ListsPage() {
 
   const handleDelete = async (list: MailingList) => {
     const confirmed = await confirm({
-      title: '删除邮件列表',
-      description: `确定要删除列表"${list.name}"吗？\n\n注意：删除后订阅者不会被删除，只会解除与该列表的关联。`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('lists.deleteConfirm'),
+      description: t('lists.deleteConfirmDesc', { name: list.name }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
       variant: 'destructive',
     })
     if (confirmed) {
@@ -296,7 +298,7 @@ export default function ListsPage() {
   const conditionsEditorJSX = (
     <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium">条件配置</Label>
+        <Label className="text-sm font-medium">{t('lists.conditionsConfig')}</Label>
         <Select
           value={formData.conditions.logic}
           onValueChange={(value: 'and' | 'or') =>
@@ -310,8 +312,8 @@ export default function ListsPage() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="and">全部满足 (AND)</SelectItem>
-            <SelectItem value="or">任一满足 (OR)</SelectItem>
+            <SelectItem value="and">{t('lists.matchAll')}</SelectItem>
+            <SelectItem value="or">{t('lists.matchAny')}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -338,7 +340,7 @@ export default function ListsPage() {
                 <SelectContent>
                   {ruleTypeOptions.map(option => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -350,11 +352,11 @@ export default function ListsPage() {
                   onValueChange={(value) => updateRule(index, { list_id: parseInt(value) })}
                 >
                   <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="选择列表" />
+                    <SelectValue placeholder={t('lists.selectList')} />
                   </SelectTrigger>
                   <SelectContent>
                     {allLists
-                      .filter(l => l.type !== 'auto') // 不能选择自动列表
+                      .filter(l => l.type !== 'auto')
                       .map(list => (
                         <SelectItem key={list.id} value={list.id.toString()}>
                           {list.name}
@@ -373,8 +375,8 @@ export default function ListsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="true">是</SelectItem>
-                    <SelectItem value="false">否</SelectItem>
+                    <SelectItem value="true">{t('common.yes')}</SelectItem>
+                    <SelectItem value="false">{t('common.no')}</SelectItem>
                   </SelectContent>
                 </Select>
               )}
@@ -396,7 +398,7 @@ export default function ListsPage() {
 
       <Button type="button" variant="outline" size="sm" onClick={addRule}>
         <Plus className="w-4 h-4 mr-1" />
-        添加条件
+        {t('lists.addCondition')}
       </Button>
     </div>
   )
@@ -406,12 +408,12 @@ export default function ListsPage() {
       {/* 页头 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">邮件列表</h1>
-          <p className="text-muted-foreground mt-2">管理您的订阅者列表</p>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">{t('lists.title')}</h1>
+          <p className="text-muted-foreground mt-2">{t('lists.subtitle')}</p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="w-4 h-4 mr-2" />
-          创建列表
+          {t('lists.createList')}
         </Button>
       </div>
 
@@ -419,31 +421,31 @@ export default function ListsPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">总列表数</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('lists.totalLists')}</CardTitle>
             <ListFilter className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.total_lists || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              已创建的邮件列表
+              {t('lists.totalListsDesc')}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">总订阅者</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('lists.totalSubscribers')}</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.total_subscribers || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              所有列表的订阅者总数
+              {t('lists.totalSubscribersDesc')}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">总取消订阅</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('lists.totalUnsubscribed')}</CardTitle>
             <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700">
               {stats?.total_unsubscribed || 0}
             </Badge>
@@ -451,7 +453,7 @@ export default function ListsPage() {
           <CardContent>
             <div className="text-2xl font-bold text-orange-600">{stats?.total_unsubscribed || 0}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              从所有列表取消订阅的总数
+              {t('lists.totalUnsubscribedDesc')}
             </p>
           </CardContent>
         </Card>
@@ -463,7 +465,7 @@ export default function ListsPage() {
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="搜索列表名称或描述..."
+              placeholder={t('lists.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
@@ -471,7 +473,7 @@ export default function ListsPage() {
           </div>
           {searchTerm && (
             <p className="text-sm text-muted-foreground">
-              找到 {filteredLists.length} 个结果
+              {t('common.found')} {filteredLists.length} {t('common.results')}
             </p>
           )}
         </div>
@@ -492,12 +494,12 @@ export default function ListsPage() {
               </colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>标题</TableHead>
-                  <TableHead>类型</TableHead>
-                  <TableHead className="text-center">订阅者</TableHead>
-                  <TableHead>创建时间</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
+                  <TableHead>{t('common.id')}</TableHead>
+                  <TableHead>{t('common.name')}</TableHead>
+                  <TableHead>{t('common.type')}</TableHead>
+                  <TableHead className="text-center">{t('lists.subscribers')}</TableHead>
+                  <TableHead>{t('common.createdAt')}</TableHead>
+                  <TableHead className="text-right">{t('common.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -519,11 +521,11 @@ export default function ListsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Users className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">还没有邮件列表</p>
-            <p className="text-muted-foreground mb-4">创建您的第一个列表开始收集订阅者</p>
+            <p className="text-lg font-medium mb-2">{t('lists.noLists')}</p>
+            <p className="text-muted-foreground mb-4">{t('lists.noListsDesc')}</p>
             <Button onClick={handleCreate}>
               <Plus className="w-4 h-4 mr-2" />
-              创建列表
+              {t('lists.createList')}
             </Button>
           </CardContent>
         </Card>
@@ -541,12 +543,12 @@ export default function ListsPage() {
               </colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>标题</TableHead>
-                  <TableHead>类型</TableHead>
-                  <TableHead className="text-center">订阅者</TableHead>
-                  <TableHead>创建时间</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
+                  <TableHead>{t('common.id')}</TableHead>
+                  <TableHead>{t('common.name')}</TableHead>
+                  <TableHead>{t('common.type')}</TableHead>
+                  <TableHead className="text-center">{t('lists.subscribers')}</TableHead>
+                  <TableHead>{t('common.createdAt')}</TableHead>
+                  <TableHead className="text-right">{t('common.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -568,12 +570,12 @@ export default function ListsPage() {
                       {list.type === 'auto' ? (
                         <Badge variant="secondary" className="bg-purple-100 text-purple-700">
                           <Zap className="w-3 h-3 mr-1" />
-                          自动
+                          {t('common.auto')}
                         </Badge>
                       ) : (
                         <Badge variant="secondary" className="bg-blue-100 text-blue-700">
                           <Users className="w-3 h-3 mr-1" />
-                          手动
+                          {t('common.manual')}
                         </Badge>
                       )}
                     </TableCell>
@@ -625,7 +627,7 @@ export default function ListsPage() {
           {meta && meta.last_page > 1 && !searchTerm && (
             <div className="flex items-center justify-between border-t px-6 py-4">
               <p className="text-sm text-muted-foreground">
-                第 {meta.current_page} 页，共 {meta.last_page} 页
+                {t('common.page')} {meta.current_page} {t('common.of')} {meta.last_page}
               </p>
               <div className="flex gap-2">
                 <Button
@@ -634,7 +636,7 @@ export default function ListsPage() {
                   onClick={() => setCurrentPage(1)}
                   disabled={currentPage === 1}
                 >
-                  首页
+                  {t('common.firstPage')}
                 </Button>
                 <Button
                   variant="outline"
@@ -642,7 +644,7 @@ export default function ListsPage() {
                   onClick={() => setCurrentPage(currentPage - 1)}
                   disabled={currentPage === 1}
                 >
-                  上一页
+                  {t('common.prevPage')}
                 </Button>
                 <Button
                   variant="outline"
@@ -650,7 +652,7 @@ export default function ListsPage() {
                   onClick={() => setCurrentPage(currentPage + 1)}
                   disabled={currentPage === meta.last_page}
                 >
-                  下一页
+                  {t('common.nextPage')}
                 </Button>
                 <Button
                   variant="outline"
@@ -658,7 +660,7 @@ export default function ListsPage() {
                   onClick={() => setCurrentPage(meta.last_page)}
                   disabled={currentPage === meta.last_page}
                 >
-                  尾页
+                  {t('common.lastPage')}
                 </Button>
               </div>
             </div>
@@ -670,35 +672,35 @@ export default function ListsPage() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>创建新列表</DialogTitle>
-            <DialogDescription>创建一个新的邮件订阅者列表</DialogDescription>
+            <DialogTitle>{t('lists.createNewList')}</DialogTitle>
+            <DialogDescription>{t('lists.createNewListDesc')}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="name">
-                列表名称 <span className="text-red-500">*</span>
+                {t('lists.listName')} <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="例如：新闻订阅者"
+                placeholder={t('lists.listNamePlaceholder')}
                 required
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="description">描述</Label>
+              <Label htmlFor="description">{t('common.description')}</Label>
               <Input
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="列表的用途说明"
+                placeholder={t('lists.descriptionPlaceholder')}
               />
             </div>
 
             <div className="space-y-3">
-              <Label>列表类型</Label>
+              <Label>{t('lists.listType')}</Label>
               <RadioGroup
                 value={formData.type}
                 onValueChange={(value: 'manual' | 'auto') => setFormData({ ...formData, type: value })}
@@ -709,9 +711,9 @@ export default function ListsPage() {
                   <Label htmlFor="manual" className="font-normal cursor-pointer">
                     <div className="flex items-center gap-1.5">
                       <Users className="w-4 h-4" />
-                      手动列表
+                      {t('lists.manualList')}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">手动添加或上传联系人</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t('lists.manualListDesc')}</p>
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -719,9 +721,9 @@ export default function ListsPage() {
                   <Label htmlFor="auto" className="font-normal cursor-pointer">
                     <div className="flex items-center gap-1.5">
                       <Zap className="w-4 h-4" />
-                      自动列表
+                      {t('lists.autoList')}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">根据条件自动引用联系人</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t('lists.autoListDesc')}</p>
                   </Label>
                 </div>
               </RadioGroup>
@@ -735,10 +737,10 @@ export default function ListsPage() {
                 variant="outline"
                 onClick={() => setIsCreateOpen(false)}
               >
-                取消
+                {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? '创建中...' : '创建'}
+                {createMutation.isPending ? t('common.creating') : t('common.create')}
               </Button>
             </div>
           </form>
@@ -749,35 +751,35 @@ export default function ListsPage() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>编辑列表</DialogTitle>
-            <DialogDescription>修改邮件列表信息</DialogDescription>
+            <DialogTitle>{t('lists.editList')}</DialogTitle>
+            <DialogDescription>{t('lists.editListDesc')}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleUpdate} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="edit-name">
-                列表名称 <span className="text-red-500">*</span>
+                {t('lists.listName')} <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="edit-name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="例如：新闻订阅者"
+                placeholder={t('lists.listNamePlaceholder')}
                 required
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="edit-description">描述</Label>
+              <Label htmlFor="edit-description">{t('common.description')}</Label>
               <Input
                 id="edit-description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="列表的用途说明"
+                placeholder={t('lists.descriptionPlaceholder')}
               />
             </div>
 
             <div className="space-y-3">
-              <Label>列表类型</Label>
+              <Label>{t('lists.listType')}</Label>
               <RadioGroup
                 value={formData.type}
                 onValueChange={(value: 'manual' | 'auto') => setFormData({ ...formData, type: value })}
@@ -788,9 +790,9 @@ export default function ListsPage() {
                   <Label htmlFor="edit-manual" className="font-normal cursor-pointer">
                     <div className="flex items-center gap-1.5">
                       <Users className="w-4 h-4" />
-                      手动列表
+                      {t('lists.manualList')}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">手动添加或上传联系人</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t('lists.manualListDesc')}</p>
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -798,9 +800,9 @@ export default function ListsPage() {
                   <Label htmlFor="edit-auto" className="font-normal cursor-pointer">
                     <div className="flex items-center gap-1.5">
                       <Zap className="w-4 h-4" />
-                      自动列表
+                      {t('lists.autoList')}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">根据条件自动引用联系人</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{t('lists.autoListDesc')}</p>
                   </Label>
                 </div>
               </RadioGroup>
@@ -818,10 +820,10 @@ export default function ListsPage() {
                   resetForm()
                 }}
               >
-                取消
+                {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={updateMutation.isPending}>
-                {updateMutation.isPending ? '更新中...' : '保存'}
+                {updateMutation.isPending ? t('common.updating') : t('common.save')}
               </Button>
             </div>
           </form>

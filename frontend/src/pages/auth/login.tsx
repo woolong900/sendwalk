@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,17 +12,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuthStore } from '@/stores/auth-store'
 import { api } from '@/lib/api'
 
-const loginSchema = z.object({
-  email: z.string().email('请输入有效的邮箱地址'),
-  password: z.string().min(6, '密码至少6个字符'),
-})
-
-type LoginFormData = z.infer<typeof loginSchema>
-
 export default function LoginPage() {
+  const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuthStore()
+
+  const loginSchema = z.object({
+    email: z.string().email(t('auth.invalidCredentials')),
+    password: z.string().min(6, t('auth.invalidCredentials')),
+  })
+
+  type LoginFormData = z.infer<typeof loginSchema>
 
   const {
     register,
@@ -37,7 +39,7 @@ export default function LoginPage() {
       const response = await api.post('/auth/login', data)
       const { user, token } = response.data.data
       login(user, token)
-      toast.success('登录成功')
+      toast.success(t('auth.loginSuccess'))
       navigate('/')
     } catch (error) {
       console.error('Login error:', error)
@@ -49,13 +51,13 @@ export default function LoginPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>登录</CardTitle>
-        <CardDescription>输入您的邮箱和密码以登录</CardDescription>
+        <CardTitle>{t('auth.login')}</CardTitle>
+        <CardDescription>{t('auth.email')} & {t('auth.password')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">邮箱</Label>
+            <Label htmlFor="email">{t('auth.email')}</Label>
             <Input
               id="email"
               type="email"
@@ -67,7 +69,7 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">密码</Label>
+            <Label htmlFor="password">{t('auth.password')}</Label>
             <Input
               id="password"
               type="password"
@@ -81,13 +83,13 @@ export default function LoginPage() {
           </div>
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? '登录中...' : '登录'}
+            {isLoading ? t('common.loading') : t('auth.login')}
           </Button>
 
           <div className="text-center text-sm">
-            <span className="text-muted-foreground">还没有账号？ </span>
+            <span className="text-muted-foreground">{t('auth.noAccount')} </span>
             <Link to="/auth/register" className="text-primary hover:underline">
-              立即注册
+              {t('auth.signUp')}
             </Link>
           </div>
         </form>

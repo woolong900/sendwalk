@@ -1,5 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard,
   Mail,
@@ -14,31 +15,42 @@ import {
   FileText,
   ShoppingCart,
   BarChart3,
+  Globe,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
-// 菜单配置，adminOnly 表示仅管理员可见
 const navigation = [
-  { name: '仪表盘', href: '/', icon: LayoutDashboard, adminOnly: true },
-  { name: '邮件列表', href: '/lists', icon: List },
-  { name: '黑名单', href: '/blacklist', icon: Ban },
-  { name: '邮件活动', href: '/campaigns', icon: Mail },
-  { name: '邮件模板', href: '/templates', icon: FileText },
-  { name: '发送服务器', href: '/smtp-servers', icon: Server, adminOnly: true },
-  { name: '自定义标签', href: '/tags', icon: Tag },
-  { name: '发送监控', href: '/monitor', icon: Activity, adminOnly: true },
-  { name: '订单管理', href: '/orders', icon: ShoppingCart, adminOnly: true },
-  { name: '数据分析', href: '/orders/analytics', icon: BarChart3, adminOnly: true },
+  { nameKey: 'nav.dashboard', href: '/', icon: LayoutDashboard, adminOnly: true },
+  { nameKey: 'nav.mailingLists', href: '/lists', icon: List },
+  { nameKey: 'nav.blacklist', href: '/blacklist', icon: Ban },
+  { nameKey: 'nav.campaigns', href: '/campaigns', icon: Mail },
+  { nameKey: 'nav.templates', href: '/templates', icon: FileText },
+  { nameKey: 'nav.smtpServers', href: '/smtp-servers', icon: Server, adminOnly: true },
+  { nameKey: 'nav.tags', href: '/tags', icon: Tag },
+  { nameKey: 'nav.monitor', href: '/monitor', icon: Activity, adminOnly: true },
+  { nameKey: 'nav.orders', href: '/orders', icon: ShoppingCart, adminOnly: true },
+  { nameKey: 'nav.analytics', href: '/orders/analytics', icon: BarChart3, adminOnly: true },
 ]
 
 export default function DashboardLayout() {
+  const { t, i18n } = useTranslation()
   const location = useLocation()
   const { user, logout } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const closeSidebar = () => setSidebarOpen(false)
+
+  const changeLanguage = (lng: string) => {
+    i18n.changeLanguage(lng)
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -90,10 +102,6 @@ export default function DashboardLayout() {
             {navigation
               .filter((item) => !item.adminOnly || user?.role === 'admin')
               .map((item) => {
-                // 改进的激活状态判断
-                // 1. 首页精确匹配
-                // 2. 需要精确匹配的路由（如 /orders 和 /orders/analytics）
-                // 3. 其他页面前缀匹配
                 const exactMatchPaths = ['/', '/orders']
                 const isActive = exactMatchPaths.includes(item.href)
                   ? location.pathname === item.href
@@ -101,7 +109,7 @@ export default function DashboardLayout() {
                 
                 return (
                   <Link
-                    key={item.name}
+                    key={item.nameKey}
                     to={item.href}
                     onClick={closeSidebar}
                     className={cn(
@@ -112,14 +120,34 @@ export default function DashboardLayout() {
                     )}
                   >
                     <item.icon className="w-5 h-5" />
-                    {item.name}
+                    {t(item.nameKey)}
                   </Link>
                 )
               })}
           </nav>
 
-          {/* User Profile */}
+          {/* Language Switcher & User Profile */}
           <div className="p-4 border-t">
+            {/* Language Switcher */}
+            <div className="mb-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full">
+                    <Globe className="w-4 h-4 mr-2" />
+                    {i18n.language === 'zh' ? '中文' : 'English'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[200px]">
+                  <DropdownMenuItem onClick={() => changeLanguage('zh')}>
+                    {t('settings.chinese')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => changeLanguage('en')}>
+                    {t('settings.english')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold">
                 {user?.name?.[0]?.toUpperCase()}
@@ -131,7 +159,7 @@ export default function DashboardLayout() {
             </div>
             <Button variant="outline" size="sm" className="w-full" onClick={logout}>
               <LogOut className="w-4 h-4 mr-2" />
-              退出登录
+              {t('nav.logout')}
             </Button>
           </div>
         </div>
