@@ -754,7 +754,7 @@ export default function BlacklistPage() {
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>{t('blacklist.batch')} {importProgress.completed_batches} / {importProgress.total_batches}</span>
                   {importProgress.total_emails && (
-                    <span>{t('blacklist.totalEmails', { count: importProgress.total_emails.toLocaleString() })}</span>
+                    <span>{t('blacklist.totalEmails', { count: importProgress.total_emails })}</span>
                   )}
                 </div>
               </div>
