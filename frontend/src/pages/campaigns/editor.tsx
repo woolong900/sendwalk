@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Save, Send, Code, Eye, Clock, Tag, Mail, X, FileText } from 'lucide-react'
 import { toast } from 'sonner'
@@ -60,6 +61,7 @@ interface Template {
 }
 
 export default function CampaignEditorPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const { id } = useParams()
   const queryClient = useQueryClient()
@@ -74,7 +76,7 @@ export default function CampaignEditorPage() {
     from_name: '',
     from_email: '',
     reply_to: '',
-    html_content: '<h1>你好 {first_name}!</h1><p>这是一封测试邮件。</p>',
+    html_content: '',
   })
 
   const [viewMode, setViewMode] = useState<'code' | 'preview'>('code')
@@ -191,30 +193,26 @@ export default function CampaignEditorPage() {
         queryClient.invalidateQueries({ queryKey: ['campaign', id] })
       }
       
-      // 如果是"保存后发送"操作，不显示提示（由 sendMutation 统一提示）
       if (isSaveBeforeSend) {
         setIsSaveBeforeSend(false)
         return
       }
       
-      // 如果是创建新活动且选择了发送，则自动发送
       if (!isEditing && sendMode !== 'draft') {
         const newCampaignId = response.data.data.id
         
         if (sendMode === 'now') {
-          // 立即发送
           sendMutation.mutate({ campaignId: newCampaignId })
         } else if (sendMode === 'schedule') {
-          // 定时发送
           if (!scheduledDateTime) {
-            toast.error('请选择发送日期和时间')
+            toast.error(t('campaigns.editor.selectDateTimeRequired'))
             return
           }
           const scheduledAt = format(scheduledDateTime, 'yyyy-MM-dd HH:mm:ss')
           sendMutation.mutate({ campaignId: newCampaignId, scheduledAt })
         }
       } else {
-        toast.success(isEditing ? '活动已更新' : '活动已保存为草稿')
+        toast.success(isEditing ? t('campaigns.updateSuccess') : t('campaigns.editor.savedAsDraft'))
         navigate('/campaigns')
       }
     },
@@ -232,32 +230,28 @@ export default function CampaignEditorPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       
-      // 如果是编辑模式，统一显示"活动已更新"
       if (isEditing) {
-        toast.success('活动已更新')
+        toast.success(t('campaigns.updateSuccess'))
       } else {
-        // 如果是创建新活动，保持原有提示
-        toast.success('活动已创建')
+        toast.success(t('campaigns.createSuccess'))
       }
       navigate('/campaigns')
     },
-    // onError 已由全局拦截器处理
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.list_ids || formData.list_ids.length === 0) {
-      toast.error('请至少选择一个邮件列表')
+      toast.error(t('campaigns.editor.selectAtLeastOneList'))
       return
     }
     if (!formData.smtp_server_id) {
-      toast.error('请选择发送服务器')
+      toast.error(t('campaigns.editor.selectServerRequired'))
       return
     }
     
-    // 如果选择了定时发送，验证时间
     if (sendMode === 'schedule' && !scheduledDateTime) {
-      toast.error('请选择发送日期和时间')
+      toast.error(t('campaigns.editor.selectDateTimeRequired'))
       return
     }
     
@@ -266,7 +260,7 @@ export default function CampaignEditorPage() {
 
   const handleSendNow = async () => {
     if (!id) {
-      toast.error('请先保存活动')
+      toast.error(t('campaigns.editor.saveCampaignFirst'))
       return
     }
     
@@ -279,19 +273,18 @@ export default function CampaignEditorPage() {
       
       sendMutation.mutate({ campaignId: parseInt(id) })
     } catch (error) {
-      // 保存失败，不继续发送
       setIsSaveBeforeSend(false)
-      console.error('保存失败:', error)
+      console.error('Save failed:', error)
     }
   }
 
   const handleScheduleSend = async () => {
     if (!id) {
-      toast.error('请先保存活动')
+      toast.error(t('campaigns.editor.saveCampaignFirst'))
       return
     }
     if (!scheduledDateTime) {
-      toast.error('请选择发送日期和时间')
+      toast.error(t('campaigns.editor.selectDateTimeRequired'))
       return
     }
 
@@ -306,25 +299,22 @@ export default function CampaignEditorPage() {
       sendMutation.mutate({ campaignId: parseInt(id), scheduledAt })
       setIsSendDialogOpen(false)
     } catch (error) {
-      // 保存失败，不继续定时发送
       setIsSaveBeforeSend(false)
-      console.error('保存失败:', error)
+      console.error('Save failed:', error)
     }
   }
 
   const getPreviewHtml = () => {
     let html = formData.html_content
     
-    // 获取当前选择的列表名称
     const selectedListNames = lists
       ?.filter(list => formData.list_ids.includes(list.id))
       .map(list => list.name)
-      .join(', ') || '示例列表'
+      .join(', ') || t('campaigns.sampleList')
     
-    // 获取当前选择的服务器名称
     const selectedServerName = smtpServers
       ?.find(server => server.id.toString() === formData.smtp_server_id)
-      ?.name || '示例服务器'
+      ?.name || t('campaigns.sampleServer')
     
     // 提取发件人域名
     let senderDomain = 'example.com'
@@ -352,13 +342,11 @@ export default function CampaignEditorPage() {
     const exampleEmail = 'user@example.com'
     const unsubscribeUrl = 'https://example.com/unsubscribe/abc123'
     
-    // 订阅者标签（示例值，纯文本替换）
-    // 只支持 {} 花括号格式
     html = html
-      .replace(/{first_name}/g, '张三')
-      .replace(/{last_name}/g, '李四')
+      .replace(/{first_name}/g, t('campaigns.editor.sampleFirstName'))
+      .replace(/{last_name}/g, t('campaigns.editor.sampleLastName'))
       .replace(/{email}/g, exampleEmail)
-      .replace(/{full_name}/g, '张三 李四')
+      .replace(/{full_name}/g, t('campaigns.editor.sampleFullName'))
     
     // 系统标签（使用真实值，纯文本替换）
     // 只支持 {} 花括号格式
@@ -401,11 +389,10 @@ export default function CampaignEditorPage() {
     }
   }
 
-  // 应用模板
   const applyTemplate = (template: Template) => {
     setFormData({ ...formData, html_content: template.html_content })
     setIsTemplateDialogOpen(false)
-    toast.success(`已应用模板"${template.name}"`)
+    toast.success(t('campaigns.editor.templateApplied', { name: template.name }))
   }
 
   return (
@@ -415,18 +402,18 @@ export default function CampaignEditorPage() {
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
           <Link to="/campaigns" className="hover:text-primary flex items-center gap-1">
             <Mail className="w-4 h-4" />
-            邮件活动
+            {t('campaigns.title')}
           </Link>
           <span>/</span>
           <span className="text-foreground font-medium">
-            {isEditing ? '编辑活动' : '创建活动'}
+            {isEditing ? t('campaigns.editCampaign') : t('campaigns.createCampaign')}
           </span>
         </div>
         <h1 className="text-xl md:text-2xl font-bold tracking-tight">
-          {isEditing ? '编辑活动' : '创建新活动'}
+          {isEditing ? t('campaigns.editCampaign') : t('campaigns.editor.createNewCampaign')}
         </h1>
         <p className="text-muted-foreground mt-2">
-          {isEditing ? '修改邮件活动内容' : '创建一个新的邮件营销活动'}
+          {isEditing ? t('campaigns.editor.editCampaignContent') : t('campaigns.editor.createCampaignDesc')}
         </p>
       </div>
 
@@ -434,34 +421,34 @@ export default function CampaignEditorPage() {
         {/* 基本信息 */}
         <Card>
           <CardHeader>
-            <CardTitle>基本信息</CardTitle>
+            <CardTitle>{t('campaigns.editor.basicInfo')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* 第一行：活动名称 + 发送服务器 */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name">活动名称 *</Label>
+                <Label htmlFor="name">{t('campaigns.campaignName')} *</Label>
                 <Input
                   id="name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="例如：春季促销活动"
+                  placeholder={t('campaigns.editor.campaignNamePlaceholder')}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label>发送服务器 *</Label>
+                <Label>{t('campaigns.sendServer')} *</Label>
                 <Select
                   value={formData.smtp_server_id || ''}
                   onValueChange={(value) => setFormData({ ...formData, smtp_server_id: value })}
                 >
                   <SelectTrigger id="smtp_server_id">
-                    <SelectValue placeholder="选择服务器" />
+                    <SelectValue placeholder={t('campaigns.selectServer')} />
                   </SelectTrigger>
                   <SelectContent>
                     {smtpServers?.filter(s => s.is_active).map((server) => (
                       <SelectItem key={server.id} value={server.id.toString()}>
-                        {server.name} {server.is_default && '(默认)'}
+                        {server.name} {server.is_default && t('campaigns.editor.default')}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -471,7 +458,7 @@ export default function CampaignEditorPage() {
 
             {/* 第二行：邮件列表（单独一行） */}
             <div className="space-y-2">
-              <Label>邮件列表 *</Label>
+              <Label>{t('campaigns.editor.mailingList')} *</Label>
               <div className="border rounded-md p-3 space-y-2 max-h-[200px] overflow-y-auto">
                 {lists?.map((list) => (
                   <div key={list.id} className="flex items-center space-x-2">
@@ -498,7 +485,7 @@ export default function CampaignEditorPage() {
                     >
                       {list.name}
                       <span className="text-xs text-muted-foreground ml-2">
-                        ({list.subscribers_count} 订阅者)
+                        ({list.subscribers_count} {t('campaigns.editor.subscribers')})
                       </span>
                     </label>
                   </div>
@@ -528,33 +515,33 @@ export default function CampaignEditorPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="subject">邮件主题 *</Label>
+              <Label htmlFor="subject">{t('campaigns.editor.emailSubject')} *</Label>
               <Input
                 ref={subjectInputRef}
                 id="subject"
                 value={formData.subject}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                placeholder="例如：限时优惠！春季大促销"
+                placeholder={t('campaigns.editor.subjectPlaceholder')}
                 required
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="preview_text">
-                预览文本
+                {t('campaigns.previewText')}
                 <span className="text-muted-foreground ml-2 text-xs font-normal">
-                  (显示在邮件客户端收件箱中，提高打开率)
+                  {t('campaigns.editor.previewTextHint')}
                 </span>
               </Label>
               <Input
                 id="preview_text"
                 value={formData.preview_text}
                 onChange={(e) => setFormData({ ...formData, preview_text: e.target.value })}
-                placeholder="例如：快来看看我们的春季新品，限时85折优惠！"
+                placeholder={t('campaigns.editor.previewTextPlaceholder')}
                 maxLength={150}
               />
               <p className="text-xs text-muted-foreground">
-                建议长度：40-150字符。支持个性化标签，如 {'{first_name}'}, {'{email}'}
+                {t('campaigns.editor.previewTextTip')}
               </p>
             </div>
           </CardContent>
@@ -563,25 +550,25 @@ export default function CampaignEditorPage() {
         {/* 发件人信息 */}
         <Card>
           <CardHeader>
-            <CardTitle>发件人信息</CardTitle>
+            <CardTitle>{t('campaigns.editor.senderInfo')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="from_name">发件人名称 *</Label>
+                <Label htmlFor="from_name">{t('campaigns.fromName')} *</Label>
                 <Input
                   id="from_name"
                   value={formData.from_name}
                   onChange={(e) => setFormData({ ...formData, from_name: e.target.value })}
-                  placeholder="SendWalk"
+                  placeholder={t('campaigns.editor.fromNamePlaceholder')}
                   required
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="from_email">
-                  发件人邮箱
+                  {t('campaigns.fromEmail')}
                   <span className="text-muted-foreground ml-2 text-xs font-normal">
-                    (可选，留空则随机使用服务器邮箱池)
+                    {t('campaigns.editor.fromEmailHint')}
                   </span>
                 </Label>
                 <Input
@@ -589,16 +576,16 @@ export default function CampaignEditorPage() {
                   type="email"
                   value={formData.from_email}
                   onChange={(e) => setFormData({ ...formData, from_email: e.target.value })}
-                  placeholder="留空则从服务器邮箱池随机选择"
+                  placeholder={t('campaigns.editor.fromEmailPlaceholder')}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="reply_to">
-                回复邮箱
+                {t('campaigns.replyTo')}
                 <span className="text-muted-foreground ml-2 text-xs font-normal">
-                  (可选，留空则使用发件人邮箱)
+                  {t('campaigns.editor.replyToHint')}
                 </span>
               </Label>
               <Input
@@ -606,7 +593,7 @@ export default function CampaignEditorPage() {
                 type="email"
                 value={formData.reply_to}
                 onChange={(e) => setFormData({ ...formData, reply_to: e.target.value })}
-                placeholder="留空则使用发件人邮箱"
+                placeholder={t('campaigns.editor.replyToPlaceholder')}
               />
             </div>
           </CardContent>
@@ -616,7 +603,7 @@ export default function CampaignEditorPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>邮件内容</CardTitle>
+              <CardTitle>{t('campaigns.editor.emailContent')}</CardTitle>
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -625,7 +612,7 @@ export default function CampaignEditorPage() {
                   onClick={() => setIsTemplateDialogOpen(true)}
                 >
                   <FileText className="w-4 h-4 mr-1" />
-                  使用模板
+                  {t('campaigns.editor.useTemplate')}
                 </Button>
                 <Button
                   type="button"
@@ -634,7 +621,7 @@ export default function CampaignEditorPage() {
                   onClick={() => setViewMode('code')}
                 >
                   <Code className="w-4 h-4 mr-1" />
-                  代码
+                  {t('campaigns.editor.code')}
                 </Button>
                 <Button
                   type="button"
@@ -643,7 +630,7 @@ export default function CampaignEditorPage() {
                   onClick={() => setViewMode('preview')}
                 >
                   <Eye className="w-4 h-4 mr-1" />
-                  预览
+                  {t('common.preview')}
                 </Button>
               </div>
             </div>
@@ -655,7 +642,7 @@ export default function CampaignEditorPage() {
                 <div className="flex-1 space-y-3">
                   {/* 订阅者标签 */}
                   <div>
-                    <div className="text-xs font-semibold text-blue-900 mb-1.5">订阅者标签</div>
+                    <div className="text-xs font-semibold text-blue-900 mb-1.5">{t('campaigns.editor.subscriberTags')}</div>
                     <div className="flex flex-wrap gap-1.5">
                       <code className="bg-white px-2 py-0.5 rounded text-xs border">{'{first_name}'}</code>
                       <code className="bg-white px-2 py-0.5 rounded text-xs border">{'{last_name}'}</code>
@@ -666,7 +653,7 @@ export default function CampaignEditorPage() {
 
                   {/* 系统标签 */}
                   <div>
-                    <div className="text-xs font-semibold text-blue-900 mb-1.5">系统标签</div>
+                    <div className="text-xs font-semibold text-blue-900 mb-1.5">{t('campaigns.editor.systemTags')}</div>
                     <div className="flex flex-wrap gap-1.5">
                       <code className="bg-white px-2 py-0.5 rounded text-xs border">{'{campaign_id}'}</code>
                       <code className="bg-white px-2 py-0.5 rounded text-xs border">{'{date}'}</code>
@@ -681,7 +668,7 @@ export default function CampaignEditorPage() {
                   {customTags && customTags.length > 0 && (
                     <div>
                       <div className="text-xs font-semibold text-blue-900 mb-1.5">
-                        自定义标签 ({customTags.length}个)
+                        {t('campaigns.editor.customTags')} {t('campaigns.editor.customTagsCount', { count: customTags.length })}
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {customTags.map((tag) => (
@@ -689,7 +676,7 @@ export default function CampaignEditorPage() {
                             key={tag.id} 
                             className="bg-white px-2 py-0.5 rounded text-xs border border-purple-200 text-purple-700 cursor-pointer hover:bg-purple-50"
                             onClick={() => insertTagToContent(tag.placeholder)}
-                            title={`点击插入 · ${tag.values_count}个值`}
+                            title={`${t('campaigns.editor.clickToInsert')} · ${t('campaigns.editor.valuesCount', { count: tag.values_count })}`}
                           >
                             {tag.placeholder}
                           </code>
@@ -703,36 +690,36 @@ export default function CampaignEditorPage() {
                   <Select onValueChange={insertTagToContent}>
                     <SelectTrigger className="w-[200px] h-8 bg-white">
                       <Tag className="w-3 h-3 mr-1" />
-                      <SelectValue placeholder="插入标签" />
+                      <SelectValue placeholder={t('campaigns.editor.insertTag')} />
                     </SelectTrigger>
                     <SelectContent>
                       <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                        订阅者标签
+                        {t('campaigns.editor.subscriberTags')}
                       </div>
-                      <SelectItem value="{first_name}">名</SelectItem>
-                      <SelectItem value="{last_name}">姓</SelectItem>
-                      <SelectItem value="{email}">邮箱</SelectItem>
-                      <SelectItem value="{full_name}">全名</SelectItem>
+                      <SelectItem value="{first_name}">{t('campaigns.editor.firstName')}</SelectItem>
+                      <SelectItem value="{last_name}">{t('campaigns.editor.lastName')}</SelectItem>
+                      <SelectItem value="{email}">{t('campaigns.editor.email')}</SelectItem>
+                      <SelectItem value="{full_name}">{t('campaigns.editor.fullName')}</SelectItem>
                       
                       <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                        系统标签
+                        {t('campaigns.editor.systemTags')}
                       </div>
-                      <SelectItem value="{campaign_id}">活动ID</SelectItem>
-                      <SelectItem value="{date}">日期</SelectItem>
-                      <SelectItem value="{list_name}">列表名称</SelectItem>
-                      <SelectItem value="{server_name}">服务器名称</SelectItem>
-                      <SelectItem value="{sender_domain}">发件人域名</SelectItem>
-                      <SelectItem value="{unsubscribe_url}">退订链接</SelectItem>
+                      <SelectItem value="{campaign_id}">{t('campaigns.editor.campaignId')}</SelectItem>
+                      <SelectItem value="{date}">{t('campaigns.editor.date')}</SelectItem>
+                      <SelectItem value="{list_name}">{t('campaigns.editor.listName')}</SelectItem>
+                      <SelectItem value="{server_name}">{t('campaigns.editor.serverName')}</SelectItem>
+                      <SelectItem value="{sender_domain}">{t('campaigns.editor.senderDomain')}</SelectItem>
+                      <SelectItem value="{unsubscribe_url}">{t('campaigns.editor.unsubscribeUrl')}</SelectItem>
                       
                       <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                        自定义标签
+                        {t('campaigns.editor.customTags')}
                       </div>
                       {customTags.map((tag) => (
                         <SelectItem key={tag.id} value={tag.placeholder}>
                           <div className="flex items-center justify-between w-full">
                             <span>{tag.label}</span>
                             <span className="text-xs text-muted-foreground ml-2">
-                              {tag.values_count}个值
+                              {t('campaigns.editor.valuesCount', { count: tag.values_count })}
                             </span>
                           </div>
                         </SelectItem>
@@ -745,19 +732,19 @@ export default function CampaignEditorPage() {
 
             {viewMode === 'code' ? (
               <div className="space-y-2">
-                <Label htmlFor="html_content">HTML 代码</Label>
+                <Label htmlFor="html_content">{t('campaigns.editor.htmlCode')}</Label>
                 <textarea
                   ref={contentTextareaRef}
                   id="html_content"
                   value={formData.html_content}
                   onChange={(e) => setFormData({ ...formData, html_content: e.target.value })}
                   className="w-full min-h-[800px] p-4 border rounded-md font-mono text-sm bg-gray-50"
-                  placeholder="<h1>你好 {first_name}!</h1>"
+                  placeholder={t('campaigns.editor.htmlPlaceholder')}
                 />
               </div>
             ) : (
               <div className="space-y-2">
-                <Label>预览效果</Label>
+                <Label>{t('campaigns.editor.previewEffect')}</Label>
                 <div className="w-full min-h-[800px] border rounded-md bg-white overflow-hidden">
                   <iframe
                     ref={(iframe) => {
@@ -772,11 +759,11 @@ export default function CampaignEditorPage() {
                       }
                     }}
                     className="w-full h-full min-h-[800px]"
-                    title="邮件预览"
+                    title={t('campaigns.editor.emailPreview')}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  * 预览中显示的是替换后的示例数据
+                  {t('campaigns.editor.previewSampleData')}
                 </p>
               </div>
             )}
@@ -787,8 +774,8 @@ export default function CampaignEditorPage() {
         {!isEditing && (
           <Card>
             <CardHeader>
-              <CardTitle>发送设置</CardTitle>
-              <CardDescription>选择保存为草稿或直接发送</CardDescription>
+              <CardTitle>{t('campaigns.editor.sendSettings')}</CardTitle>
+              <CardDescription>{t('campaigns.editor.sendSettingsDesc')}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -804,8 +791,8 @@ export default function CampaignEditorPage() {
                   >
                     <div className="flex flex-col items-center gap-2">
                       <Save className="w-6 h-6" />
-                      <span className="font-medium">保存草稿</span>
-                      <span className="text-xs text-muted-foreground">稍后手动发送</span>
+                      <span className="font-medium">{t('campaigns.editor.saveDraft')}</span>
+                      <span className="text-xs text-muted-foreground">{t('campaigns.editor.laterSendManually')}</span>
                     </div>
                   </button>
 
@@ -820,8 +807,8 @@ export default function CampaignEditorPage() {
                   >
                     <div className="flex flex-col items-center gap-2">
                       <Send className="w-6 h-6" />
-                      <span className="font-medium">立即发送</span>
-                      <span className="text-xs text-muted-foreground">保存并立即发送</span>
+                      <span className="font-medium">{t('campaigns.sendNow')}</span>
+                      <span className="text-xs text-muted-foreground">{t('campaigns.editor.saveAndSendNow')}</span>
                     </div>
                   </button>
 
@@ -836,8 +823,8 @@ export default function CampaignEditorPage() {
                   >
                     <div className="flex flex-col items-center gap-2">
                       <Clock className="w-6 h-6" />
-                      <span className="font-medium">定时发送</span>
-                      <span className="text-xs text-muted-foreground">设置发送时间</span>
+                      <span className="font-medium">{t('campaigns.schedule')}</span>
+                      <span className="text-xs text-muted-foreground">{t('campaigns.editor.setSendTime')}</span>
                     </div>
                   </button>
                 </div>
@@ -846,7 +833,7 @@ export default function CampaignEditorPage() {
                   <div className="p-4 bg-muted rounded-lg space-y-4">
                     {/* 快捷日期选择 */}
                     <div>
-                      <Label className="mb-2 block">快捷选择</Label>
+                      <Label className="mb-2 block">{t('campaigns.quickSchedule.title')}</Label>
                       <div className="flex flex-wrap gap-2">
                         <Button
                           type="button"
@@ -858,7 +845,7 @@ export default function CampaignEditorPage() {
                             setScheduledDateTime(date)
                           }}
                         >
-                          1小时后
+                          {t('campaigns.quickSchedule.oneHourLater')}
                         </Button>
                         <Button
                           type="button"
@@ -867,7 +854,6 @@ export default function CampaignEditorPage() {
                           onClick={() => {
                             const date = new Date()
                             date.setHours(18, 30, 0, 0)
-                            // 如果已过今晚6点半，切换为立即发送
                             if (date <= new Date()) {
                               setSendMode('now')
                               return
@@ -875,7 +861,7 @@ export default function CampaignEditorPage() {
                             setScheduledDateTime(date)
                           }}
                         >
-                          今晚6点半
+                          {t('campaigns.quickSchedule.tonightAt630')}
                         </Button>
                         <Button
                           type="button"
@@ -888,7 +874,7 @@ export default function CampaignEditorPage() {
                             setScheduledDateTime(date)
                           }}
                         >
-                          明天上午9点
+                          {t('campaigns.quickSchedule.tomorrowAt9')}
                         </Button>
                         <Button
                           type="button"
@@ -901,7 +887,7 @@ export default function CampaignEditorPage() {
                             setScheduledDateTime(date)
                           }}
                         >
-                          后天上午9点
+                          {t('campaigns.quickSchedule.dayAfterAt9')}
                         </Button>
                         <Button
                           type="button"
@@ -914,14 +900,14 @@ export default function CampaignEditorPage() {
                             setScheduledDateTime(date)
                           }}
                         >
-                          下周一上午9点
+                          {t('campaigns.quickSchedule.nextMondayAt9')}
                         </Button>
                       </div>
                     </div>
 
                     {/* 日期时间选择器 */}
                     <div className="space-y-2">
-                      <Label>选择日期和时间</Label>
+                      <Label>{t('campaigns.editor.selectDateTime')}</Label>
                       <DateTimePicker 
                         date={scheduledDateTime}
                         setDate={setScheduledDateTime}
@@ -932,9 +918,7 @@ export default function CampaignEditorPage() {
                     {scheduledDateTime && (
                       <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <Clock className="w-4 h-4 text-blue-600" />
-                        <p className="text-sm text-blue-900">
-                          将在 <strong className="font-semibold">{format(scheduledDateTime, 'yyyy-MM-dd HH:mm')}</strong> 发送
-                        </p>
+                        <p className="text-sm text-blue-900" dangerouslySetInnerHTML={{ __html: t('campaigns.editor.willSendAt', { time: format(scheduledDateTime, 'yyyy-MM-dd HH:mm') }) }} />
                       </div>
                     )}
                   </div>
@@ -951,7 +935,7 @@ export default function CampaignEditorPage() {
             variant="outline"
             onClick={() => navigate('/campaigns')}
           >
-            取消
+            {t('common.cancel')}
           </Button>
           <Button
             type="submit"
@@ -960,7 +944,7 @@ export default function CampaignEditorPage() {
             {saveMutation.isPending || sendMutation.isPending ? (
               <>
                 <Clock className="w-4 h-4 mr-2 animate-spin" />
-                处理中...
+                {t('common.processing')}...
               </>
             ) : (
               <>
@@ -968,12 +952,12 @@ export default function CampaignEditorPage() {
                 {sendMode === 'now' && <Send className="w-4 h-4 mr-2" />}
                 {sendMode === 'schedule' && <Clock className="w-4 h-4 mr-2" />}
                 {isEditing
-                  ? '保存修改'
+                  ? t('campaigns.editor.saveChanges')
                   : sendMode === 'draft'
-                  ? '保存为草稿'
+                  ? t('campaigns.saveAsDraft')
                   : sendMode === 'now'
-                  ? '保存并立即发送'
-                  : '保存并定时发送'}
+                  ? t('campaigns.editor.saveAndSendNow')
+                  : t('campaigns.editor.saveAndSchedule')}
               </>
             )}
           </Button>
@@ -984,7 +968,7 @@ export default function CampaignEditorPage() {
               disabled={!id}
             >
               <Send className="w-4 h-4 mr-2" />
-              发送活动
+              {t('campaigns.editor.sendCampaign')}
             </Button>
           )}
         </div>
@@ -994,8 +978,8 @@ export default function CampaignEditorPage() {
       <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>发送邮件活动</DialogTitle>
-            <DialogDescription>选择立即发送或定时发送</DialogDescription>
+            <DialogTitle>{t('campaigns.sendDialog.title')}</DialogTitle>
+            <DialogDescription>{t('campaigns.sendDialog.subtitle')}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
@@ -1011,8 +995,8 @@ export default function CampaignEditorPage() {
               >
                 <div className="flex flex-col items-center gap-2">
                   <Send className="w-8 h-8" />
-                  <span className="font-medium">立即发送</span>
-                  <span className="text-xs text-muted-foreground">马上发送给所有订阅者</span>
+                  <span className="font-medium">{t('campaigns.sendNow')}</span>
+                  <span className="text-xs text-muted-foreground">{t('campaigns.sendDialog.sendNowDesc')}</span>
                 </div>
               </button>
 
@@ -1027,8 +1011,8 @@ export default function CampaignEditorPage() {
               >
                 <div className="flex flex-col items-center gap-2">
                   <Clock className="w-8 h-8" />
-                  <span className="font-medium">定时发送</span>
-                  <span className="text-xs text-muted-foreground">选择发送时间</span>
+                  <span className="font-medium">{t('campaigns.schedule')}</span>
+                  <span className="text-xs text-muted-foreground">{t('campaigns.sendDialog.scheduleDesc')}</span>
                 </div>
               </button>
             </div>
@@ -1037,7 +1021,7 @@ export default function CampaignEditorPage() {
               <div className="space-y-4 p-4 bg-muted rounded-lg">
                 {/* 快捷日期选择 */}
                 <div>
-                  <Label className="mb-2 block">快捷选择</Label>
+                  <Label className="mb-2 block">{t('campaigns.quickSchedule.title')}</Label>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
@@ -1049,7 +1033,7 @@ export default function CampaignEditorPage() {
                         setScheduledDateTime(date)
                       }}
                     >
-                      1小时后
+                      {t('campaigns.quickSchedule.oneHourLater')}
                     </Button>
                     <Button
                       type="button"
@@ -1058,7 +1042,6 @@ export default function CampaignEditorPage() {
                       onClick={() => {
                         const date = new Date()
                         date.setHours(18, 30, 0, 0)
-                        // 如果已过今晚6点半，切换为立即发送
                         if (date <= new Date()) {
                           setSendMode('now')
                           return
@@ -1066,7 +1049,7 @@ export default function CampaignEditorPage() {
                         setScheduledDateTime(date)
                       }}
                     >
-                      今晚6点半
+                      {t('campaigns.quickSchedule.tonightAt630')}
                     </Button>
                     <Button
                       type="button"
@@ -1079,7 +1062,7 @@ export default function CampaignEditorPage() {
                         setScheduledDateTime(date)
                       }}
                     >
-                      明天上午9点
+                      {t('campaigns.quickSchedule.tomorrowAt9')}
                     </Button>
                     <Button
                       type="button"
@@ -1092,14 +1075,14 @@ export default function CampaignEditorPage() {
                         setScheduledDateTime(date)
                       }}
                     >
-                      后天上午9点
+                      {t('campaigns.quickSchedule.dayAfterAt9')}
                     </Button>
                   </div>
                 </div>
 
                 {/* 日期时间选择器 */}
                 <div className="space-y-2">
-                  <Label>选择日期和时间</Label>
+                  <Label>{t('campaigns.editor.selectDateTime')}</Label>
                   <DateTimePicker 
                     date={scheduledDateTime}
                     setDate={setScheduledDateTime}
@@ -1110,9 +1093,7 @@ export default function CampaignEditorPage() {
                 {scheduledDateTime && (
                   <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <Clock className="w-4 h-4 text-blue-600" />
-                    <p className="text-sm text-blue-900">
-                      将在 <strong className="font-semibold">{format(scheduledDateTime, 'yyyy-MM-dd HH:mm')}</strong> 发送
-                    </p>
+                    <p className="text-sm text-blue-900" dangerouslySetInnerHTML={{ __html: t('campaigns.editor.willSendAt', { time: format(scheduledDateTime, 'yyyy-MM-dd HH:mm') }) }} />
                   </div>
                 )}
               </div>
@@ -1125,7 +1106,7 @@ export default function CampaignEditorPage() {
                 onClick={() => setIsSendDialogOpen(false)}
                 disabled={saveMutation.isPending || sendMutation.isPending}
               >
-                取消
+                {t('common.cancel')}
               </Button>
               <Button
                 type="button"
@@ -1135,22 +1116,22 @@ export default function CampaignEditorPage() {
                 {saveMutation.isPending ? (
                   <>
                     <Clock className="w-4 h-4 mr-2 animate-spin" />
-                    保存中...
+                    {t('campaigns.editor.saving')}
                   </>
                 ) : sendMutation.isPending ? (
                   <>
                     <Clock className="w-4 h-4 mr-2 animate-spin" />
-                    发送中...
+                    {t('campaigns.editor.sending')}
                   </>
                 ) : sendMode === 'now' ? (
                   <>
                     <Send className="w-4 h-4 mr-2" />
-                    立即发送
+                    {t('campaigns.sendNow')}
                   </>
                 ) : (
                   <>
                     <Clock className="w-4 h-4 mr-2" />
-                    定时发送
+                    {t('campaigns.schedule')}
                   </>
                 )}
               </Button>
@@ -1163,9 +1144,9 @@ export default function CampaignEditorPage() {
       <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>选择邮件模板</DialogTitle>
+            <DialogTitle>{t('campaigns.editor.selectTemplateTitle')}</DialogTitle>
             <DialogDescription>
-              选择一个模板作为邮件内容的起点，您可以在应用后继续编辑
+              {t('campaigns.editor.selectTemplateDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
@@ -1179,7 +1160,7 @@ export default function CampaignEditorPage() {
                   <CardHeader>
                     <CardTitle className="text-base">{template.name}</CardTitle>
                     <CardDescription className="line-clamp-2">
-                      {template.description || '暂无描述'}
+                      {template.description || t('templates.noDescription')}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -1195,7 +1176,7 @@ export default function CampaignEditorPage() {
                           applyTemplate(template)
                         }}
                       >
-                        使用此模板
+                        {t('campaigns.editor.useThisTemplate')}
                       </Button>
                     </div>
                   </CardContent>
@@ -1205,7 +1186,7 @@ export default function CampaignEditorPage() {
               <div className="col-span-2 flex flex-col items-center justify-center py-12">
                 <FileText className="w-12 h-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground mb-4">
-                  还没有可用的模板
+                  {t('campaigns.editor.noTemplates')}
                 </p>
                 <Button
                   variant="outline"
@@ -1214,7 +1195,7 @@ export default function CampaignEditorPage() {
                     navigate('/templates/create')
                   }}
                 >
-                  创建模板
+                  {t('campaigns.editor.createTemplate')}
                 </Button>
               </div>
             )}

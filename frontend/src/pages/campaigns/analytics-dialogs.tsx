@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { FileText, Mail, Search, Eye, EyeOff, AlertOctagon } from 'lucide-react'
 import {
@@ -49,6 +50,7 @@ interface AbuseReportsDialogProps {
 }
 
 export function SendLogsDialog({ campaignId, campaignName, open, onClose }: SendLogsDialogProps) {
+  const { t } = useTranslation()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
@@ -69,7 +71,7 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
       return response.data
     },
     enabled: open && !!campaignId,
-    placeholderData: (previousData) => previousData, // 保持之前的数据，避免闪烁
+    placeholderData: (previousData) => previousData,
   })
 
   const toggleExpanded = (logId: number) => {
@@ -104,7 +106,7 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="w-5 h-5" />
-            发送日志 - {campaignName}
+            {t('dialogs.sendLogs')} - {campaignName}
           </DialogTitle>
         </DialogHeader>
 
@@ -112,7 +114,7 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="搜索邮箱地址..."
+              placeholder={t('dialogs.searchEmailPlaceholder')}
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value)
@@ -132,9 +134,9 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全部状态</SelectItem>
-              <SelectItem value="sent">已发送</SelectItem>
-              <SelectItem value="failed">失败</SelectItem>
+              <SelectItem value="all">{t('dialogs.allStatus')}</SelectItem>
+              <SelectItem value="sent">{t('dialogs.sent')}</SelectItem>
+              <SelectItem value="failed">{t('dialogs.failed')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -151,25 +153,25 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
             </colgroup>
             <TableHeader>
               <TableRow>
-                <TableHead>邮箱地址</TableHead>
-                <TableHead>发件人</TableHead>
-                <TableHead>SMTP服务器</TableHead>
-                <TableHead>发送时间</TableHead>
-                <TableHead>状态</TableHead>
-                <TableHead>结果</TableHead>
+                <TableHead>{t('common.emailAddress')}</TableHead>
+                <TableHead>{t('dialogs.sender')}</TableHead>
+                <TableHead>{t('dialogs.smtpServer')}</TableHead>
+                <TableHead>{t('dialogs.sendTime')}</TableHead>
+                <TableHead>{t('common.status')}</TableHead>
+                <TableHead>{t('dialogs.result')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    加载中...
+                    {t('common.loading')}
                   </TableCell>
                 </TableRow>
               ) : !data?.data || data.data.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    暂无发送记录
+                    {t('dialogs.noSendLogs')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -224,7 +226,7 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
         {data && data.last_page > 1 && (
           <div className="flex items-center justify-between pt-4 border-t">
             <div className="text-sm text-muted-foreground">
-              第 {data.current_page} 页，共 {data.last_page} 页
+              {t('common.page')} {data.current_page} {t('common.pageOf')} {data.last_page} {t('common.pages')}
             </div>
             <div className="flex gap-2">
               <Button
@@ -233,7 +235,7 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
               >
-                首页
+                {t('common.firstPage')}
               </Button>
               <Button
                 size="sm"
@@ -241,7 +243,7 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
               >
-                上一页
+                {t('common.prevPage')}
               </Button>
               <Button
                 size="sm"
@@ -249,7 +251,7 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
                 onClick={() => setCurrentPage(p => Math.min(data.last_page, p + 1))}
                 disabled={currentPage === data.last_page}
               >
-                下一页
+                {t('common.nextPage')}
               </Button>
               <Button
                 size="sm"
@@ -257,7 +259,7 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
                 onClick={() => setCurrentPage(data.last_page)}
                 disabled={currentPage === data.last_page}
               >
-                尾页
+                {t('common.lastPage')}
               </Button>
             </div>
           </div>
@@ -268,6 +270,7 @@ export function SendLogsDialog({ campaignId, campaignName, open, onClose }: Send
 }
 
 export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: EmailOpensDialogProps) {
+  const { t } = useTranslation()
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null)
@@ -288,7 +291,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
       return response.data
     },
     enabled: open && !!campaignId,
-    placeholderData: (previousData) => previousData, // 保持之前的数据，避免闪烁
+    placeholderData: (previousData) => previousData,
   })
 
   const fetchEmailDetails = async (email: string) => {
@@ -336,7 +339,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="w-5 h-5" />
-            打开记录 - {campaignName}
+            {t('dialogs.emailOpens')} - {campaignName}
           </DialogTitle>
         </DialogHeader>
 
@@ -344,19 +347,19 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
           <div className="grid grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg mb-4">
             <div className="text-center">
               <div className="text-2xl font-bold">{statsData.total_opens}</div>
-              <div className="text-xs text-muted-foreground">总打开次数</div>
+              <div className="text-xs text-muted-foreground">{t('dialogs.totalOpens')}</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">{statsData.unique_opens}</div>
-              <div className="text-xs text-muted-foreground">独立打开人数</div>
+              <div className="text-xs text-muted-foreground">{t('dialogs.uniqueOpens')}</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">{statsData.avg_opens_per_person}</div>
-              <div className="text-xs text-muted-foreground">人均打开次数</div>
+              <div className="text-xs text-muted-foreground">{t('dialogs.avgOpensPerPerson')}</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold">{statsData.open_rate}%</div>
-              <div className="text-xs text-muted-foreground">打开率</div>
+              <div className="text-xs text-muted-foreground">{t('campaigns.openRate')}</div>
             </div>
           </div>
         )}
@@ -365,7 +368,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="搜索邮箱地址..."
+              placeholder={t('dialogs.searchEmailPlaceholder')}
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value)
@@ -388,25 +391,25 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
             </colgroup>
             <TableHeader>
               <TableRow>
-                <TableHead>邮箱地址</TableHead>
-                <TableHead>打开次数</TableHead>
-                <TableHead>IP地址</TableHead>
-                <TableHead>国家/地区</TableHead>
-                <TableHead>User Agent</TableHead>
-                <TableHead>打开时间</TableHead>
+                <TableHead>{t('common.emailAddress')}</TableHead>
+                <TableHead>{t('dialogs.openCount')}</TableHead>
+                <TableHead>{t('dialogs.ipAddress')}</TableHead>
+                <TableHead>{t('dialogs.countryRegion')}</TableHead>
+                <TableHead>{t('dialogs.userAgent')}</TableHead>
+                <TableHead>{t('dialogs.openTime')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoadingOpens ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    加载中...
+                    {t('common.loading')}
                   </TableCell>
                 </TableRow>
               ) : !opensData?.data || opensData.data.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    暂无打开记录
+                    {t('dialogs.noEmailOpens')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -424,7 +427,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                                 onClick={() => fetchEmailDetails(open.email)}
                                 className="text-sm font-medium text-primary hover:underline cursor-pointer flex items-center gap-1"
                               >
-                                {open.open_count} 次
+                                {open.open_count} {t('dialogs.timesUnit')}
                                 {loadingDetails && expandedEmail === open.email ? (
                                   <span className="text-xs text-muted-foreground ml-1">...</span>
                                 ) : expandedEmail === open.email ? (
@@ -434,7 +437,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                                 )}
                               </button>
                             ) : (
-                              <span className="text-sm text-muted-foreground">{open.open_count} 次</span>
+                              <span className="text-sm text-muted-foreground">{open.open_count} {t('dialogs.timesUnit')}</span>
                             )}
                           </TableCell>
                           <TableCell className="font-mono text-xs whitespace-nowrap">
@@ -462,7 +465,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                             {emailDetails.map((detail: any, idx: number) => (
                               <TableRow key={detail.id} className="bg-muted/10">
                                 <TableCell className="pl-8 text-xs text-muted-foreground whitespace-nowrap">
-                                  └ 第 {idx + 2} 次打开
+                                  └ {t('dialogs.nthOpen', { n: idx + 2 })}
                                 </TableCell>
                                 <TableCell></TableCell>
                                 <TableCell className="font-mono text-xs whitespace-nowrap">
@@ -500,7 +503,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
         {opensData && opensData.last_page > 1 && (
           <div className="flex items-center justify-between pt-4 border-t">
             <div className="text-sm text-muted-foreground">
-              共 {opensData.total} 个邮箱，第 {opensData.current_page} / {opensData.last_page} 页
+              {t('dialogs.totalEmails', { total: opensData.total })}, {t('dialogs.pageInfo', { current: opensData.current_page, total: opensData.last_page })}
             </div>
             <div className="flex gap-2">
               <Button
@@ -509,7 +512,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
               >
-                首页
+                {t('common.firstPage')}
               </Button>
               <Button
                 size="sm"
@@ -517,7 +520,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
               >
-                上一页
+                {t('common.prevPage')}
               </Button>
               <Button
                 size="sm"
@@ -525,7 +528,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                 onClick={() => setCurrentPage(p => Math.min(opensData.last_page, p + 1))}
                 disabled={currentPage === opensData.last_page}
               >
-                下一页
+                {t('common.nextPage')}
               </Button>
               <Button
                 size="sm"
@@ -533,7 +536,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
                 onClick={() => setCurrentPage(opensData.last_page)}
                 disabled={currentPage === opensData.last_page}
               >
-                尾页
+                {t('common.lastPage')}
               </Button>
             </div>
           </div>
@@ -544,6 +547,7 @@ export function EmailOpensDialog({ campaignId, campaignName, open, onClose }: Em
 }
 
 export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: AbuseReportsDialogProps) {
+  const { t } = useTranslation()
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -576,7 +580,7 @@ export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertOctagon className="w-5 h-5 text-red-500" />
-            投诉报告 - {campaignName}
+            {t('dialogs.abuseReports')} - {campaignName}
           </DialogTitle>
         </DialogHeader>
 
@@ -584,7 +588,7 @@ export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: 
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="搜索邮箱地址..."
+              placeholder={t('dialogs.searchEmailPlaceholder')}
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value)
@@ -597,10 +601,10 @@ export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: 
 
         <div className="flex-1 overflow-auto border rounded-lg">
           {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground">加载中...</div>
+            <div className="p-8 text-center text-muted-foreground">{t('common.loading')}</div>
           ) : !data || data.data.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              {searchTerm ? '未找到匹配的投诉记录' : '暂无投诉记录'}
+              {searchTerm ? t('dialogs.noMatchingAbuseReports') : t('dialogs.noAbuseReports')}
             </div>
           ) : (
             <Table className="min-w-[800px]">
@@ -612,10 +616,10 @@ export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: 
               </colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="whitespace-nowrap">邮箱地址</TableHead>
-                  <TableHead className="whitespace-nowrap">投诉原因</TableHead>
-                  <TableHead className="whitespace-nowrap">IP 地址</TableHead>
-                  <TableHead className="whitespace-nowrap">投诉时间</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('common.emailAddress')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.complaintReason')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.ipAddress')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.reportTime')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -650,7 +654,7 @@ export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: 
         {data && data.last_page > 1 && (
           <div className="flex items-center justify-between pt-4">
             <div className="text-sm text-muted-foreground">
-              第 {data.from || 0} - {data.to || 0} 条，共 {data.total} 条
+              {t('dialogs.showingRange', { from: data.from || 0, to: data.to || 0, total: data.total })}
             </div>
             <div className="flex gap-2">
               <Button
@@ -659,7 +663,7 @@ export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: 
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
               >
-                首页
+                {t('common.firstPage')}
               </Button>
               <Button
                 size="sm"
@@ -667,7 +671,7 @@ export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: 
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
               >
-                上一页
+                {t('common.prevPage')}
               </Button>
               <Button
                 size="sm"
@@ -675,7 +679,7 @@ export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: 
                 onClick={() => setCurrentPage(p => Math.min(data.last_page, p + 1))}
                 disabled={currentPage === data.last_page}
               >
-                下一页
+                {t('common.nextPage')}
               </Button>
               <Button
                 size="sm"
@@ -683,7 +687,7 @@ export function AbuseReportsDialog({ campaignId, campaignName, open, onClose }: 
                 onClick={() => setCurrentPage(data.last_page)}
                 disabled={currentPage === data.last_page}
               >
-                尾页
+                {t('common.lastPage')}
               </Button>
             </div>
           </div>

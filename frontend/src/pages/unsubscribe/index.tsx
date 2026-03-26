@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,6 +9,7 @@ import { Mail, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
 export default function UnsubscribePage() {
+  const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
   
@@ -70,7 +72,7 @@ export default function UnsubscribePage() {
               <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
                 <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
               </div>
-              <CardTitle>Loading...</CardTitle>
+              <CardTitle>{t('publicPages.loading')}</CardTitle>
             </CardHeader>
           </>
         )}
@@ -81,23 +83,23 @@ export default function UnsubscribePage() {
               <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
                 <Mail className="w-6 h-6 text-blue-600" />
               </div>
-              <CardTitle>Confirm Unsubscribe</CardTitle>
+              <CardTitle>{t('publicPages.confirmUnsubscribe')}</CardTitle>
               <CardDescription>
-                Are you sure you want to unsubscribe?
+                {t('publicPages.confirmUnsubscribeQuestion')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {subscriberEmail && (
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="text-sm">
-                    <span className="text-gray-500">Email: </span>
+                    <span className="text-gray-500">{t('publicPages.email')}: </span>
                     <span className="font-medium">{subscriberEmail}</span>
                   </div>
                 </div>
               )}
               
               <div className="text-sm text-gray-600">
-                <p>After unsubscribing, you will no longer receive emails from this mailing list.</p>
+                <p>{t('publicPages.afterUnsubscribe')}</p>
               </div>
 
               <Button
@@ -109,10 +111,10 @@ export default function UnsubscribePage() {
                 {isUnsubscribing ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Processing...
+                    {t('publicPages.processing')}
                   </>
                 ) : (
-                  'Confirm Unsubscribe'
+                  t('publicPages.confirmUnsubscribeBtn')
                 )}
               </Button>
             </CardContent>
@@ -125,22 +127,22 @@ export default function UnsubscribePage() {
               <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle2 className="w-6 h-6 text-green-600" />
               </div>
-              <CardTitle>Successfully Unsubscribed</CardTitle>
+              <CardTitle>{t('publicPages.successfullyUnsubscribed')}</CardTitle>
               <CardDescription>
-                You have been successfully unsubscribed
+                {t('publicPages.unsubscribedDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {subscriberEmail && (
                 <div className="bg-green-50 rounded-lg p-4 text-center">
                   <p className="text-sm text-green-700">
-                    Email <span className="font-medium">{subscriberEmail}</span> has been removed from the mailing list
+                    {t('publicPages.emailRemovedFromList', { email: subscriberEmail })}
                   </p>
                 </div>
               )}
               
               <p className="text-sm text-gray-600 text-center">
-                You will no longer receive emails from this list.
+                {t('publicPages.noMoreEmails')}
               </p>
             </CardContent>
           </>
@@ -152,14 +154,14 @@ export default function UnsubscribePage() {
               <div className="mx-auto w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mb-4">
                 <Mail className="w-6 h-6 text-yellow-600" />
               </div>
-              <CardTitle>Already Unsubscribed</CardTitle>
+              <CardTitle>{t('publicPages.alreadyUnsubscribed')}</CardTitle>
               <CardDescription>
-                You have already unsubscribed
+                {t('publicPages.alreadyUnsubscribedDesc')}
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-sm text-gray-600">
-                You will not receive emails from this list.
+                {t('publicPages.willNotReceiveEmails')}
               </p>
             </CardContent>
           </>
@@ -171,14 +173,14 @@ export default function UnsubscribePage() {
               <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
                 <XCircle className="w-6 h-6 text-red-600" />
               </div>
-              <CardTitle>Error</CardTitle>
+              <CardTitle>{t('publicPages.error')}</CardTitle>
               <CardDescription>
-                {message || 'Invalid unsubscribe link'}
+                {message || t('publicPages.invalidUnsubscribeLink')}
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-sm text-gray-600">
-                If you still wish to unsubscribe, please contact our support team.
+                {t('publicPages.contactSupport')}
               </p>
             </CardContent>
           </>

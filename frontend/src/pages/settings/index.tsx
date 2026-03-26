@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { Plus, Server, Trash2, Edit, Check, X, Zap, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -68,13 +69,14 @@ interface SmtpServer {
   }
 }
 
-const serverTypes = [
-  { value: 'smtp', label: 'SMTP 服务器' },
-  { value: 'ses', label: 'Amazon SES' },
-]
-
 export default function SettingsPage() {
+  const { t } = useTranslation()
   const { confirm, ConfirmDialog } = useConfirm()
+  
+  const serverTypes = [
+    { value: 'smtp', label: t('smtpSettings.smtpServer') },
+    { value: 'ses', label: t('smtpSettings.amazonSes') },
+  ]
   
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -111,75 +113,67 @@ export default function SettingsPage() {
     },
   })
 
-  // 创建服务器
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
       return api.post('/smtp-servers', data)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['smtp-servers'] })
-      toast.success('SMTP服务器创建成功')
+      toast.success(t('smtpSettings.createSuccess'))
       setIsCreateOpen(false)
       resetForm()
     },
   })
 
-  // 更新服务器
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
       return api.put(`/smtp-servers/${id}`, data)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['smtp-servers'] })
-      toast.success('SMTP服务器更新成功')
+      toast.success(t('smtpSettings.updateSuccess'))
       setIsEditOpen(false)
       setEditingServer(null)
       resetForm()
     },
   })
 
-  // 删除服务器
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       return api.delete(`/smtp-servers/${id}`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['smtp-servers'] })
-      toast.success('SMTP服务器删除成功')
+      toast.success(t('smtpSettings.deleteSuccess'))
     },
-    // onError 已由全局拦截器处理
   })
 
-  // 切换启用状态
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: number; is_active: boolean }) => {
       return api.put(`/smtp-servers/${id}`, { is_active })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['smtp-servers'] })
-      toast.success('状态更新成功')
+      toast.success(t('smtpSettings.statusUpdateSuccess'))
     },
   })
 
-  // 测试连接
   const testMutation = useMutation({
     mutationFn: async (id: number) => {
       return api.post(`/smtp-servers/${id}/test`)
     },
     onSuccess: () => {
-      toast.success('连接测试成功')
+      toast.success(t('smtpSettings.connectionTestSuccess'))
     },
-    // onError 已由全局拦截器处理，无需重复显示
   })
 
-  // 复制服务器
   const duplicateMutation = useMutation({
     mutationFn: async (id: number) => {
       return api.post(`/smtp-servers/${id}/duplicate`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['smtp-servers'] })
-      toast.success('服务器复制成功')
+      toast.success(t('smtpSettings.duplicateSuccess'))
     },
   })
 
@@ -242,9 +236,8 @@ export default function SettingsPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
-    // SES 类型必须至少有一个发件人
     if (formData.type === 'ses' && senderEmails.length === 0) {
-      toast.error('AWS SES 服务器至少需要配置一个发件人邮箱')
+      toast.error(t('smtpSettings.sesRequiresSender'))
       return
     }
     
@@ -265,9 +258,8 @@ export default function SettingsPage() {
     e.preventDefault()
     if (!editingServer) return
     
-    // SES 类型必须至少有一个发件人
     if (formData.type === 'ses' && senderEmails.length === 0) {
-      toast.error('AWS SES 服务器至少需要配置一个发件人邮箱')
+      toast.error(t('smtpSettings.sesRequiresSender'))
       return
     }
 
@@ -284,22 +276,20 @@ export default function SettingsPage() {
     updateMutation.mutate({ id: editingServer.id, data })
   }
   
-  // 添加发件人
   const handleAddSender = () => {
     const email = newSenderEmail.trim()
     if (!email) {
-      toast.error('请输入发件人邮箱')
+      toast.error(t('smtpSettings.pleaseEnterSenderEmail'))
       return
     }
     
-    // 简单的邮箱验证
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error('请输入有效的邮箱地址')
+      toast.error(t('smtpSettings.pleaseEnterValidEmail'))
       return
     }
     
     if (senderEmails.includes(email)) {
-      toast.error('该发件人已存在')
+      toast.error(t('smtpSettings.senderAlreadyExists'))
       return
     }
     
@@ -307,7 +297,6 @@ export default function SettingsPage() {
     setNewSenderEmail('')
   }
   
-  // 删除发件人
   const handleRemoveSender = (email: string) => {
     setSenderEmails(senderEmails.filter(e => e !== email))
   }
@@ -315,18 +304,18 @@ export default function SettingsPage() {
   const renderServerForm = (isEdit: boolean) => (
     <form onSubmit={isEdit ? handleUpdate : handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="name">服务器名称 *</Label>
+        <Label htmlFor="name">{t('smtpSettings.serverNameRequired')}</Label>
         <Input
           id="name"
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="例如：主SMTP服务器"
+          placeholder={t('smtpSettings.serverNamePlaceholder')}
           required
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="type">服务器类型 *</Label>
+        <Label htmlFor="type">{t('smtpSettings.serverTypeRequired')}</Label>
         <Select 
           value={formData.type} 
           onValueChange={(value) => setFormData({ ...formData, type: value })}
@@ -348,7 +337,7 @@ export default function SettingsPage() {
         <>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="host">主机地址 *</Label>
+              <Label htmlFor="host">{t('smtpSettings.hostAddressRequired')}</Label>
               <Input
                 id="host"
                 value={formData.host}
@@ -358,7 +347,7 @@ export default function SettingsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="port">端口 *</Label>
+              <Label htmlFor="port">{t('smtpSettings.portRequired')}</Label>
               <Input
                 id="port"
                 type="number"
@@ -371,7 +360,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="username">用户名</Label>
+            <Label htmlFor="username">{t('smtpSettings.username')}</Label>
             <Input
               id="username"
               value={formData.username}
@@ -381,7 +370,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">密码 {isEdit && '(留空则不修改)'}</Label>
+            <Label htmlFor="password">{t('smtpSettings.password')} {isEdit && t('smtpSettings.passwordHint')}</Label>
             <Input
               id="password"
               type="password"
@@ -392,7 +381,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="encryption">加密方式</Label>
+            <Label htmlFor="encryption">{t('smtpSettings.encryption')}</Label>
             <Select
               value={formData.encryption}
               onValueChange={(value) => setFormData({ ...formData, encryption: value })}
@@ -403,20 +392,19 @@ export default function SettingsPage() {
               <SelectContent>
                 <SelectItem value="tls">TLS</SelectItem>
                 <SelectItem value="ssl">SSL</SelectItem>
-                <SelectItem value="none">无加密</SelectItem>
+                <SelectItem value="none">{t('smtpSettings.noEncryption')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="space-y-2">
             <Label>
-              发件人邮箱管理
+              {t('smtpSettings.senderEmailManagement')}
               <span className="text-muted-foreground ml-2 text-xs font-normal">
-                (可选，配置多个发件人轮换使用)
+                {t('smtpSettings.senderEmailOptional')}
               </span>
             </Label>
             
-            {/* 发件人列表 */}
             <div className="space-y-2">
               {senderEmails.map((email, index) => {
                 const isPaused = pausedSenders.some(s => s.email === email)
@@ -432,7 +420,7 @@ export default function SettingsPage() {
                       />
                       {isPaused && (
                         <span className="text-xs text-amber-600 whitespace-nowrap">
-                          暂停中 ({Math.ceil((pausedInfo?.remaining_seconds || 0) / 60)}分钟)
+                          {t('smtpSettings.paused')} ({Math.ceil((pausedInfo?.remaining_seconds || 0) / 60)}{t('smtpSettings.minutes')})
                         </span>
                       )}
                     </div>
@@ -440,24 +428,23 @@ export default function SettingsPage() {
                       type="button"
                       size="sm"
                       onClick={() => handleRemoveSender(email)}
-                      title="删除此发件人"
+                      title={t('smtpSettings.deleteSender')}
                       className="h-8"
                     >
                       <Trash2 className="w-4 h-4 mr-1" />
-                      删除
+                      {t('smtpSettings.delete')}
                     </Button>
                   </div>
                 )
               })}
             </div>
             
-            {/* 添加新发件人 */}
             <div className="grid gap-2" style={{ gridTemplateColumns: '1fr auto' }}>
               <div className="flex items-center gap-2 min-w-0">
                 <Input
                   value={newSenderEmail}
                   onChange={(e) => setNewSenderEmail(e.target.value)}
-                  placeholder="添加发件人邮箱 (例如: sender@example.com)"
+                  placeholder={t('smtpSettings.addSenderPlaceholder')}
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault()
@@ -474,13 +461,13 @@ export default function SettingsPage() {
                 className="h-8"
               >
                 <Plus className="w-4 h-4 mr-1" />
-                添加
+                {t('smtpSettings.add')}
               </Button>
             </div>
             
             {senderEmails.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                💡 提示：配置多个发件人可以轮换使用，提高发送量和稳定性
+                {t('smtpSettings.multipleSenderTip')}
               </p>
             )}
           </div>
@@ -490,7 +477,7 @@ export default function SettingsPage() {
       {formData.type === 'ses' && (
         <>
           <div className="space-y-2">
-            <Label htmlFor="host">主机地址 *</Label>
+            <Label htmlFor="host">{t('smtpSettings.hostAddressRequired')}</Label>
             <Input
               id="host"
               value={formData.host}
@@ -499,12 +486,12 @@ export default function SettingsPage() {
               required
             />
             <p className="text-xs text-muted-foreground">
-              AWS SES API 端点地址，例如：email.us-east-1.amazonaws.com
+              {t('smtpSettings.awsSesEndpoint')}
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="username">Access Key ID *</Label>
+            <Label htmlFor="username">{t('smtpSettings.accessKeyIdRequired')}</Label>
             <Input
               id="username"
               value={formData.username}
@@ -515,7 +502,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Secret Access Key * {isEdit && '(留空则不修改)'}</Label>
+            <Label htmlFor="password">{t('smtpSettings.secretAccessKeyRequired')} {isEdit && t('smtpSettings.passwordHint')}</Label>
             <Input
               id="password"
               type="password"
@@ -528,13 +515,12 @@ export default function SettingsPage() {
 
           <div className="space-y-2">
             <Label>
-              发件人邮箱管理 *
+              {t('smtpSettings.senderEmailManagement')} *
               <span className="text-muted-foreground ml-2 text-xs font-normal">
-                (必须是在 AWS SES 中已验证的邮箱)
+                {t('smtpSettings.senderEmailRequired')}
               </span>
             </Label>
             
-            {/* 发件人列表 */}
             <div className="space-y-2">
               {senderEmails.map((email, index) => {
                 const isPaused = pausedSenders.some(s => s.email === email)
@@ -550,7 +536,7 @@ export default function SettingsPage() {
                       />
                       {isPaused && (
                         <span className="text-xs text-amber-600 whitespace-nowrap">
-                          暂停中 ({Math.ceil((pausedInfo?.remaining_seconds || 0) / 60)}分钟)
+                          {t('smtpSettings.paused')} ({Math.ceil((pausedInfo?.remaining_seconds || 0) / 60)}{t('smtpSettings.minutes')})
                         </span>
                       )}
                     </div>
@@ -558,23 +544,22 @@ export default function SettingsPage() {
                       type="button"
                       size="sm"
                       onClick={() => handleRemoveSender(email)}
-                      title="删除此发件人"
+                      title={t('smtpSettings.deleteSender')}
                       className="h-8"
                     >
                       <Trash2 className="w-4 h-4 mr-1" />
-                      删除
+                      {t('smtpSettings.delete')}
                     </Button>
                   </div>
                 )
               })}
             </div>
             
-            {/* 添加新发件人 */}
             <div className="flex gap-2">
               <Input
                 value={newSenderEmail}
                 onChange={(e) => setNewSenderEmail(e.target.value)}
-                placeholder="添加发件人邮箱 (例如: sender@example.com)"
+                placeholder={t('smtpSettings.addSenderPlaceholder')}
                 onKeyPress={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
@@ -589,64 +574,64 @@ export default function SettingsPage() {
                 size="sm"
               >
                 <Plus className="w-4 h-4 mr-1" />
-                添加
+                {t('smtpSettings.add')}
               </Button>
             </div>
             
             {senderEmails.length === 0 && (
               <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
-                ⚠️ AWS SES 至少需要配置一个已验证的发件人邮箱
+                {t('smtpSettings.awsSesRequiredTip')}
               </p>
             )}
             
             <p className="text-xs text-muted-foreground">
-              💡 提示：必须是在 AWS SES 中已验证的邮箱地址或域名
+              {t('smtpSettings.awsSesVerifiedTip')}
             </p>
           </div>
         </>
       )}
 
       <div className="border-t pt-4">
-        <h3 className="text-sm font-medium mb-3">速率限制</h3>
+        <h3 className="text-sm font-medium mb-3">{t('smtpSettings.rateLimit')}</h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="rate_limit_second">每秒限制</Label>
+            <Label htmlFor="rate_limit_second">{t('smtpSettings.perSecondLimit')}</Label>
             <Input
               id="rate_limit_second"
               type="number"
               value={formData.rate_limit_second}
               onChange={(e) => setFormData({ ...formData, rate_limit_second: e.target.value })}
-              placeholder="例如：10"
+              placeholder="10"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="rate_limit_minute">每分钟限制</Label>
+            <Label htmlFor="rate_limit_minute">{t('smtpSettings.perMinuteLimit')}</Label>
             <Input
               id="rate_limit_minute"
               type="number"
               value={formData.rate_limit_minute}
               onChange={(e) => setFormData({ ...formData, rate_limit_minute: e.target.value })}
-              placeholder="例如：100"
+              placeholder="100"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="rate_limit_hour">每小时限制</Label>
+            <Label htmlFor="rate_limit_hour">{t('smtpSettings.perHourLimit')}</Label>
             <Input
               id="rate_limit_hour"
               type="number"
               value={formData.rate_limit_hour}
               onChange={(e) => setFormData({ ...formData, rate_limit_hour: e.target.value })}
-              placeholder="例如：1000"
+              placeholder="1000"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="rate_limit_day">每天限制</Label>
+            <Label htmlFor="rate_limit_day">{t('smtpSettings.perDayLimit')}</Label>
             <Input
               id="rate_limit_day"
               type="number"
               value={formData.rate_limit_day}
               onChange={(e) => setFormData({ ...formData, rate_limit_day: e.target.value })}
-              placeholder="例如：10000"
+              placeholder="10000"
             />
           </div>
         </div>
@@ -660,7 +645,7 @@ export default function SettingsPage() {
           onChange={(e) => setFormData({ ...formData, is_default: e.target.checked })}
           className="rounded"
         />
-        <Label htmlFor="is_default">设为默认服务器</Label>
+        <Label htmlFor="is_default">{t('smtpSettings.setAsDefault')}</Label>
       </div>
 
       <div className="flex justify-end gap-2">
@@ -672,14 +657,14 @@ export default function SettingsPage() {
             resetForm()
           }}
         >
-          取消
+          {t('smtpSettings.cancel')}
         </Button>
         <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
           {(createMutation.isPending || updateMutation.isPending)
-            ? '保存中...'
+            ? t('smtpSettings.saving')
             : isEdit
-            ? '更新'
-            : '创建'}
+            ? t('smtpSettings.update')
+            : t('smtpSettings.create')}
         </Button>
       </div>
     </form>
@@ -689,26 +674,25 @@ export default function SettingsPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">发送服务器</h1>
-          <p className="text-muted-foreground mt-2">配置和管理邮件发送服务器</p>
+          <h1 className="text-xl md:text-2xl font-bold">{t('smtpSettings.title')}</h1>
+          <p className="text-muted-foreground mt-2">{t('smtpSettings.subtitle')}</p>
         </div>
       </div>
 
-      {/* SMTP 服务器配置 */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">服务器列表</h2>
+          <h2 className="text-xl font-semibold">{t('smtpSettings.serverList')}</h2>
           <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
-                添加服务器
+                {t('smtpSettings.addServer')}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>添加SMTP服务器</DialogTitle>
-                <DialogDescription>配置邮件发送服务器</DialogDescription>
+                <DialogTitle>{t('smtpSettings.addSmtpServer')}</DialogTitle>
+                <DialogDescription>{t('smtpSettings.configureServer')}</DialogDescription>
               </DialogHeader>
               {renderServerForm(false)}
             </DialogContent>
@@ -717,17 +701,17 @@ export default function SettingsPage() {
 
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
-            <p className="text-muted-foreground">加载中...</p>
+            <p className="text-muted-foreground">{t('smtpSettings.loading')}</p>
           </div>
         ) : servers && servers.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Server className="w-12 h-12 text-muted-foreground mb-4" />
-              <p className="text-lg font-medium mb-2">还没有配置SMTP服务器</p>
-              <p className="text-muted-foreground mb-4">添加邮件发送服务器以开始发送邮件</p>
+              <p className="text-lg font-medium mb-2">{t('smtpSettings.noServersYet')}</p>
+              <p className="text-muted-foreground mb-4">{t('smtpSettings.addServerToStart')}</p>
               <Button onClick={handleCreate}>
                 <Plus className="w-4 h-4 mr-2" />
-                添加服务器
+                {t('smtpSettings.addServer')}
               </Button>
             </CardContent>
           </Card>
@@ -748,16 +732,16 @@ export default function SettingsPage() {
                           <CardTitle className="text-base md:text-lg">{server.name}</CardTitle>
                           {server.is_default && (
                             <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded whitespace-nowrap">
-                              默认
+                              {t('smtpSettings.default')}
                             </span>
                           )}
                           {server.is_active ? (
                             <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded whitespace-nowrap">
-                              已启用
+                              {t('smtpSettings.enabled')}
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded whitespace-nowrap">
-                              已禁用
+                              {t('smtpSettings.disabled')}
                             </span>
                           )}
                         </div>
@@ -775,7 +759,7 @@ export default function SettingsPage() {
                         className="text-xs md:text-sm"
                       >
                         <Edit className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                        编辑
+                        {t('smtpSettings.edit')}
                       </Button>
                       <Button
                         variant="outline"
@@ -790,12 +774,12 @@ export default function SettingsPage() {
                         {server.is_active ? (
                           <>
                             <X className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                            禁用
+                            {t('smtpSettings.disable')}
                           </>
                         ) : (
                           <>
                             <Check className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                            启用
+                            {t('smtpSettings.enable')}
                           </>
                         )}
                       </Button>
@@ -807,7 +791,7 @@ export default function SettingsPage() {
                         className="text-xs md:text-sm"
                       >
                         <Zap className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                        测试
+                        {t('smtpSettings.test')}
                       </Button>
                       <Button
                         variant="outline"
@@ -815,20 +799,20 @@ export default function SettingsPage() {
                         onClick={() => duplicateMutation.mutate(server.id)}
                         disabled={duplicateMutation.isPending}
                         className="text-xs md:text-sm"
-                        title="复制服务器"
+                        title={t('smtpSettings.copy')}
                       >
                         <Copy className="w-3 h-3 md:w-4 md:h-4 mr-1" />
-                        复制
+                        {t('smtpSettings.copy')}
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={async () => {
                           const confirmed = await confirm({
-                            title: '删除SMTP服务器',
-                            description: `确定要删除服务器"${server.name}"吗？`,
-                            confirmText: '删除',
-                            cancelText: '取消',
+                            title: t('smtpSettings.deleteSmtpServer'),
+                            description: t('smtpSettings.confirmDeleteServer', { name: server.name }),
+                            confirmText: t('smtpSettings.delete'),
+                            cancelText: t('smtpSettings.cancel'),
                             variant: 'destructive',
                           })
                           if (confirmed) {
@@ -837,7 +821,7 @@ export default function SettingsPage() {
                         }}
                         disabled={deleteMutation.isPending || server.is_default}
                         className="text-xs md:text-sm text-red-600 hover:text-red-700 hover:bg-red-50"
-                        title={server.is_default ? '默认服务器不能删除' : '删除服务器'}
+                        title={server.is_default ? t('smtpSettings.defaultCannotDelete') : t('smtpSettings.delete')}
                       >
                         <Trash2 className="w-3 h-3 md:w-4 md:h-4" />
                       </Button>
@@ -845,11 +829,10 @@ export default function SettingsPage() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {/* 速率限制 */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div className="p-2 md:p-3 bg-blue-50 rounded-lg">
                       <div className="flex items-center justify-between mb-1 md:mb-2">
-                        <span className="text-xs text-muted-foreground">每秒</span>
+                        <span className="text-xs text-muted-foreground">{t('smtpSettings.perSecond')}</span>
                         {server.rate_limit_second && (
                           <span className="text-xs font-medium text-blue-600">
                             {server.rate_limit_status?.second?.current || 0}/{server.rate_limit_second}
@@ -872,7 +855,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="p-2 md:p-3 bg-green-50 rounded-lg">
                       <div className="flex items-center justify-between mb-1 md:mb-2">
-                        <span className="text-xs text-muted-foreground">每分钟</span>
+                        <span className="text-xs text-muted-foreground">{t('smtpSettings.perMinute')}</span>
                         {server.rate_limit_minute && (
                           <span className="text-xs font-medium text-green-600">
                             {server.rate_limit_status?.minute?.current || 0}/{server.rate_limit_minute}
@@ -895,7 +878,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="p-2 md:p-3 bg-purple-50 rounded-lg">
                       <div className="flex items-center justify-between mb-1 md:mb-2">
-                        <span className="text-xs text-muted-foreground">每小时</span>
+                        <span className="text-xs text-muted-foreground">{t('smtpSettings.perHour')}</span>
                         {server.rate_limit_hour && (
                           <span className="text-xs font-medium text-purple-600">
                             {server.rate_limit_status?.hour?.current || 0}/{server.rate_limit_hour}
@@ -918,7 +901,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="p-2 md:p-3 bg-orange-50 rounded-lg">
                       <div className="flex items-center justify-between mb-1 md:mb-2">
-                        <span className="text-xs text-muted-foreground">每天</span>
+                        <span className="text-xs text-muted-foreground">{t('smtpSettings.perDay')}</span>
                         {server.rate_limit_day && (
                           <span className="text-xs font-medium text-orange-600">
                             {server.rate_limit_status?.day?.current || 0}/{server.rate_limit_day}
@@ -930,7 +913,7 @@ export default function SettingsPage() {
                       </div>
                       {server.rate_limit_day ? (
                         <>
-                          <div className="text-xs text-muted-foreground mt-0.5 md:mt-1">剩余</div>
+                          <div className="text-xs text-muted-foreground mt-0.5 md:mt-1">{t('smtpSettings.remaining')}</div>
                           <div className="mt-2">
                             <div className="w-full bg-orange-200 rounded-full h-1.5">
                               <div
@@ -943,7 +926,7 @@ export default function SettingsPage() {
                           </div>
                         </>
                       ) : (
-                        <div className="text-xs text-muted-foreground mt-0.5">无限制</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{t('smtpSettings.unlimited')}</div>
                       )}
                     </div>
                   </div>
@@ -953,18 +936,16 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* 编辑对话框 */}
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>编辑SMTP服务器</DialogTitle>
-              <DialogDescription>修改邮件服务器配置</DialogDescription>
+              <DialogTitle>{t('smtpSettings.editSmtpServer')}</DialogTitle>
+              <DialogDescription>{t('smtpSettings.modifyServerConfig')}</DialogDescription>
             </DialogHeader>
             {renderServerForm(true)}
           </DialogContent>
         </Dialog>
 
-        {/* 确认对话框 */}
         <ConfirmDialog />
       </div>
     </div>

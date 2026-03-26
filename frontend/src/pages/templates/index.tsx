@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, FileText, Search, Copy, Trash2, Eye, Edit, Filter } from 'lucide-react'
@@ -45,6 +46,7 @@ interface Category {
 }
 
 export default function TemplatesPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { confirm, ConfirmDialog } = useConfirm()
@@ -85,10 +87,10 @@ export default function TemplatesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates'] })
-      toast.success('模板删除成功')
+      toast.success(t('templates.deleteSuccess'))
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || '删除失败')
+      toast.error(error.response?.data?.message || t('templates.deleteFailed'))
     },
   })
 
@@ -100,10 +102,10 @@ export default function TemplatesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates'] })
-      toast.success('模板复制成功')
+      toast.success(t('templates.duplicateSuccess'))
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.message || '复制失败')
+      toast.error(error.response?.data?.message || t('templates.duplicateFailed'))
     },
   })
 
@@ -124,15 +126,15 @@ export default function TemplatesPage() {
 
   const handleDelete = async (template: Template) => {
     if (template.is_default) {
-      toast.error('系统默认模板不能删除')
+      toast.error(t('templates.defaultCannotDelete'))
       return
     }
 
     const confirmed = await confirm({
-      title: '删除模板',
-      description: `确定要删除模板"${template.name}"吗？此操作不可恢复。`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('templates.deleteConfirm'),
+      description: t('templates.deleteConfirmDesc', { name: template.name }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
       variant: 'destructive',
     })
 
@@ -184,14 +186,14 @@ export default function TemplatesPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">邮件模板</h1>
+          <h1 className="text-xl md:text-2xl font-bold">{t('templates.title')}</h1>
           <p className="text-muted-foreground mt-2">
-            管理您的邮件模板，快速创建专业的邮件活动
+            {t('templates.subtitle')}
           </p>
         </div>
         <Button onClick={() => navigate('/templates/create')}>
           <Plus className="w-4 h-4 mr-2" />
-          创建模板
+          {t('templates.createTemplate')}
         </Button>
       </div>
 
@@ -203,7 +205,7 @@ export default function TemplatesPage() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="搜索模板名称或描述..."
+                  placeholder={t('templates.searchPlaceholder')}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -214,10 +216,10 @@ export default function TemplatesPage() {
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger>
                   <Filter className="w-4 h-4 mr-2" />
-                  <SelectValue placeholder="选择分类" />
+                  <SelectValue placeholder={t('templates.selectCategory')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部分类</SelectItem>
+                  <SelectItem value="all">{t('templates.allCategories')}</SelectItem>
                   {categoriesData?.map((category: Category) => (
                     <SelectItem key={category.value} value={category.value}>
                       {category.label}
@@ -249,13 +251,13 @@ export default function TemplatesPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">还没有模板</p>
+            <p className="text-lg font-medium mb-2">{t('templates.noTemplates')}</p>
             <p className="text-muted-foreground mb-4">
-              创建您的第一个邮件模板
+              {t('templates.noTemplatesDesc')}
             </p>
             <Button onClick={() => navigate('/templates/create')}>
               <Plus className="w-4 h-4 mr-2" />
-              创建模板
+              {t('templates.createTemplate')}
             </Button>
           </CardContent>
         </Card>
@@ -270,7 +272,7 @@ export default function TemplatesPage() {
                       {template.name}
                       {template.is_default && (
                         <Badge variant="secondary" className="text-xs">
-                          系统
+                          {t('templates.systemTag')}
                         </Badge>
                       )}
                     </CardTitle>
@@ -284,14 +286,14 @@ export default function TemplatesPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                  {template.description || '暂无描述'}
+                  {template.description || t('templates.noDescription')}
                 </p>
                 
                 <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
-                  <span>使用 {template.usage_count} 次</span>
+                  <span>{t('templates.usageCount', { count: template.usage_count })}</span>
                   {template.last_used_at && (
                     <span>
-                      最后使用: {new Date(template.last_used_at).toLocaleDateString()}
+                      {t('templates.lastUsed', { date: new Date(template.last_used_at).toLocaleDateString() })}
                     </span>
                   )}
                 </div>
@@ -304,7 +306,7 @@ export default function TemplatesPage() {
                     disabled={previewMutation.isPending}
                   >
                     <Eye className="w-3 h-3 mr-1" />
-                    预览
+                    {t('common.preview')}
                   </Button>
                   <Button
                     size="sm"
@@ -312,7 +314,7 @@ export default function TemplatesPage() {
                     onClick={() => handleEdit(template)}
                   >
                     <Edit className="w-3 h-3 mr-1" />
-                    {template.is_default ? '复制编辑' : '编辑'}
+                    {template.is_default ? t('templates.copyEdit') : t('common.edit')}
                   </Button>
                   <Button
                     size="sm"
@@ -321,7 +323,7 @@ export default function TemplatesPage() {
                     disabled={duplicateMutation.isPending}
                   >
                     <Copy className="w-3 h-3 mr-1" />
-                    复制
+                    {t('common.copy')}
                   </Button>
                   {!template.is_default && (
                     <Button

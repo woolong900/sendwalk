@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { XCircle, Loader, RefreshCw, Pause, Play, Terminal, Trash2 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -43,6 +44,7 @@ interface SmtpServer {
 }
 
 export default function SendMonitorPage() {
+  const { t } = useTranslation()
   const { confirm, ConfirmDialog } = useConfirm()
   
   const [selectedServer, setSelectedServer] = useState<string>('all')
@@ -96,7 +98,7 @@ export default function SendMonitorPage() {
       queryClient.invalidateQueries({ queryKey: ['send-logs-paginated'] })
       queryClient.invalidateQueries({ queryKey: ['send-logs-latest'] })
       queryClient.invalidateQueries({ queryKey: ['send-stats'] })
-      toast.success('日志已清空')
+      toast.success(t('monitor.logsCleared'))
     },
     // onError 已由全局拦截器处理
   })
@@ -353,33 +355,33 @@ export default function SendMonitorPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64">
         <XCircle className="w-12 h-12 text-red-500 mb-4" />
-        <p className="text-lg font-medium mb-2">加载失败</p>
+        <p className="text-lg font-medium mb-2">{t('monitor.loadFailed')}</p>
         <p className="text-muted-foreground mb-4">
-          {(logsError as Error)?.message || (statsError as Error)?.message || '请检查网络连接'}
+          {(logsError as Error)?.message || (statsError as Error)?.message || t('monitor.checkNetwork')}
         </p>
-        <Button onClick={handleRefresh}>重试</Button>
+        <Button onClick={handleRefresh}>{t('monitor.retry')}</Button>
       </div>
     )
   }
 
   const getStatusText = (status: string) => {
-    const labels = {
-      sent: '成功',
-      failed: '失败',
+    const labels: Record<string, string> = {
+      sent: t('monitor.sent'),
+      failed: t('common.failed'),
     }
-    return labels[status as keyof typeof labels] || status
+    return labels[status] || status
   }
 
   return (
     <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">发送监控</h1>
+          <h1 className="text-xl md:text-2xl font-bold">{t('monitor.title')}</h1>
           <p className="text-sm md:text-base text-muted-foreground mt-2">
-            实时监控邮件发送状态
+            {t('monitor.subtitle')}
             {totalLogs > 0 && (
               <span className="block md:inline md:ml-2 text-xs md:text-sm text-muted-foreground mt-1 md:mt-0">
-                (显示 {displayLogs.length} 条，共 {totalLogs} 条 · 滑动窗口最多显示 {maxDisplayLogs} 条)
+                ({t('monitor.displayCount', { current: displayLogs.length, total: totalLogs })} · {t('monitor.slidingWindow', { max: maxDisplayLogs })})
               </span>
             )}
           </p>
@@ -391,11 +393,11 @@ export default function SendMonitorPage() {
             onClick={() => setAutoRefresh(!autoRefresh)}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${autoRefresh ? 'animate-spin' : ''}`} />
-            {autoRefresh ? '自动刷新' : '已暂停'}
+            {autoRefresh ? t('monitor.autoRefresh') : t('monitor.paused')}
           </Button>
           <Button variant="outline" size="sm" onClick={handleRefresh}>
             <RefreshCw className="w-4 h-4 mr-2" />
-            手动刷新
+            {t('monitor.manualRefresh')}
           </Button>
           {totalLogs > 0 && (
             <Button
@@ -403,10 +405,10 @@ export default function SendMonitorPage() {
               size="sm"
               onClick={async () => {
                 const confirmed = await confirm({
-                  title: '清空发送日志',
-                  description: '确定要清空所有日志吗？此操作不可恢复。',
-                  confirmText: '清空',
-                  cancelText: '取消',
+                  title: t('monitor.clearSendLogs'),
+                  description: t('monitor.clearLogsConfirm'),
+                  confirmText: t('common.clear'),
+                  cancelText: t('common.cancel'),
                   variant: 'destructive',
                 })
                 if (confirmed) {
@@ -416,7 +418,7 @@ export default function SendMonitorPage() {
               disabled={clearLogsMutation.isPending}
             >
               <Trash2 className="w-4 h-4 mr-2" />
-              清空日志
+              {t('monitor.clearLogs')}
             </Button>
           )}
         </div>
@@ -428,14 +430,14 @@ export default function SendMonitorPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                按发送服务器筛选
+                {t('monitor.filterByServer')}
               </label>
               <Select value={selectedServer} onValueChange={setSelectedServer}>
                 <SelectTrigger>
-                  <SelectValue placeholder="选择发送服务器" />
+                  <SelectValue placeholder={t('monitor.selectServer')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">所有服务器</SelectItem>
+                  <SelectItem value="all">{t('monitor.allServers')}</SelectItem>
                   {smtpServers?.map((server) => (
                     <SelectItem key={server.id} value={server.id.toString()}>
                       {server.name} ({server.type.toUpperCase()})
@@ -446,34 +448,34 @@ export default function SendMonitorPage() {
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                按发送状态筛选
+                {t('monitor.filterByStatus')}
               </label>
               <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                 <SelectTrigger>
-                  <SelectValue placeholder="选择发送状态" />
+                  <SelectValue placeholder={t('monitor.selectStatus')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="sent">成功</SelectItem>
-                  <SelectItem value="failed">失败</SelectItem>
+                  <SelectItem value="all">{t('monitor.allStatus')}</SelectItem>
+                  <SelectItem value="sent">{t('monitor.sent')}</SelectItem>
+                  <SelectItem value="failed">{t('common.failed')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                按时间范围筛选
+                {t('monitor.filterByTime')}
               </label>
               <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="选择时间范围" />
+                  <SelectValue placeholder={t('monitor.selectTime')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部时间</SelectItem>
-                  <SelectItem value="1m">最近 1 分钟</SelectItem>
-                  <SelectItem value="10m">最近 10 分钟</SelectItem>
-                  <SelectItem value="30m">最近 30 分钟</SelectItem>
-                  <SelectItem value="1h">最近 1 小时</SelectItem>
-                  <SelectItem value="1d">最近 1 天</SelectItem>
+                  <SelectItem value="all">{t('monitor.allTime')}</SelectItem>
+                  <SelectItem value="1m">{t('monitor.last1Min')}</SelectItem>
+                  <SelectItem value="10m">{t('monitor.last10Min')}</SelectItem>
+                  <SelectItem value="30m">{t('monitor.last30Min')}</SelectItem>
+                  <SelectItem value="1h">{t('monitor.last1Hour')}</SelectItem>
+                  <SelectItem value="1d">{t('monitor.last1Day')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -502,7 +504,7 @@ export default function SendMonitorPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  总数
+                  {t('monitor.total')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -513,7 +515,7 @@ export default function SendMonitorPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-green-500">
-                  成功
+                  {t('monitor.sent')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -524,7 +526,7 @@ export default function SendMonitorPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-red-500">
-                  失败
+                  {t('common.failed')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -535,7 +537,7 @@ export default function SendMonitorPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-blue-500">
-                  成功率
+                  {t('monitor.successRate')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -552,7 +554,7 @@ export default function SendMonitorPage() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <CardTitle className="flex items-center gap-2 text-base md:text-lg">
               <Terminal className="w-4 h-4 md:w-5 md:h-5" />
-              发送日志
+              {t('monitor.sendLogs')}
             </CardTitle>
             <div className="flex items-center gap-2 flex-wrap md:flex-nowrap">
               <Button
@@ -564,12 +566,12 @@ export default function SendMonitorPage() {
                 {autoScroll ? (
                   <>
                     <Play className="w-3 h-3 mr-1" />
-                    自动滚动
+                    {t('monitor.autoScroll')}
                   </>
                 ) : (
                   <>
                     <Pause className="w-3 h-3 mr-1" />
-                    已暂停
+                    {t('monitor.scrollPaused')}
                   </>
                 )}
               </Button>
@@ -585,7 +587,7 @@ export default function SendMonitorPage() {
                   }}
                   className="text-white hover:bg-slate-800"
                 >
-                  跳至底部
+                  {t('monitor.jumpToBottom')}
                 </Button>
               )}
             </div>
@@ -622,17 +624,17 @@ export default function SendMonitorPage() {
                 {isLoadingMore && (
                   <div className="text-center text-slate-500 text-xs py-3 border-b border-slate-800">
                     <Loader className="w-4 h-4 inline-block animate-spin mr-2" />
-                    加载更多历史记录...
+                    {t('monitor.loadMoreHistory')}
                   </div>
                 )}
                 {!isLoadingMore && hasMore && nextPageToLoad > 2 && (
                   <div className="text-center text-slate-500 text-xs py-2 border-b border-slate-800">
-                    ▲ 继续向上滚动加载更多历史记录
+                    ▲ {t('monitor.scrollUpForMore')}
                   </div>
                 )}
                 {!hasMore && nextPageToLoad > 2 && (
                   <div className="text-center text-slate-500 text-xs py-2 border-b border-slate-800">
-                    ▲ 已到达最早的日志
+                    ▲ {t('monitor.reachedOldest')}
                   </div>
                 )}
                 
@@ -695,8 +697,8 @@ export default function SendMonitorPage() {
               <div className="flex items-center justify-center h-full text-slate-500">
                 <div className="text-center">
                   <Terminal className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>暂无发送记录</p>
-                  <p className="text-xs mt-2 opacity-75">日志将在此实时显示</p>
+                  <p>{t('monitor.noLogs')}</p>
+                  <p className="text-xs mt-2 opacity-75">{t('monitor.logsWillDisplay')}</p>
                 </div>
               </div>
             )}

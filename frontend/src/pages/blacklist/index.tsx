@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Upload, Search, AlertCircle, Loader2, CheckCircle2, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -65,6 +66,7 @@ interface ImportProgress {
 }
 
 export default function BlacklistPage() {
+  const { t } = useTranslation()
   const { confirm, ConfirmDialog } = useConfirm()
   
   const [isAddOpen, setIsAddOpen] = useState(false)
@@ -85,7 +87,7 @@ export default function BlacklistPage() {
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isUploading, setIsUploading] = useState(false)
-  const [processingProgress, setProcessingProgress] = useState(0) // 导入处理进度
+  const [processingProgress, setProcessingProgress] = useState(0)
   const [importResult, setImportResult] = useState<{
     added: number
     already_exists: number
@@ -97,7 +99,6 @@ export default function BlacklistPage() {
 
   const queryClient = useQueryClient()
 
-  // 查询导入进度（从服务器）
   const { data: importProgress, refetch: refetchProgress } = useQuery<ImportProgress>({
     queryKey: ['blacklist-import-progress', importTaskId],
     queryFn: async () => {
@@ -107,38 +108,34 @@ export default function BlacklistPage() {
     },
     enabled: !!importTaskId && isProgressOpen,
     refetchInterval: (query) => {
-      // 如果任务还在处理中，每2秒刷新一次
       if (query.state.data?.status === 'processing') {
         return 2000
       }
-      // 任务完成或失败，停止轮询
       return false
     },
   })
 
-  // 监听导入进度完成
   useEffect(() => {
     if (importProgress && importProgress.status === 'completed') {
       queryClient.invalidateQueries({ queryKey: ['blacklist'] })
       const { added, already_exists, invalid, subscribers_updated } = importProgress
       
       const messages = []
-      if (added > 0) messages.push(`新增 ${added} 个`)
-      if (already_exists > 0) messages.push(`已存在 ${already_exists} 个`)
-      if (invalid > 0) messages.push(`无效 ${invalid} 个`)
+      if (added > 0) messages.push(`${t('common.new')} ${added}`)
+      if (already_exists > 0) messages.push(`${t('common.alreadyExists')} ${already_exists}`)
+      if (invalid > 0) messages.push(`${t('common.invalid')} ${invalid}`)
       
-      const summary = messages.join('，')
+      const summary = messages.join(', ')
       const subscriberInfo = subscribers_updated > 0 
-        ? `，更新订阅者 ${subscribers_updated} 个` 
+        ? `, ${t('blacklist.subscribersUpdated')} ${subscribers_updated}` 
         : ''
       
-      toast.success(`导入完成！${summary}${subscriberInfo}`)
+      toast.success(`${t('blacklist.importComplete')} ${summary}${subscriberInfo}`)
     } else if (importProgress && importProgress.status === 'failed') {
-      toast.error(`导入失败：${importProgress.error || '未知错误'}`)
+      toast.error(`${t('common.failed')}: ${importProgress.error || t('common.error')}`)
     }
-  }, [importProgress, queryClient])
+  }, [importProgress, queryClient, t])
 
-  // 获取黑名单列表
   const { data: blacklistData, isLoading } = useQuery<PaginatedResponse>({
     queryKey: ['blacklist', currentPage, searchQuery],
     queryFn: async () => {
@@ -156,20 +153,18 @@ export default function BlacklistPage() {
     },
   })
 
-  // 添加单个邮箱
   const addMutation = useMutation({
     mutationFn: async (data: typeof addFormData) => {
       return api.post('/blacklist', data)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['blacklist'] })
-      toast.success('已添加到黑名单')
+      toast.success(t('blacklist.addSuccess'))
       setIsAddOpen(false)
       setAddFormData({ email: '', reason: '' })
     },
   })
 
-  // 批量上传（文件上传）
   const batchUploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData()
@@ -190,7 +185,6 @@ export default function BlacklistPage() {
       const data = response.data.data
       
       if (data.import_id) {
-        // 文件上传完成，开始后台处理
         setImportTaskId(data.import_id)
         pollImportProgress(data.import_id)
       }
@@ -198,23 +192,20 @@ export default function BlacklistPage() {
     onError: () => {
       setIsUploading(false)
       setProcessingProgress(0)
-      toast.error('上传失败，请重试')
+      toast.error(t('common.error'))
     },
   })
 
-  // 轮询导入进度
   const pollImportProgress = (importId: string) => {
     const pollInterval = setInterval(async () => {
       try {
         const response = await api.get(`/blacklist/import-progress/${importId}`)
         const progress = response.data.data
         
-        // 更新处理进度
         if (progress.progress !== undefined) {
           setProcessingProgress(progress.progress)
         }
         
-        // 更新结果显示（始终更新，不管是否为0）
         if (progress.status === 'processing') {
           setImportResult({
             added: progress.added || 0,
@@ -224,13 +215,11 @@ export default function BlacklistPage() {
           })
         }
         
-        // 检查是否完成
         if (progress.status === 'completed') {
           clearInterval(pollInterval)
           setIsUploading(false)
           setProcessingProgress(100)
           
-          // 更新最终结果
           setImportResult({
             added: progress.added || 0,
             already_exists: progress.already_exists || 0,
@@ -238,35 +227,30 @@ export default function BlacklistPage() {
             status: progress.status,
           })
           
-          // 刷新列表
           queryClient.invalidateQueries({ queryKey: ['blacklist'] })
-          
-          // 不自动关闭，让用户查看结果后手动关闭
         } else if (progress.status === 'failed') {
           clearInterval(pollInterval)
           setIsUploading(false)
-          toast.error(progress.error || '导入失败')
+          toast.error(progress.error || t('common.failed'))
         }
       } catch (error) {
-        console.error('轮询导入进度失败:', error)
+        console.error('Poll import progress failed:', error)
         clearInterval(pollInterval)
         setIsUploading(false)
       }
-    }, 3000) // 每3秒轮询一次（优化：减少请求频率）
+    }, 3000)
   }
 
-  // 删除单个
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       return api.delete(`/blacklist/${id}`)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['blacklist'] })
-      toast.success('已从黑名单移除')
+      toast.success(t('blacklist.removeSuccess'))
     },
   })
 
-  // 批量删除
   const batchDeleteMutation = useMutation({
     mutationFn: async (ids: number[]) => {
       return api.post('/blacklist/batch-delete', { ids })
@@ -274,7 +258,7 @@ export default function BlacklistPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['blacklist'] })
       setSelectedIds([])
-      toast.success('批量删除成功')
+      toast.success(t('blacklist.batchDeleteSuccess'))
     },
   })
 
@@ -287,23 +271,21 @@ export default function BlacklistPage() {
     const file = e.target.files?.[0]
     if (!file) return
     
-    // 支持多种文件格式
     const allowedExtensions = ['.txt', '.csv', '.xlsx', '.xls']
     const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
     
     if (!allowedExtensions.includes(fileExtension)) {
-      toast.error('请选择txt、csv或xlsx文件')
+      toast.error(t('blacklist.supportedFormats'))
       return
     }
     
     setSelectedFile(file)
-    // 不再读取文件内容到内存，直接保存文件对象
   }
 
   const handleBatchUpload = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedFile) {
-      toast.error('请选择文件')
+      toast.error(t('blacklist.selectFile'))
       return
     }
     batchUploadMutation.mutate(selectedFile)
@@ -311,8 +293,8 @@ export default function BlacklistPage() {
 
   const handleDelete = async (id: number) => {
     const confirmed = await confirm({
-      title: '确认删除',
-      description: '确定要从黑名单中移除此邮箱吗？',
+      title: t('blacklist.removeConfirm'),
+      description: t('blacklist.removeConfirmDesc'),
     })
     
     if (confirmed) {
@@ -322,13 +304,13 @@ export default function BlacklistPage() {
 
   const handleBatchDelete = async () => {
     if (selectedIds.length === 0) {
-      toast.error('请至少选择一个邮箱')
+      toast.error(t('blacklist.selectFile'))
       return
     }
 
     const confirmed = await confirm({
-      title: '确认批量删除',
-      description: `确定要从黑名单中移除选中的 ${selectedIds.length} 个邮箱吗？`,
+      title: t('blacklist.batchDeleteConfirm'),
+      description: t('blacklist.batchDeleteConfirmDesc', { count: selectedIds.length }),
     })
     
     if (confirmed) {
@@ -360,9 +342,9 @@ export default function BlacklistPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">黑名单</h1>
+          <h1 className="text-xl md:text-2xl font-bold">{t('blacklist.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            管理黑名单列表
+            {t('blacklist.subtitle')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -370,19 +352,19 @@ export default function BlacklistPage() {
             <DialogTrigger asChild>
               <Button>
                 <Upload className="w-4 h-4 mr-2" />
-                批量上传
+                {t('common.batchUpload')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>批量上传黑名单</DialogTitle>
+                <DialogTitle>{t('blacklist.batchUpload')}</DialogTitle>
                 <DialogDescription>
-                  上传txt文件，每行一个邮箱地址，或使用逗号、分号分隔
+                  {t('blacklist.batchUploadDesc')}
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleBatchUpload} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="file-upload">选择文件 *</Label>
+                  <Label htmlFor="file-upload">{t('blacklist.selectFile')} *</Label>
                   <Input
                     id="file-upload"
                     type="file"
@@ -402,28 +384,26 @@ export default function BlacklistPage() {
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    支持txt、csv或xlsx文件，每行一个邮箱地址
+                    {t('blacklist.supportedFormats')}
                   </p>
                 </div>
 
                 {isUploading && (
                   <div className="space-y-3">
-                    {/* 导入处理进度 */}
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span>导入进度</span>
+                        <span>{t('blacklist.importProgress')}</span>
                         <span>{processingProgress}%</span>
                       </div>
                       <Progress value={processingProgress} />
                     </div>
                     
-                    {/* 实时统计 */}
                     {importResult && (
                       <div className="flex flex-col gap-2 text-sm">
                         <div className="flex items-center gap-4">
-                          <span>新增: <span className="font-medium text-green-600">{importResult.added}</span></span>
-                          <span>已存在: <span className="font-medium text-orange-600">{importResult.already_exists}</span></span>
-                          <span>无效: <span className="font-medium text-red-600">{importResult.invalid}</span></span>
+                          <span>{t('common.new')}: <span className="font-medium text-green-600">{importResult.added}</span></span>
+                          <span>{t('common.alreadyExists')}: <span className="font-medium text-orange-600">{importResult.already_exists}</span></span>
+                          <span>{t('common.invalid')}: <span className="font-medium text-red-600">{importResult.invalid}</span></span>
                         </div>
                       </div>
                     )}
@@ -435,30 +415,30 @@ export default function BlacklistPage() {
                     <div className="flex items-center gap-2 p-3 bg-green-50 rounded-md">
                       <CheckCircle2 className="w-5 h-5 text-green-600" />
                       <div className="text-sm text-green-900">
-                        导入完成！新增 {importResult.added} 个，已存在 {importResult.already_exists} 个，无效 {importResult.invalid} 个
+                        {t('blacklist.importCompleteDesc', { added: importResult.added, exists: importResult.already_exists, invalid: importResult.invalid })}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <AlertCircle className="w-4 h-4" />
-                      <span>请点击"关闭"按钮查看导入结果</span>
+                      <span>{t('common.close')}</span>
                     </div>
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="batch-reason">原因（可选）</Label>
+                  <Label htmlFor="batch-reason">{t('common.reason')} ({t('common.optional')})</Label>
                   <Input
                     id="batch-reason"
                     value={batchFormData.reason}
                     onChange={(e) => setBatchFormData({ ...batchFormData, reason: e.target.value })}
-                    placeholder="例如：垃圾邮件投诉"
+                    placeholder={t('blacklist.reasonPlaceholder')}
                     disabled={isUploading}
                   />
                 </div>
                 <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-md">
                   <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-blue-900">
-                    上传后，系统会自动将所有列表中匹配的订阅者状态改为"黑名单"
+                    {t('blacklist.subscriberStatusNote')}
                   </p>
                 </div>
                 <div className="flex justify-end gap-2">
@@ -475,10 +455,10 @@ export default function BlacklistPage() {
                           setProcessingProgress(0)
                         }}
                       >
-                        取消
+                        {t('common.cancel')}
                       </Button>
                       <Button type="submit" disabled={!selectedFile}>
-                        开始导入
+                        {t('common.startImport')}
                       </Button>
                     </>
                   )}
@@ -486,7 +466,7 @@ export default function BlacklistPage() {
                   {isUploading && (
                     <Button disabled>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      导入中...
+                      {t('common.importing')}
                     </Button>
                   )}
                   
@@ -500,7 +480,7 @@ export default function BlacklistPage() {
                         setProcessingProgress(0)
                       }}
                     >
-                      关闭
+                      {t('common.close')}
                     </Button>
                   )}
                 </div>
@@ -512,19 +492,19 @@ export default function BlacklistPage() {
             <DialogTrigger asChild>
               <Button variant="outline">
                 <Plus className="w-4 h-4 mr-2" />
-                添加单个
+                {t('common.addSingle')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>添加到黑名单</DialogTitle>
+                <DialogTitle>{t('blacklist.addToBlacklist')}</DialogTitle>
                 <DialogDescription>
-                  添加单个邮箱地址到黑名单
+                  {t('blacklist.addToBlacklistDesc')}
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleAdd} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">邮箱地址 *</Label>
+                  <Label htmlFor="email">{t('common.emailAddress')} *</Label>
                   <Input
                     id="email"
                     type="email"
@@ -535,12 +515,12 @@ export default function BlacklistPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="reason">原因（可选）</Label>
+                  <Label htmlFor="reason">{t('common.reason')} ({t('common.optional')})</Label>
                   <Input
                     id="reason"
                     value={addFormData.reason}
                     onChange={(e) => setAddFormData({ ...addFormData, reason: e.target.value })}
-                    placeholder="例如：垃圾邮件投诉"
+                    placeholder={t('blacklist.reasonPlaceholder')}
                   />
                 </div>
                 <div className="flex justify-end gap-2">
@@ -549,10 +529,10 @@ export default function BlacklistPage() {
                     variant="outline"
                     onClick={() => setIsAddOpen(false)}
                   >
-                    取消
+                    {t('common.cancel')}
                   </Button>
                   <Button type="submit" disabled={addMutation.isPending}>
-                    {addMutation.isPending ? '添加中...' : '添加'}
+                    {addMutation.isPending ? t('common.adding') : t('common.add')}
                   </Button>
                 </div>
               </form>
@@ -565,14 +545,14 @@ export default function BlacklistPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>黑名单列表</CardTitle>
-              <CardDescription>共 {total} 个邮箱</CardDescription>
+              <CardTitle>{t('blacklist.blacklistList')}</CardTitle>
+              <CardDescription>{t('blacklist.totalEmails', { count: total })}</CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <Input
-                  placeholder="搜索邮箱..."
+                  placeholder={t('blacklist.searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 w-64"
@@ -585,7 +565,7 @@ export default function BlacklistPage() {
                   onClick={handleBatchDelete}
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
-                  删除选中 ({selectedIds.length})
+                  {t('common.deleteSelected')} ({selectedIds.length})
                 </Button>
               )}
             </div>
@@ -593,10 +573,10 @@ export default function BlacklistPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">加载中...</div>
+            <div className="text-center py-8 text-muted-foreground">{t('common.loading')}</div>
           ) : blacklist.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {searchQuery ? '没有找到匹配的邮箱' : '暂无黑名单'}
+              {searchQuery ? t('blacklist.noMatchFound') : t('blacklist.noBlacklist')}
             </div>
           ) : (
             <>
@@ -619,10 +599,10 @@ export default function BlacklistPage() {
                         className="rounded border-gray-300"
                       />
                     </TableHead>
-                    <TableHead>邮箱地址</TableHead>
-                    <TableHead>原因</TableHead>
-                    <TableHead>添加时间</TableHead>
-                    <TableHead className="text-right">操作</TableHead>
+                    <TableHead>{t('common.emailAddress')}</TableHead>
+                    <TableHead>{t('common.reason')}</TableHead>
+                    <TableHead>{t('common.addedAt')}</TableHead>
+                    <TableHead className="text-right">{t('common.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -673,7 +653,7 @@ export default function BlacklistPage() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
                   <div className="text-sm text-muted-foreground">
-                    第 {currentPage} 页，共 {totalPages} 页
+                    {t('common.page')} {currentPage} {t('common.pageOf')} {totalPages} {t('common.pages')}
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -682,7 +662,7 @@ export default function BlacklistPage() {
                       onClick={() => setCurrentPage(1)}
                       disabled={currentPage === 1}
                     >
-                      首页
+                      {t('common.firstPage')}
                     </Button>
                     <Button
                       variant="outline"
@@ -690,7 +670,7 @@ export default function BlacklistPage() {
                       onClick={() => setCurrentPage(currentPage - 1)}
                       disabled={currentPage === 1}
                     >
-                      上一页
+                      {t('common.prevPage')}
                     </Button>
                     <Button
                       variant="outline"
@@ -698,7 +678,7 @@ export default function BlacklistPage() {
                       onClick={() => setCurrentPage(currentPage + 1)}
                       disabled={currentPage === totalPages}
                     >
-                      下一页
+                      {t('common.nextPage')}
                     </Button>
                     <Button
                       variant="outline"
@@ -706,7 +686,7 @@ export default function BlacklistPage() {
                       onClick={() => setCurrentPage(totalPages)}
                       disabled={currentPage === totalPages}
                     >
-                      尾页
+                      {t('common.lastPage')}
                     </Button>
                   </div>
                 </div>
@@ -716,9 +696,7 @@ export default function BlacklistPage() {
         </CardContent>
       </Card>
 
-      {/* 导入进度Dialog */}
       <Dialog open={isProgressOpen} onOpenChange={(open) => {
-        // 只有在任务完成或失败时才允许关闭
         if (!open && importProgress && 
             (importProgress.status === 'completed' || importProgress.status === 'failed')) {
           setIsProgressOpen(false)
@@ -731,35 +709,34 @@ export default function BlacklistPage() {
               {importProgress?.status === 'processing' && (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                  批量导入进行中...
+                  {t('blacklist.importInProgress')}
                 </>
               )}
               {importProgress?.status === 'completed' && (
                 <>
                   <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  导入完成！
+                  {t('blacklist.importComplete')}
                 </>
               )}
               {importProgress?.status === 'failed' && (
                 <>
                   <XCircle className="w-5 h-5 text-red-600" />
-                  导入失败
+                  {t('common.failed')}
                 </>
               )}
             </DialogTitle>
             <DialogDescription>
               {importTaskId && (
-                <span className="text-xs font-mono">任务ID: {importTaskId}</span>
+                <span className="text-xs font-mono">{t('common.id')}: {importTaskId}</span>
               )}
             </DialogDescription>
           </DialogHeader>
 
           {importProgress && (
             <div className="space-y-4">
-              {/* 进度条 */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">整体进度</span>
+                  <span className="text-muted-foreground">{t('blacklist.overallProgress')}</span>
                   <span className="font-medium">{importProgress.progress_percentage.toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2.5">
@@ -775,55 +752,52 @@ export default function BlacklistPage() {
                   />
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>批次 {importProgress.completed_batches} / {importProgress.total_batches}</span>
+                  <span>{t('blacklist.batch')} {importProgress.completed_batches} / {importProgress.total_batches}</span>
                   {importProgress.total_emails && (
-                    <span>共 {importProgress.total_emails.toLocaleString()} 个邮箱</span>
+                    <span>{t('blacklist.totalEmails', { count: importProgress.total_emails.toLocaleString() })}</span>
                   )}
                 </div>
               </div>
 
-              {/* 统计信息 */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-green-50 rounded-lg">
-                  <div className="text-xs text-muted-foreground mb-1">新增</div>
+                  <div className="text-xs text-muted-foreground mb-1">{t('common.new')}</div>
                   <div className="text-2xl font-bold text-green-600">
                     {importProgress.added.toLocaleString()}
                   </div>
                 </div>
                 <div className="p-3 bg-yellow-50 rounded-lg">
-                  <div className="text-xs text-muted-foreground mb-1">已存在</div>
+                  <div className="text-xs text-muted-foreground mb-1">{t('common.alreadyExists')}</div>
                   <div className="text-2xl font-bold text-yellow-600">
                     {importProgress.already_exists.toLocaleString()}
                   </div>
                 </div>
                 <div className="p-3 bg-red-50 rounded-lg">
-                  <div className="text-xs text-muted-foreground mb-1">无效</div>
+                  <div className="text-xs text-muted-foreground mb-1">{t('common.invalid')}</div>
                   <div className="text-2xl font-bold text-red-600">
                     {importProgress.invalid.toLocaleString()}
                   </div>
                 </div>
                 <div className="p-3 bg-blue-50 rounded-lg">
-                  <div className="text-xs text-muted-foreground mb-1">订阅者已更新</div>
+                  <div className="text-xs text-muted-foreground mb-1">{t('blacklist.subscribersUpdated')}</div>
                   <div className="text-2xl font-bold text-blue-600">
                     {importProgress.subscribers_updated.toLocaleString()}
                   </div>
                 </div>
               </div>
 
-              {/* 错误信息 */}
               {importProgress.status === 'failed' && importProgress.error && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                   <div className="flex items-start gap-2">
                     <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
-                      <div className="font-medium text-red-900 mb-1">错误信息</div>
+                      <div className="font-medium text-red-900 mb-1">{t('blacklist.errorMessage')}</div>
                       <div className="text-sm text-red-700">{importProgress.error}</div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* 操作按钮 */}
               <div className="flex justify-end gap-2">
                 {importProgress.status === 'processing' && (
                   <Button
@@ -832,7 +806,7 @@ export default function BlacklistPage() {
                     onClick={() => refetchProgress()}
                   >
                     <Loader2 className="w-4 h-4 mr-2" />
-                    刷新进度
+                    {t('blacklist.refreshProgress')}
                   </Button>
                 )}
                 {(importProgress.status === 'completed' || importProgress.status === 'failed') && (
@@ -842,17 +816,16 @@ export default function BlacklistPage() {
                       setImportTaskId(null)
                     }}
                   >
-                    关闭
+                    {t('common.close')}
                   </Button>
                 )}
               </div>
 
-              {/* 提示信息 */}
               {importProgress.status === 'processing' && (
                 <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-md">
                   <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-blue-900">
-                    导入正在后台进行，您可以关闭此窗口，任务会继续执行。可以随时回来查看进度。
+                    {t('blacklist.importBackgroundNote')}
                   </p>
                 </div>
               )}

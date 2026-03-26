@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { Search, RefreshCw, ExternalLink, Calendar, TrendingUp } from 'lucide-react'
 import { toast } from 'sonner'
@@ -63,6 +64,7 @@ interface OrderStats {
 }
 
 export default function OrdersPage() {
+  const { t } = useTranslation()
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [startDate, setStartDate] = useState('')
@@ -126,7 +128,7 @@ export default function OrdersPage() {
       setTimeout(() => refetch(), 3000)
     },
     onError: () => {
-      toast.error('同步启动失败')
+      toast.error(t('orders.syncStartFailed'))
     },
   })
 
@@ -153,9 +155,9 @@ export default function OrdersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">订单管理</h1>
+          <h1 className="text-xl md:text-2xl font-bold">{t('orders.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            查看和管理同步的订单数据
+            {t('orders.subtitle')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -163,14 +165,14 @@ export default function OrdersPage() {
             <DialogTrigger asChild>
               <Button>
                 <RefreshCw className="w-4 h-4 mr-2" />
-                同步订单
+                {t('orders.syncOrders')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>同步订单</DialogTitle>
+                <DialogTitle>{t('orders.syncDialogTitle')}</DialogTitle>
                 <DialogDescription>
-                  从外部系统拉取订单数据
+                  {t('orders.syncDialogDesc')}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -181,7 +183,7 @@ export default function OrdersPage() {
                       checked={!syncAll}
                       onChange={() => setSyncAll(false)}
                     />
-                    <span>增量同步</span>
+                    <span>{t('orders.incrementalSync')}</span>
                   </label>
                   <label className="flex items-center gap-2">
                     <input
@@ -189,13 +191,13 @@ export default function OrdersPage() {
                       checked={syncAll}
                       onChange={() => setSyncAll(true)}
                     />
-                    <span>全量同步</span>
+                    <span>{t('orders.fullSync')}</span>
                   </label>
                 </div>
                 
                 {!syncAll && (
                   <div className="space-y-2">
-                    <Label>同步最近几天的订单</Label>
+                    <Label>{t('orders.syncDaysLabel')}</Label>
                     <Input
                       type="number"
                       min={1}
@@ -208,10 +210,10 @@ export default function OrdersPage() {
                 
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={() => setIsSyncOpen(false)}>
-                    取消
+                    {t('common.cancel')}
                   </Button>
                   <Button onClick={handleSync} disabled={syncMutation.isPending}>
-                    {syncMutation.isPending ? '同步中...' : '开始同步'}
+                    {syncMutation.isPending ? t('orders.syncing') : t('orders.startSync')}
                   </Button>
                 </div>
               </div>
@@ -225,7 +227,7 @@ export default function OrdersPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              订单总数
+              {t('orders.totalOrders')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -236,7 +238,7 @@ export default function OrdersPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              总金额
+              {t('orders.totalAmount')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -248,14 +250,14 @@ export default function OrdersPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
               <TrendingUp className="w-4 h-4" />
-              Top UTM来源
+              {t('orders.topUtmSource')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
               {stats?.by_utm_source?.slice(0, 3).map((item, index) => (
                 <div key={index} className="flex items-center justify-between text-sm">
-                  <span className="truncate">{item.utm_source || '(空)'}</span>
+                  <span className="truncate">{item.utm_source || t('orders.empty')}</span>
                   <span className="text-muted-foreground">{item.count}</span>
                 </div>
               ))}
@@ -267,14 +269,14 @@ export default function OrdersPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
               <ExternalLink className="w-4 h-4" />
-              Top 域名
+              {t('orders.topDomain')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
               {stats?.by_domain?.slice(0, 3).map((item, index) => (
                 <div key={index} className="flex items-center justify-between text-sm">
-                  <span className="truncate">{item.domain || '(空)'}</span>
+                  <span className="truncate">{item.domain || t('orders.empty')}</span>
                   <span className="text-muted-foreground">{item.count}</span>
                 </div>
               ))}
@@ -288,8 +290,8 @@ export default function OrdersPage() {
         <CardHeader>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <CardTitle>订单列表</CardTitle>
-              <CardDescription>共 {total} 条订单</CardDescription>
+              <CardTitle>{t('orders.orderList')}</CardTitle>
+              <CardDescription>{t('orders.totalOrdersCount', { count: total })}</CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-2">
@@ -299,7 +301,7 @@ export default function OrdersPage() {
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   className="w-36"
-                  placeholder="开始日期"
+                  placeholder={t('orders.startDate')}
                 />
                 <span className="text-muted-foreground">-</span>
                 <Input
@@ -307,13 +309,13 @@ export default function OrdersPage() {
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="w-36"
-                  placeholder="结束日期"
+                  placeholder={t('orders.endDate')}
                 />
               </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                 <Input
-                  placeholder="搜索订单号/邮箱/商品..."
+                  placeholder={t('orders.searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9 w-64"
@@ -324,10 +326,10 @@ export default function OrdersPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">加载中...</div>
+            <div className="text-center py-8 text-muted-foreground">{t('common.loading')}</div>
           ) : orders.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {searchQuery || startDate || endDate ? '没有找到匹配的订单' : '暂无订单数据，点击"同步订单"拉取数据'}
+              {searchQuery || startDate || endDate ? t('orders.noMatchFound') : t('orders.noOrders')}
             </div>
           ) : (
             <>
@@ -335,15 +337,15 @@ export default function OrdersPage() {
                 <Table className="min-w-[1200px]">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[160px]">订单编号</TableHead>
-                      <TableHead className="w-[200px]">商品名称</TableHead>
-                      <TableHead className="w-[180px]">顾客邮箱</TableHead>
-                      <TableHead className="w-[100px]">总价</TableHead>
-                      <TableHead className="w-[100px]">支付方式</TableHead>
-                      <TableHead className="w-[150px]">支付时间</TableHead>
-                      <TableHead className="w-[100px]">UTM来源</TableHead>
-                      <TableHead className="w-[100px]">UTM媒介</TableHead>
-                      <TableHead className="w-[150px]">域名</TableHead>
+                      <TableHead className="w-[160px]">{t('orders.orderId')}</TableHead>
+                      <TableHead className="w-[200px]">{t('orders.productName')}</TableHead>
+                      <TableHead className="w-[180px]">{t('orders.customerEmail')}</TableHead>
+                      <TableHead className="w-[100px]">{t('orders.totalPrice')}</TableHead>
+                      <TableHead className="w-[100px]">{t('orders.paymentMethod')}</TableHead>
+                      <TableHead className="w-[150px]">{t('orders.paidAt')}</TableHead>
+                      <TableHead className="w-[100px]">{t('orders.utmSource')}</TableHead>
+                      <TableHead className="w-[100px]">{t('orders.utmMedium')}</TableHead>
+                      <TableHead className="w-[150px]">{t('orders.domain')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -399,7 +401,7 @@ export default function OrdersPage() {
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4">
                   <div className="text-sm text-muted-foreground">
-                    第 {currentPage} 页，共 {totalPages} 页
+                    {t('orders.pageInfo', { current: currentPage, total: totalPages })}
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -408,7 +410,7 @@ export default function OrdersPage() {
                       onClick={() => setCurrentPage(1)}
                       disabled={currentPage === 1}
                     >
-                      首页
+                      {t('common.firstPage')}
                     </Button>
                     <Button
                       variant="outline"
@@ -416,7 +418,7 @@ export default function OrdersPage() {
                       onClick={() => setCurrentPage(currentPage - 1)}
                       disabled={currentPage === 1}
                     >
-                      上一页
+                      {t('common.prevPage')}
                     </Button>
                     <Button
                       variant="outline"
@@ -424,7 +426,7 @@ export default function OrdersPage() {
                       onClick={() => setCurrentPage(currentPage + 1)}
                       disabled={currentPage === totalPages}
                     >
-                      下一页
+                      {t('common.nextPage')}
                     </Button>
                     <Button
                       variant="outline"
@@ -432,7 +434,7 @@ export default function OrdersPage() {
                       onClick={() => setCurrentPage(totalPages)}
                       disabled={currentPage === totalPages}
                     >
-                      尾页
+                      {t('common.lastPage')}
                     </Button>
                   </div>
                 </div>

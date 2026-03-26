@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Search, Mail, Trash2, Upload, CheckCircle, List, RefreshCw, Loader, Zap } from 'lucide-react'
@@ -80,6 +81,7 @@ interface PaginatedResponse {
 }
 
 export default function SubscribersPage() {
+  const { t } = useTranslation()
   const { confirm, ConfirmDialog } = useConfirm()
   
   const { listId } = useParams<{ listId: string }>()
@@ -145,11 +147,10 @@ export default function SubscribersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscribers'] })
       queryClient.invalidateQueries({ queryKey: ['list', listId] })
-      toast.success('订阅者添加成功')
+      toast.success(t('subscribers.addSuccess'))
       setIsCreateOpen(false)
       setFormData({ email: '', first_name: '', last_name: '' })
     },
-    // onError 已由全局拦截器处理
   })
 
   // 删除订阅者
@@ -160,9 +161,8 @@ export default function SubscribersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['subscribers'] })
       queryClient.invalidateQueries({ queryKey: ['list', listId] })
-      toast.success('订阅者删除成功')
+      toast.success(t('subscribers.deleteSuccess'))
     },
-    // onError 已由全局拦截器处理
   })
 
   // 批量导入
@@ -233,10 +233,10 @@ export default function SubscribersPage() {
         } else if (progress.status === 'failed') {
           clearInterval(pollInterval)
           setIsUploading(false)
-          toast.error(progress.error || '导入失败')
+          toast.error(progress.error || t('subscribers.importFailed'))
         }
       } catch (error) {
-        console.error('轮询导入进度失败:', error)
+        console.error('Poll import progress failed:', error)
         clearInterval(pollInterval)
         setIsUploading(false)
       }
@@ -250,10 +250,10 @@ export default function SubscribersPage() {
 
   const handleDelete = async (subscriber: Subscriber) => {
     const confirmed = await confirm({
-      title: '删除订阅者',
-      description: `确定要删除订阅者"${subscriber.email}"吗？`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('subscribers.deleteConfirm'),
+      description: t('subscribers.deleteConfirmDesc', { email: subscriber.email }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
       variant: 'destructive',
     })
     if (confirmed) {
@@ -265,7 +265,7 @@ export default function SubscribersPage() {
     if (selectedFile) {
       importMutation.mutate(selectedFile)
     } else {
-      toast.error('请先选择文件')
+      toast.error(t('subscribers.selectCsvFile'))
     }
   }
 
@@ -279,10 +279,10 @@ export default function SubscribersPage() {
     }
     
     const labels: { [key: string]: string } = {
-      active: '活跃',
-      unsubscribed: '已退订',
-      complained: '投诉',
-      blacklisted: '黑名单',
+      active: t('subscribers.active'),
+      unsubscribed: t('subscribers.unsubscribed'),
+      complained: t('subscribers.complained'),
+      blacklisted: t('subscribers.blacklisted'),
     }
     
     return <Badge variant={variants[status] || 'secondary'}>{labels[status] || status}</Badge>
@@ -292,9 +292,9 @@ export default function SubscribersPage() {
     return (
       <Card>
         <CardContent className="py-12 text-center">
-          <p className="text-muted-foreground">无效的列表ID</p>
+          <p className="text-muted-foreground">{t('subscribers.invalidListId')}</p>
           <Button onClick={() => navigate('/lists')} className="mt-4">
-            返回列表
+            {t('subscribers.returnToList')}
           </Button>
         </CardContent>
       </Card>
@@ -309,38 +309,38 @@ export default function SubscribersPage() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
             <Link to="/lists" className="hover:text-primary flex items-center gap-1">
               <List className="w-4 h-4" />
-              邮件列表
+              {t('nav.mailingLists')}
             </Link>
             <span>/</span>
             <span className="text-foreground font-medium flex items-center gap-1.5">
-              {mailingList?.name || '订阅者'}
+              {mailingList?.name || t('lists.subscribers')}
               {mailingList?.type === 'auto' && (
                 <Badge variant="secondary" className="bg-purple-100 text-purple-700 text-xs">
                   <Zap className="w-3 h-3 mr-0.5" />
-                  自动
+                  {t('common.auto')}
                 </Badge>
               )}
             </span>
           </div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">订阅者管理</h1>
-          <p className="text-muted-foreground mt-2">管理和组织您的订阅者</p>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">{t('subscribers.title')}</h1>
+          <p className="text-muted-foreground mt-2">{t('subscribers.subtitle')}</p>
         </div>
         <div className="flex gap-2">
           <Button 
             variant="outline" 
             size="sm"
             onClick={() => refetch()}
-            title="刷新列表"
+            title={t('common.refresh')}
           >
             <RefreshCw className="w-4 h-4" />
           </Button>
           <Button variant="outline" onClick={() => setIsImportOpen(true)}>
             <Upload className="w-4 h-4 mr-2" />
-            批量导入
+            {t('subscribers.importSubscribers')}
           </Button>
           <Button onClick={() => setIsCreateOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
-            添加订阅者
+            {t('subscribers.addSubscriber')}
           </Button>
         </div>
       </div>
@@ -348,13 +348,13 @@ export default function SubscribersPage() {
       {/* 统计卡片 */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">订阅者总数</CardTitle>
+          <CardTitle className="text-sm font-medium">{t('subscribers.totalSubscribers')}</CardTitle>
           <Mail className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{subscribersData?.meta.total || 0}</div>
           <p className="text-xs text-muted-foreground mt-1">
-            当前列表的订阅者数量
+            {t('subscribers.totalSubscribersDesc')}
           </p>
         </CardContent>
       </Card>
@@ -364,7 +364,7 @@ export default function SubscribersPage() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="搜索邮箱、姓名..."
+            placeholder={t('subscribers.searchPlaceholder')}
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value)
@@ -384,14 +384,14 @@ export default function SubscribersPage() {
           }}
         >
           <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="状态筛选" />
+            <SelectValue placeholder={t('common.filter')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">全部状态</SelectItem>
-            <SelectItem value="active">活跃</SelectItem>
-            <SelectItem value="unsubscribed">已退订</SelectItem>
-            <SelectItem value="complained">投诉</SelectItem>
-            <SelectItem value="blacklisted">黑名单</SelectItem>
+            <SelectItem value="all">{t('subscribers.allStatus')}</SelectItem>
+            <SelectItem value="active">{t('subscribers.active')}</SelectItem>
+            <SelectItem value="unsubscribed">{t('subscribers.unsubscribed')}</SelectItem>
+            <SelectItem value="complained">{t('subscribers.complained')}</SelectItem>
+            <SelectItem value="blacklisted">{t('subscribers.blacklisted')}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -412,12 +412,12 @@ export default function SubscribersPage() {
               </colgroup>
               <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>邮箱</TableHead>
-                <TableHead>姓名</TableHead>
-                <TableHead className="text-center">状态</TableHead>
-                <TableHead>订阅时间</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+                <TableHead>{t('common.id')}</TableHead>
+                <TableHead>{t('subscribers.email')}</TableHead>
+                <TableHead>{t('subscribers.fullName')}</TableHead>
+                <TableHead className="text-center">{t('subscribers.status')}</TableHead>
+                <TableHead>{t('subscribers.subscribedAt')}</TableHead>
+                <TableHead className="text-right">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -439,16 +439,16 @@ export default function SubscribersPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Mail className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">还没有订阅者</p>
-            <p className="text-muted-foreground mb-4">添加您的第一个订阅者</p>
+            <p className="text-lg font-medium mb-2">{t('subscribers.noSubscribers')}</p>
+            <p className="text-muted-foreground mb-4">{t('subscribers.noSubscribersDesc')}</p>
             <div className="flex gap-2">
               <Button onClick={() => setIsImportOpen(true)} variant="outline">
                 <Upload className="w-4 h-4 mr-2" />
-                批量导入
+                {t('subscribers.importSubscribers')}
               </Button>
               <Button onClick={() => setIsCreateOpen(true)}>
                 <Plus className="w-4 h-4 mr-2" />
-                添加订阅者
+                {t('subscribers.addSubscriber')}
               </Button>
             </div>
           </CardContent>
@@ -468,12 +468,12 @@ export default function SubscribersPage() {
                 </colgroup>
                 <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>邮箱</TableHead>
-                  <TableHead>姓名</TableHead>
-                  <TableHead className="text-center">状态</TableHead>
-                  <TableHead>订阅时间</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
+                  <TableHead>{t('common.id')}</TableHead>
+                  <TableHead>{t('subscribers.email')}</TableHead>
+                  <TableHead>{t('subscribers.fullName')}</TableHead>
+                  <TableHead className="text-center">{t('subscribers.status')}</TableHead>
+                  <TableHead>{t('subscribers.subscribedAt')}</TableHead>
+                  <TableHead className="text-right">{t('common.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -522,7 +522,7 @@ export default function SubscribersPage() {
           {subscribersData && subscribersData.meta.last_page > 1 && (
             <div className="flex items-center justify-between mt-4">
               <div className="text-sm text-muted-foreground">
-                第 {currentPage} 页，共 {subscribersData.meta.last_page} 页
+                {t('common.page')} {currentPage} {t('common.pageOf')} {subscribersData.meta.last_page} {t('common.pages')}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -531,7 +531,7 @@ export default function SubscribersPage() {
                   onClick={() => setCurrentPage(1)}
                   disabled={currentPage === 1}
                 >
-                  首页
+                  {t('common.firstPage')}
                 </Button>
                 <Button
                   variant="outline"
@@ -539,7 +539,7 @@ export default function SubscribersPage() {
                   onClick={() => setCurrentPage(currentPage - 1)}
                   disabled={currentPage === 1}
                 >
-                  上一页
+                  {t('common.prevPage')}
                 </Button>
                 <Button
                   variant="outline"
@@ -547,7 +547,7 @@ export default function SubscribersPage() {
                   onClick={() => setCurrentPage(currentPage + 1)}
                   disabled={currentPage === subscribersData.meta.last_page}
                 >
-                  下一页
+                  {t('common.nextPage')}
                 </Button>
                 <Button
                   variant="outline"
@@ -555,7 +555,7 @@ export default function SubscribersPage() {
                   onClick={() => setCurrentPage(subscribersData.meta.last_page)}
                   disabled={currentPage === subscribersData.meta.last_page}
                 >
-                  尾页
+                  {t('common.lastPage')}
                 </Button>
               </div>
             </div>
@@ -567,15 +567,15 @@ export default function SubscribersPage() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>添加订阅者</DialogTitle>
+            <DialogTitle>{t('subscribers.addSubscriber')}</DialogTitle>
             <DialogDescription>
-              添加新的订阅者到列表"{mailingList?.name}"
+              {t('subscribers.addSubscriberDesc')} "{mailingList?.name}"
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="email">
-                邮箱地址 <span className="text-red-500">*</span>
+                {t('subscribers.emailAddress')} <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="email"
@@ -588,21 +588,19 @@ export default function SubscribersPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="first_name">名</Label>
+                <Label htmlFor="first_name">{t('subscribers.firstName')}</Label>
                 <Input
                   id="first_name"
                   value={formData.first_name}
                   onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                  placeholder="张"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="last_name">姓</Label>
+                <Label htmlFor="last_name">{t('subscribers.lastName')}</Label>
                 <Input
                   id="last_name"
                   value={formData.last_name}
                   onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                  placeholder="三"
                 />
               </div>
             </div>
@@ -612,10 +610,10 @@ export default function SubscribersPage() {
                 variant="outline"
                 onClick={() => setIsCreateOpen(false)}
               >
-                取消
+                {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? '添加中...' : '添加'}
+                {createMutation.isPending ? t('common.adding') : t('common.add')}
               </Button>
             </div>
           </form>
@@ -626,14 +624,14 @@ export default function SubscribersPage() {
       <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle>批量导入订阅者</DialogTitle>
+            <DialogTitle>{t('subscribers.importSubscribers')}</DialogTitle>
             <DialogDescription>
-              导入订阅者到列表"{mailingList?.name}"
+              {t('subscribers.importSubscribersDesc')} "{mailingList?.name}"
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-5">
             <div className="space-y-2">
-              <Label>选择CSV文件</Label>
+              <Label>{t('subscribers.selectCsvFile')}</Label>
               <Input
                 type="file"
                 accept=".csv"
@@ -641,7 +639,7 @@ export default function SubscribersPage() {
                 disabled={isUploading}
               />
               <p className="text-xs text-muted-foreground">
-                CSV格式：email,first_name,last_name
+                {t('subscribers.csvFormat')}
               </p>
             </div>
 
@@ -649,15 +647,15 @@ export default function SubscribersPage() {
               <div className="space-y-3">
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span>导入进度</span>
+                    <span>{t('subscribers.importProgress')}</span>
                     <span>{uploadProgress}%</span>
                   </div>
                   <Progress value={uploadProgress} />
                 </div>
                 {importResult && (
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>成功导入: <span className="font-medium text-green-600">{importResult.imported}</span> 个</span>
-                    <span>跳过: <span className="font-medium text-orange-600">{importResult.skipped}</span> 个</span>
+                    <span>{t('common.imported')}: <span className="font-medium text-green-600">{importResult.imported}</span></span>
+                    <span>{t('common.skipped')}: <span className="font-medium text-orange-600">{importResult.skipped}</span></span>
                   </div>
                 )}
               </div>
@@ -678,16 +676,16 @@ export default function SubscribersPage() {
                   <div className="flex-1">
                     {importResult.imported > 0 ? (
                       <p className="font-medium text-green-900">
-                        成功导入 {importResult.imported} 个订阅者
-                        {importResult.skipped > 0 && `，跳过 ${importResult.skipped} 个`}
+                        {t('subscribers.successImported')} {importResult.imported} {t('subscribers.subscribersUnit')}
+                        {importResult.skipped > 0 && `, ${t('common.skipped')} ${importResult.skipped}`}
                       </p>
                     ) : (
                       <div>
                         <p className="font-medium text-yellow-900 mb-1">
-                          导入完成，但所有数据都被跳过了
+                          {t('subscribers.importComplete')}
                         </p>
                         <p className="text-sm text-yellow-800">
-                          跳过 {importResult.skipped} 个订阅者。可能原因：已在列表中、在黑名单中、或邮箱格式无效。
+                          {t('common.skipped')} {importResult.skipped} {t('subscribers.subscribersUnit')}
                         </p>
                       </div>
                     )}
@@ -708,14 +706,14 @@ export default function SubscribersPage() {
                 }}
                 disabled={isUploading}
               >
-                {importResult ? '关闭' : '取消'}
+                {importResult ? t('common.close') : t('common.cancel')}
               </Button>
               {!importResult && (
                 <Button
                   onClick={handleImport}
                   disabled={!selectedFile || isUploading}
                 >
-                  {isUploading ? '导入中...' : '开始导入'}
+                  {isUploading ? t('common.importing') : t('common.startImport')}
                 </Button>
               )}
             </div>

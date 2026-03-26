@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -8,6 +9,7 @@ import { AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 
 export default function ReportAbusePage() {
+  const { t } = useTranslation()
   const { campaignId, subscriberId } = useParams()
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
@@ -28,10 +30,10 @@ export default function ReportAbusePage() {
       if (response.data.success) {
         setSuccess(true)
       } else {
-        setError(response.data.message || '提交失败，请稍后重试')
+        setError(response.data.message || t('publicPages.submitFailed'))
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || '提交失败，请稍后重试')
+      setError(err.response?.data?.message || t('publicPages.submitFailed'))
     } finally {
       setLoading(false)
     }
@@ -45,9 +47,9 @@ export default function ReportAbusePage() {
             <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
-            <CardTitle>Report Submitted</CardTitle>
+            <CardTitle>{t('publicPages.reportSubmitted')}</CardTitle>
             <CardDescription>
-              Thank you for reporting. We will investigate and take appropriate action.
+              {t('publicPages.reportSubmittedDesc')}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -59,20 +61,20 @@ export default function ReportAbusePage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
       <Card className="max-w-md w-full">
         <CardHeader>
-          <CardTitle>Report Abuse</CardTitle>
+          <CardTitle>{t('publicPages.reportAbuse')}</CardTitle>
           <CardDescription>
-            If you believe this email is spam or abusive, please let us know.
+            {t('publicPages.reportAbuseDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="reason">Reason (Optional)</Label>
+              <Label htmlFor="reason">{t('publicPages.reasonOptional')}</Label>
               <Textarea
                 id="reason"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder="Please describe the reason for your report..."
+                placeholder={t('publicPages.reasonPlaceholder')}
                 rows={4}
               />
             </div>
@@ -92,10 +94,10 @@ export default function ReportAbusePage() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Submitting...
+                  {t('publicPages.submitting')}
                 </>
               ) : (
-                'Submit Report'
+                t('publicPages.submitReport')
               )}
             </Button>
           </form>

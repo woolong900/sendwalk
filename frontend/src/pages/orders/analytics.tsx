@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart3, AlertTriangle, TrendingUp, DollarSign, Package, Mail, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -51,12 +52,12 @@ interface SortConfig {
   direction: SortDirection
 }
 
-const timeRanges = [
-  { value: 'today', label: '今天' },
-  { value: 'yesterday', label: '昨天' },
-  { value: '3days', label: '最近3天' },
-  { value: 'week', label: '最近一周' },
-  { value: 'month', label: '最近一个月' },
+const timeRangeKeys = [
+  { value: 'today', labelKey: 'analytics.today' },
+  { value: 'yesterday', labelKey: 'analytics.yesterday' },
+  { value: '3days', labelKey: 'analytics.last3Days' },
+  { value: 'week', labelKey: 'analytics.lastWeek' },
+  { value: 'month', labelKey: 'analytics.lastMonth' },
 ]
 
 // 可排序的表头组件
@@ -97,6 +98,7 @@ function SortableHeader({
 }
 
 export default function OrderAnalyticsPage() {
+  const { t } = useTranslation()
   const [selectedRange, setSelectedRange] = useState('today')
   
   // 发件域名表格排序状态
@@ -126,7 +128,8 @@ export default function OrderAnalyticsPage() {
   }
 
   const getRangeLabel = (value: string) => {
-    return timeRanges.find(r => r.value === value)?.label || value
+    const range = timeRangeKeys.find(r => r.value === value)
+    return range ? t(range.labelKey) : value
   }
 
   // 处理发件域名表格排序
@@ -200,9 +203,9 @@ export default function OrderAnalyticsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold">数据分析</h1>
+          <h1 className="text-xl md:text-2xl font-bold">{t('analytics.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            订单数据多维度分析（数据缓存5分钟）
+            {t('analytics.subtitle')}
           </p>
         </div>
         <Button 
@@ -212,26 +215,26 @@ export default function OrderAnalyticsPage() {
           disabled={isFetching}
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
-          刷新数据
+          {t('analytics.refreshData')}
         </Button>
       </div>
 
       {/* 时间范围选择器 */}
       <div className="flex flex-wrap gap-2">
-        {timeRanges.map((range) => (
+        {timeRangeKeys.map((range) => (
           <Button
             key={range.value}
             variant={selectedRange === range.value ? 'default' : 'outline'}
             size="sm"
             onClick={() => setSelectedRange(range.value)}
           >
-            {range.label}
+            {t(range.labelKey)}
           </Button>
         ))}
       </div>
 
       {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">加载中...</div>
+        <div className="text-center py-8 text-muted-foreground">{t('common.loading')}</div>
       ) : data ? (
         <>
           {/* 汇总统计卡片 */}
@@ -240,7 +243,7 @@ export default function OrderAnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Mail className="w-4 h-4" />
-                  {getRangeLabel(selectedRange)}发信量
+                  {getRangeLabel(selectedRange)}{t('analytics.sendCount')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -255,7 +258,7 @@ export default function OrderAnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Package className="w-4 h-4" />
-                  {getRangeLabel(selectedRange)}订单数
+                  {getRangeLabel(selectedRange)}{t('analytics.orderCount')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -267,7 +270,7 @@ export default function OrderAnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />
-                  {getRangeLabel(selectedRange)}成交金额
+                  {getRangeLabel(selectedRange)}{t('analytics.transactionAmount')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -279,7 +282,7 @@ export default function OrderAnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" />
-                  发信未出单域名
+                  {t('analytics.domainsNoOrders')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -293,7 +296,7 @@ export default function OrderAnalyticsPage() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" />
-                  落地页未出单域名
+                  {t('analytics.landingDomainsNoOrders')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -310,43 +313,43 @@ export default function OrderAnalyticsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BarChart3 className="w-5 h-5" />
-                  按发件域名统计
+                  {t('analytics.bySendingDomain')}
                 </CardTitle>
                 <CardDescription>
-                  点击表头可排序，红色行表示发了信但未出单
+                  {t('analytics.bySendingDomainDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {sortedSendingDomains.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    该时间段内无数据
+                    {t('analytics.noDataInRange')}
                   </div>
                 ) : (
                   <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                     <Table>
                       <TableHeader className="sticky top-0 bg-background">
                         <TableRow>
-                          <TableHead>发件域名</TableHead>
+                          <TableHead>{t('analytics.sendingDomain')}</TableHead>
                           <SortableHeader 
                             sortKey="send_count" 
                             currentSort={sendingSort} 
                             onSort={handleSendingSort}
                           >
-                            发信量
+                            {t('analytics.sendCount')}
                           </SortableHeader>
                           <SortableHeader 
                             sortKey="order_count" 
                             currentSort={sendingSort} 
                             onSort={handleSendingSort}
                           >
-                            出单量
+                            {t('analytics.orderCount')}
                           </SortableHeader>
                           <SortableHeader 
                             sortKey="total_amount" 
                             currentSort={sendingSort} 
                             onSort={handleSendingSort}
                           >
-                            成交金额
+                            {t('analytics.transactionAmount')}
                           </SortableHeader>
                         </TableRow>
                       </TableHeader>
@@ -388,36 +391,36 @@ export default function OrderAnalyticsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="w-5 h-5" />
-                  按落地页域名统计
+                  {t('analytics.byLandingDomain')}
                 </CardTitle>
                 <CardDescription>
-                  点击表头可排序
+                  {t('analytics.byLandingDomainDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {sortedLandingDomains.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    该时间段内无数据
+                    {t('analytics.noDataInRange')}
                   </div>
                 ) : (
                   <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                     <Table>
                       <TableHeader className="sticky top-0 bg-background">
                         <TableRow>
-                          <TableHead>落地页域名</TableHead>
+                          <TableHead>{t('analytics.landingDomain')}</TableHead>
                           <SortableHeader 
                             sortKey="order_count" 
                             currentSort={landingSort} 
                             onSort={handleLandingSort}
                           >
-                            出单量
+                            {t('analytics.orderCount')}
                           </SortableHeader>
                           <SortableHeader 
                             sortKey="total_amount" 
                             currentSort={landingSort} 
                             onSort={handleLandingSort}
                           >
-                            成交金额
+                            {t('analytics.transactionAmount')}
                           </SortableHeader>
                         </TableRow>
                       </TableHeader>
@@ -451,10 +454,10 @@ export default function OrderAnalyticsPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-red-600">
                   <AlertTriangle className="w-5 h-5" />
-                  落地页未出单域名（来自 DOMAIN 标签）
+                  {t('analytics.domainsWithoutOrdersTitle')}
                 </CardTitle>
                 <CardDescription>
-                  以下域名在 DOMAIN 标签中，但在选定时间范围内没有订单
+                  {t('analytics.domainsWithoutOrdersDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent>

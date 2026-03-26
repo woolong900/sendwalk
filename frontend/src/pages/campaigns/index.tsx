@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Send, Copy, Trash2, Edit, Filter, Search, Mail, XCircle, Eye, Pause, Play, Server, Loader2 } from 'lucide-react'
@@ -106,6 +107,7 @@ interface CampaignsResponse {
 }
 
 export default function CampaignsPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
@@ -200,9 +202,8 @@ export default function CampaignsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
-      toast.success('活动删除成功')
+      toast.success(t('campaigns.deleteSuccess'))
     },
-    // onError 已由全局拦截器处理
   })
 
   const duplicateMutation = useMutation({
@@ -212,7 +213,7 @@ export default function CampaignsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
-      toast.success('活动已复制')
+      toast.success(t('campaigns.duplicateSuccess'))
       setDuplicatingId(null)
     },
     onError: () => {
@@ -227,9 +228,8 @@ export default function CampaignsPage() {
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       const deletedCount = response.data?.deleted_jobs || 0
-      toast.success(`活动已取消并恢复为草稿，已删除 ${deletedCount} 个待发送任务`)
+      toast.success(t('campaigns.cancelSuccess', { count: deletedCount }))
     },
-    // onError 已由全局拦截器处理
   })
 
   const pauseMutation = useMutation({
@@ -238,9 +238,8 @@ export default function CampaignsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
-      toast.success('活动已暂停')
+      toast.success(t('campaigns.pauseSuccess'))
     },
-    // onError 已由全局拦截器处理
   })
 
   const resumeMutation = useMutation({
@@ -250,17 +249,16 @@ export default function CampaignsPage() {
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       const resumedJobs = response.data?.resumed_jobs || 0
-      toast.success(`活动已恢复，将继续发送 ${resumedJobs} 个待发送任务`)
+      toast.success(t('campaigns.resumeSuccessWithCount', { count: resumedJobs }))
     },
-    // onError 已由全局拦截器处理
   })
 
   const handleDelete = async (id: number, name: string) => {
     const confirmed = await confirm({
-      title: '删除活动',
-      description: `确定要删除活动"${name}"吗？`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('campaigns.deleteConfirm'),
+      description: t('campaigns.deleteConfirmDesc', { name }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
       variant: 'destructive',
     })
     if (confirmed) {
@@ -269,13 +267,12 @@ export default function CampaignsPage() {
   }
 
   const handleCancel = async (id: number, name: string, status: string) => {
-    const statusText = status === 'sending' ? '正在发送' : '已定时'
-    const message = `确定要取消${statusText}的活动"${name}"吗？\n\n这将删除队列中所有待发送的任务，活动将恢复为草稿状态。`
+    const statusText = status === 'sending' ? t('campaigns.statusSending') : t('campaigns.statusScheduled')
     const confirmed = await confirm({
-      title: '取消活动',
-      description: message,
-      confirmText: '取消活动',
-      cancelText: '返回',
+      title: t('campaigns.cancelConfirm'),
+      description: t('campaigns.cancelConfirmDesc', { status: statusText, name }),
+      confirmText: t('campaigns.cancelCampaign'),
+      cancelText: t('common.back'),
       variant: 'destructive',
     })
     if (confirmed) {
@@ -335,13 +332,12 @@ export default function CampaignsPage() {
       return 'example.com'
     }
 
-    // 系统标签（只支持花括号格式 {}）
     const senderDomain = getSenderDomain()
     const systemReplacements: Record<string, string> = {
       '{campaign_id}': campaign.id.toString(),
       '{date}': new Date().toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }).replace(/\//g, ''),
-      '{list_name}': campaign.lists?.[0]?.name || campaign.list?.name || '示例列表',
-      '{server_name}': campaign.smtp_server?.name || '示例服务器',
+      '{list_name}': campaign.lists?.[0]?.name || campaign.list?.name || t('campaigns.sampleList'),
+      '{server_name}': campaign.smtp_server?.name || t('campaigns.sampleServer'),
       '{sender_domain}': senderDomain,
       '{unsubscribe_url}': previewUnsubscribeUrl || '#',
     }
@@ -386,36 +382,36 @@ export default function CampaignsPage() {
   }
 
   const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', className: string, label: string }> = {
+    const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline', className: string, labelKey: string }> = {
       draft: {
         variant: 'outline',
         className: 'bg-gray-100 text-gray-700 border-gray-300',
-        label: '草稿'
+        labelKey: 'campaigns.status.draft'
       },
       scheduled: {
         variant: 'default',
         className: 'bg-blue-100 text-blue-700 border-blue-300',
-        label: '已定时'
+        labelKey: 'campaigns.status.scheduled'
       },
       sending: {
         variant: 'secondary',
         className: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-        label: '发送中'
+        labelKey: 'campaigns.status.sending'
       },
       sent: {
         variant: 'default',
         className: 'bg-green-100 text-green-700 border-green-300',
-        label: '已发送'
+        labelKey: 'campaigns.status.sent'
       },
       paused: {
         variant: 'secondary',
         className: 'bg-orange-100 text-orange-700 border-orange-300',
-        label: '已暂停'
+        labelKey: 'campaigns.status.paused'
       },
       cancelled: {
         variant: 'destructive',
         className: 'bg-red-100 text-red-700 border-red-300',
-        label: '已取消'
+        labelKey: 'campaigns.status.cancelled'
       },
     }
     
@@ -423,7 +419,7 @@ export default function CampaignsPage() {
     
     return (
       <Badge variant={config.variant} className={`whitespace-nowrap ${config.className}`}>
-        {config.label}
+        {t(config.labelKey)}
       </Badge>
     )
   }
@@ -434,12 +430,12 @@ export default function CampaignsPage() {
       {/* 页头 */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">邮件活动</h1>
-          <p className="text-muted-foreground mt-2">创建和管理邮件营销活动</p>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">{t('campaigns.title')}</h1>
+          <p className="text-muted-foreground mt-2">{t('campaigns.subtitle')}</p>
         </div>
         <Button onClick={() => navigate('/campaigns/create')} size="default">
           <Plus className="w-4 h-4 mr-2" />
-          创建活动
+          {t('campaigns.createCampaign')}
         </Button>
       </div>
 
@@ -450,7 +446,7 @@ export default function CampaignsPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="搜索活动名称或主题..."
+                placeholder={t('campaigns.searchPlaceholder')}
                 value={searchTerm}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-9"
@@ -460,21 +456,21 @@ export default function CampaignsPage() {
               <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
                 <SelectTrigger className="w-[160px]">
                   <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="筛选状态" />
+                  <SelectValue placeholder={t('campaigns.filterStatus')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="draft">草稿</SelectItem>
-                  <SelectItem value="scheduled">已定时</SelectItem>
-                  <SelectItem value="sending">发送中</SelectItem>
-                  <SelectItem value="sent">已发送</SelectItem>
+                  <SelectItem value="all">{t('campaigns.allStatus')}</SelectItem>
+                  <SelectItem value="draft">{t('campaigns.status.draft')}</SelectItem>
+                  <SelectItem value="scheduled">{t('campaigns.status.scheduled')}</SelectItem>
+                  <SelectItem value="sending">{t('campaigns.status.sending')}</SelectItem>
+                  <SelectItem value="sent">{t('campaigns.status.sent')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           {(searchTerm || statusFilter !== 'all') && (
             <div className="mt-3 text-sm text-muted-foreground">
-              找到 {paginationMeta?.total || 0} 个活动
+              {t('common.found')} {paginationMeta?.total || 0} {t('common.results')}
             </div>
           )}
         </CardContent>
@@ -497,13 +493,13 @@ export default function CampaignsPage() {
               </colgroup>
               <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>标题</TableHead>
-                <TableHead className="text-center">状态</TableHead>
-                <TableHead>目标列表</TableHead>
-                <TableHead>发送进度</TableHead>
-                <TableHead>预定发送时间</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+                <TableHead>{t('common.id')}</TableHead>
+                <TableHead>{t('common.title')}</TableHead>
+                <TableHead className="text-center">{t('common.status')}</TableHead>
+                <TableHead>{t('campaigns.targetList')}</TableHead>
+                <TableHead>{t('campaigns.sendProgress')}</TableHead>
+                <TableHead>{t('campaigns.scheduledTime')}</TableHead>
+                <TableHead className="text-right">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -526,11 +522,11 @@ export default function CampaignsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Send className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">还没有邮件活动</p>
-            <p className="text-muted-foreground mb-4">创建您的第一个营销活动</p>
+            <p className="text-lg font-medium mb-2">{t('campaigns.noCampaigns')}</p>
+            <p className="text-muted-foreground mb-4">{t('campaigns.noCampaignsDesc')}</p>
             <Button onClick={() => navigate('/campaigns/create')}>
               <Plus className="w-4 h-4 mr-2" />
-              创建活动
+              {t('campaigns.createCampaign')}
             </Button>
           </CardContent>
         </Card>
@@ -538,13 +534,13 @@ export default function CampaignsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Search className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">没有找到匹配的活动</p>
-            <p className="text-muted-foreground mb-4">尝试调整搜索条件或筛选器</p>
+            <p className="text-lg font-medium mb-2">{t('campaigns.noMatchFound')}</p>
+            <p className="text-muted-foreground mb-4">{t('campaigns.noMatchFoundDesc')}</p>
             <Button variant="outline" onClick={() => {
               handleSearchChange('')
               handleStatusFilterChange('all')
             }}>
-              清除筛选
+              {t('common.clearFilter')}
             </Button>
           </CardContent>
         </Card>
@@ -570,20 +566,20 @@ export default function CampaignsPage() {
               </colgroup>
               <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>标题</TableHead>
-                <TableHead>服务器</TableHead>
-                <TableHead className="text-center">状态</TableHead>
-                <TableHead>列表</TableHead>
-                <TableHead className="text-center">发送进度</TableHead>
-                <TableHead className="text-center">送达率</TableHead>
-                <TableHead className="text-center">打开率</TableHead>
-                <TableHead className="text-center">点击率</TableHead>
-                <TableHead className="text-center">退订率</TableHead>
-                <TableHead className="text-center">投诉率</TableHead>
-                <TableHead className="text-center">弹回率</TableHead>
-                <TableHead className="text-center">时间</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+                <TableHead>{t('common.id')}</TableHead>
+                <TableHead>{t('common.title')}</TableHead>
+                <TableHead>{t('common.server')}</TableHead>
+                <TableHead className="text-center">{t('common.status')}</TableHead>
+                <TableHead>{t('common.list')}</TableHead>
+                <TableHead className="text-center">{t('campaigns.sendProgress')}</TableHead>
+                <TableHead className="text-center">{t('campaigns.deliveryRate')}</TableHead>
+                <TableHead className="text-center">{t('campaigns.openRate')}</TableHead>
+                <TableHead className="text-center">{t('campaigns.clickRate')}</TableHead>
+                <TableHead className="text-center">{t('campaigns.unsubscribeRate')}</TableHead>
+                <TableHead className="text-center">{t('campaigns.complaintRate')}</TableHead>
+                <TableHead className="text-center">{t('campaigns.bounceRate')}</TableHead>
+                <TableHead className="text-center">{t('common.time')}</TableHead>
+                <TableHead className="text-right">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -609,7 +605,7 @@ export default function CampaignsPage() {
                       </TooltipTrigger>
                       <TooltipContent>
                         <div className="max-w-xs">
-                          {campaign.smtp_server?.name || '未指定服务器'}
+                          {campaign.smtp_server?.name || t('campaigns.serverNotSpecified')}
                         </div>
                       </TooltipContent>
                     </Tooltip>
@@ -625,7 +621,7 @@ export default function CampaignsPage() {
                           <span className="truncate max-w-[130px]">
                         {campaign.lists && campaign.lists.length > 0 
                           ? campaign.lists.map(l => l.name).join(', ')
-                          : campaign.list?.name || '未指定列表'}
+                          : campaign.list?.name || t('campaigns.listNotSpecified')}
                       </span>
                     </div>
                       </TooltipTrigger>
@@ -633,7 +629,7 @@ export default function CampaignsPage() {
                         <div className="max-w-xs">
                           {campaign.lists && campaign.lists.length > 0 
                             ? campaign.lists.map(l => l.name).join(', ')
-                            : campaign.list?.name || '未指定列表'}
+                            : campaign.list?.name || t('campaigns.listNotSpecified')}
                         </div>
                       </TooltipContent>
                     </Tooltip>
@@ -684,7 +680,7 @@ export default function CampaignsPage() {
                         {campaign.open_rate?.toFixed(1) || 0}%
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {campaign.total_opened || 0} 次
+                        {campaign.total_opened || 0} {t('common.times')}
                       </span>
                     </button>
                   </TableCell>
@@ -694,7 +690,7 @@ export default function CampaignsPage() {
                         {campaign.click_rate?.toFixed(1) || 0}%
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {campaign.total_clicked || 0} 次
+                        {campaign.total_clicked || 0} {t('common.times')}
                       </span>
                     </div>
                   </TableCell>
@@ -708,7 +704,7 @@ export default function CampaignsPage() {
                         {campaign.unsubscribe_rate?.toFixed(1) || 0}%
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {campaign.total_unsubscribed || 0} 次
+                        {campaign.total_unsubscribed || 0} {t('common.times')}
                       </span>
                     </button>
                   </TableCell>
@@ -722,7 +718,7 @@ export default function CampaignsPage() {
                         {campaign.complaint_rate?.toFixed(1) || 0}%
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {campaign.total_complained || 0} 次
+                        {campaign.total_complained || 0} {t('common.times')}
                       </span>
                     </button>
                   </TableCell>
@@ -736,7 +732,7 @@ export default function CampaignsPage() {
                         {campaign.bounce_rate?.toFixed(1) || 0}%
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {campaign.total_bounced || 0} 次
+                        {campaign.total_bounced || 0} {t('common.times')}
                       </span>
                     </button>
                   </TableCell>
@@ -758,7 +754,7 @@ export default function CampaignsPage() {
                           variant="ghost"
                           className="px-1.5"
                           onClick={() => navigate(`/campaigns/${campaign.id}/edit`)}
-                          title="编辑"
+                          title={t('common.edit')}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -768,7 +764,7 @@ export default function CampaignsPage() {
                         variant="ghost"
                         className="px-1.5"
                         onClick={() => handlePreview(campaign)}
-                        title="预览"
+                        title={t('common.preview')}
                       >
                         <Eye className="w-4 h-4" />
                       </Button>
@@ -778,7 +774,7 @@ export default function CampaignsPage() {
                         className="px-1.5"
                         onClick={() => duplicateMutation.mutate(campaign.id)}
                         disabled={duplicatingId === campaign.id}
-                        title="复制"
+                        title={t('common.copy')}
                       >
                         {duplicatingId === campaign.id ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
@@ -793,7 +789,7 @@ export default function CampaignsPage() {
                           className="px-1.5"
                           onClick={() => pauseMutation.mutate(campaign.id)}
                           disabled={pauseMutation.isPending}
-                          title={campaign.status === 'scheduled' ? '暂停定时' : '暂停发送'}
+                          title={campaign.status === 'scheduled' ? t('campaigns.pauseSchedule') : t('campaigns.pauseSending')}
                         >
                           <Pause className="w-4 h-4 text-orange-500" />
                         </Button>
@@ -805,7 +801,7 @@ export default function CampaignsPage() {
                           className="px-1.5"
                           onClick={() => resumeMutation.mutate(campaign.id)}
                           disabled={resumeMutation.isPending}
-                          title="恢复发送"
+                          title={t('campaigns.resumeSending')}
                         >
                           <Play className="w-4 h-4 text-green-500" />
                         </Button>
@@ -817,7 +813,7 @@ export default function CampaignsPage() {
                           className="px-1.5"
                           onClick={() => handleCancel(campaign.id, campaign.name, campaign.status)}
                           disabled={cancelMutation.isPending}
-                          title="取消活动"
+                          title={t('campaigns.cancelCampaign')}
                         >
                           <XCircle className="w-4 h-4 text-red-500" />
                         </Button>
@@ -829,7 +825,7 @@ export default function CampaignsPage() {
                           className="px-1.5"
                           onClick={() => handleDelete(campaign.id, campaign.name)}
                           disabled={deleteMutation.isPending}
-                          title="删除"
+                          title={t('common.delete')}
                         >
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </Button>
@@ -846,7 +842,7 @@ export default function CampaignsPage() {
           {paginationMeta && paginationMeta.last_page > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t">
               <div className="text-sm text-muted-foreground">
-                第 {paginationMeta.current_page} 页，共 {paginationMeta.last_page} 页
+                {t('common.page')} {paginationMeta.current_page} {t('common.pageOf')} {paginationMeta.last_page} {t('common.pages')}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -855,7 +851,7 @@ export default function CampaignsPage() {
                   onClick={() => setCurrentPage(1)}
                   disabled={currentPage === 1}
                 >
-                  首页
+                  {t('common.firstPage')}
                 </Button>
                 <Button
                   variant="outline"
@@ -863,7 +859,7 @@ export default function CampaignsPage() {
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                 >
-                  上一页
+                  {t('common.prevPage')}
                 </Button>
                 <Button
                   variant="outline"
@@ -871,7 +867,7 @@ export default function CampaignsPage() {
                   onClick={() => setCurrentPage(p => Math.min(paginationMeta.last_page, p + 1))}
                   disabled={currentPage === paginationMeta.last_page}
                 >
-                  下一页
+                  {t('common.nextPage')}
                 </Button>
                 <Button
                   variant="outline"
@@ -879,7 +875,7 @@ export default function CampaignsPage() {
                   onClick={() => setCurrentPage(paginationMeta.last_page)}
                   disabled={currentPage === paginationMeta.last_page}
                 >
-                  尾页
+                  {t('common.lastPage')}
                 </Button>
               </div>
             </div>
@@ -899,24 +895,24 @@ export default function CampaignsPage() {
             <DialogDescription asChild>
               <div className="space-y-1">
                 <div>
-                  <span className="font-medium">主题：</span>
+                  <span className="font-medium">{t('campaigns.subject')}:</span>{' '}
                   {previewCampaign?.subject ? replaceTagsForPreview(previewCampaign.subject, previewCampaign) : ''}
                 </div>
                 {previewCampaign?.preview_text && (
                   <div>
-                    <span className="font-medium">预览文本：</span>
+                    <span className="font-medium">{t('campaigns.previewText')}:</span>{' '}
                     {replaceTagsForPreview(previewCampaign.preview_text, previewCampaign)}
                   </div>
                 )}
                 {previewCampaign?.from_name && previewCampaign?.from_email && (
                   <div>
-                    <span className="font-medium">发件人：</span>
+                    <span className="font-medium">{t('campaigns.sender')}:</span>{' '}
                     {previewCampaign.from_name} &lt;{previewCampaign.from_email}&gt;
                   </div>
                 )}
                 {previewCampaign?.smtp_server && (
                   <div>
-                    <span className="font-medium">发送服务器：</span>
+                    <span className="font-medium">{t('campaigns.sendServer')}:</span>{' '}
                     {previewCampaign.smtp_server.name}
                   </div>
                 )}
@@ -939,12 +935,12 @@ export default function CampaignsPage() {
                     }
                   }}
                   className="w-full h-full min-h-[500px]"
-                  title="邮件预览"
+                  title={t('campaigns.previewTitle')}
                 />
               </>
             ) : (
               <div className="flex items-center justify-center h-64 text-gray-500">
-                暂无邮件内容
+                {t('campaigns.noContent')}
               </div>
             )}
           </div>

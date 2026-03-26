@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Tag as TagIcon, Edit, Trash2, Zap, Copy } from 'lucide-react'
@@ -45,6 +46,7 @@ interface TagsResponse {
 }
 
 export default function TagsPage() {
+  const { t } = useTranslation()
   const { confirm, ConfirmDialog } = useConfirm()
   
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -78,7 +80,7 @@ export default function TagsPage() {
       // 立即重新获取数据以确保显示最新内容
       await queryClient.invalidateQueries({ queryKey: ['tags'] })
       await queryClient.refetchQueries({ queryKey: ['tags'] })
-      toast.success('标签创建成功')
+      toast.success(t('tags.createSuccess'))
       setIsCreateOpen(false)
       resetForm()
     },
@@ -94,7 +96,7 @@ export default function TagsPage() {
       // 立即重新获取数据以确保显示最新内容
       await queryClient.invalidateQueries({ queryKey: ['tags'] })
       await queryClient.refetchQueries({ queryKey: ['tags'] })
-      toast.success('标签更新成功')
+      toast.success(t('tags.updateSuccess'))
       setIsEditOpen(false)
       setEditingTag(null)
       resetForm()
@@ -111,7 +113,7 @@ export default function TagsPage() {
       // 立即重新获取数据以确保显示最新内容
       await queryClient.invalidateQueries({ queryKey: ['tags'] })
       await queryClient.refetchQueries({ queryKey: ['tags'] })
-      toast.success('标签删除成功')
+      toast.success(t('tags.deleteSuccess'))
     },
     // onError 已由全局拦截器处理
   })
@@ -122,7 +124,7 @@ export default function TagsPage() {
       return api.post(`/tags/${id}/test`)
     },
     onSuccess: (response) => {
-      toast.success(`随机值: ${response.data.random_value}`, {
+      toast.success(`${t('tags.randomValue')}: ${response.data.random_value}`, {
         duration: 3000,
       })
     },
@@ -152,10 +154,10 @@ export default function TagsPage() {
 
   const handleDelete = async (tag: Tag) => {
     const confirmed = await confirm({
-      title: '删除标签',
-      description: `确定要删除标签"${tag.name}"吗？`,
-      confirmText: '删除',
-      cancelText: '取消',
+      title: t('tags.deleteConfirm'),
+      description: t('tags.deleteConfirmDesc', { name: tag.name }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
       variant: 'destructive',
     })
     if (confirmed) {
@@ -174,7 +176,7 @@ export default function TagsPage() {
 
   const copyPlaceholder = (placeholder: string) => {
     navigator.clipboard.writeText(placeholder)
-    toast.success('已复制到剪贴板')
+    toast.success(t('tags.copiedToClipboard'))
   }
 
   return (
@@ -182,14 +184,14 @@ export default function TagsPage() {
       {/* 页头 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight">自定义标签</h1>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">{t('tags.title')}</h1>
           <p className="text-muted-foreground mt-2">
-            创建和管理邮件模板中的自定义变量
+            {t('tags.subtitle')}
           </p>
         </div>
         <Button onClick={handleCreate}>
           <Plus className="w-4 h-4 mr-2" />
-          创建标签
+          {t('tags.createTag')}
         </Button>
       </div>
 
@@ -203,12 +205,12 @@ export default function TagsPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <h3 className="font-semibold text-blue-900">如何使用自定义标签？</h3>
+              <h3 className="font-semibold text-blue-900">{t('tags.howToUse')}</h3>
               <ul className="text-sm text-blue-800 space-y-1">
-                <li>• 在活动的主题或内容中使用 <code className="bg-blue-100 px-1.5 py-0.5 rounded">{'{标签名}'}</code></li>
-                <li>• 发送时会自动替换为标签的值</li>
-                <li>• 如果标签有多个值（多行），系统会随机选择一个</li>
-                <li>• 例如：<code className="bg-blue-100 px-1.5 py-0.5 rounded">{'{company_name}'}</code> 会替换为具体的公司名称</li>
+                <li>• {t('tags.usageHint1')} <code className="bg-blue-100 px-1.5 py-0.5 rounded">{'{tag_name}'}</code></li>
+                <li>• {t('tags.usageHint2')}</li>
+                <li>• {t('tags.usageHint3')}</li>
+                <li>• {t('tags.usageHint4')} <code className="bg-blue-100 px-1.5 py-0.5 rounded">{'{company_name}'}</code> {t('tags.usageHint4Example')}</li>
               </ul>
             </div>
           </div>
@@ -231,12 +233,12 @@ export default function TagsPage() {
               </colgroup>
               <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>标签名称</TableHead>
-                <TableHead>占位符</TableHead>
-                <TableHead>值</TableHead>
-                <TableHead>创建时间</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+                <TableHead>{t('common.id')}</TableHead>
+                <TableHead>{t('tags.tagName')}</TableHead>
+                <TableHead>{t('tags.placeholder')}</TableHead>
+                <TableHead>{t('tags.tagValue')}</TableHead>
+                <TableHead>{t('common.createdAt')}</TableHead>
+                <TableHead className="text-right">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -258,11 +260,11 @@ export default function TagsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <TagIcon className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">还没有自定义标签</p>
-            <p className="text-muted-foreground mb-4">创建您的第一个标签</p>
+            <p className="text-lg font-medium mb-2">{t('tags.noTags')}</p>
+            <p className="text-muted-foreground mb-4">{t('tags.noTagsDesc')}</p>
             <Button onClick={handleCreate}>
               <Plus className="w-4 h-4 mr-2" />
-              创建标签
+              {t('tags.createTag')}
             </Button>
           </CardContent>
         </Card>
@@ -278,10 +280,10 @@ export default function TagsPage() {
               </colgroup>
               <TableHeader>
               <TableRow>
-                <TableHead>标签名称</TableHead>
-                <TableHead>占位符</TableHead>
-                <TableHead className="text-center">值数量</TableHead>
-                <TableHead className="text-right">操作</TableHead>
+                <TableHead>{t('tags.tagName')}</TableHead>
+                <TableHead>{t('tags.placeholder')}</TableHead>
+                <TableHead className="text-center">{t('tags.tagValues')}</TableHead>
+                <TableHead className="text-right">{t('common.actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -301,7 +303,7 @@ export default function TagsPage() {
                         size="sm"
                         variant="ghost"
                         onClick={() => copyPlaceholder(tag.placeholder)}
-                        title="复制"
+                        title={t('common.copy')}
                         className="flex-shrink-0"
                       >
                         <Copy className="w-3 h-3" />
@@ -310,7 +312,7 @@ export default function TagsPage() {
                   </TableCell>
                   <TableCell className="text-center whitespace-nowrap">
                     <Badge variant={tag.values_count > 1 ? 'default' : 'secondary'}>
-                      {tag.values_count} 个值
+                      {t('tags.valuesCount', { count: tag.values_count })}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right whitespace-nowrap">
@@ -320,7 +322,7 @@ export default function TagsPage() {
                         variant="ghost"
                         onClick={() => testMutation.mutate(tag.id)}
                         disabled={testMutation.isPending}
-                        title="测试随机值"
+                        title={t('tags.testRandomValue')}
                       >
                         <Zap className="w-4 h-4" />
                       </Button>
@@ -328,7 +330,7 @@ export default function TagsPage() {
                         size="sm"
                         variant="ghost"
                         onClick={() => handleEdit(tag)}
-                        title="编辑"
+                        title={t('common.edit')}
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
@@ -337,7 +339,7 @@ export default function TagsPage() {
                         variant="ghost"
                         onClick={() => handleDelete(tag)}
                         disabled={deleteMutation.isPending}
-                        title="删除"
+                        title={t('common.delete')}
                       >
                         <Trash2 className="w-4 h-4 text-red-500" />
                       </Button>
@@ -355,15 +357,15 @@ export default function TagsPage() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>创建自定义标签</DialogTitle>
+            <DialogTitle>{t('tags.createDialogTitle')}</DialogTitle>
             <DialogDescription>
-              创建一个可在邮件模板中使用的自定义变量
+              {t('tags.createDialogDesc')}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="name">
-                标签名称 <span className="text-red-500">*</span>
+                {t('tags.tagName')} <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="name"
@@ -373,11 +375,11 @@ export default function TagsPage() {
                 required
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                只能包含字母、数字和下划线，将作为 <code className="bg-slate-100 px-1 rounded">{'{标签名称}'}</code> 在邮件中使用
+                {t('tags.tagNameHint')} <code className="bg-slate-100 px-1 rounded">{'{tag_name}'}</code> {t('tags.tagNameHintSuffix')}
               </p>
               {reservedTags.length > 0 && (
                 <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2 mt-2">
-                  <p className="font-medium mb-1">⚠️ 以下标签名称为系统保留，不能使用：</p>
+                  <p className="font-medium mb-1">⚠️ {t('tags.reservedTagsWarning')}</p>
                   <div className="flex flex-wrap gap-1">
                     {reservedTags.map((tag) => (
                       <code key={tag} className="bg-amber-100 px-1.5 py-0.5 rounded text-amber-800">
@@ -390,18 +392,18 @@ export default function TagsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="values">
-                标签值 <span className="text-red-500">*</span>
+                {t('tags.tagValue')} <span className="text-red-500">*</span>
               </Label>
               <Textarea
                 id="values"
                 value={formData.values}
                 onChange={(e) => setFormData({ ...formData, values: e.target.value })}
-                placeholder="每行一个值，如：&#10;阿里巴巴&#10;腾讯&#10;字节跳动"
+                placeholder={t('tags.tagValuePlaceholder')}
                 rows={8}
                 required
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                每行一个值。如果有多个值，发送时会随机选择一个
+                {t('tags.tagValueHint')}
               </p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
@@ -410,10 +412,10 @@ export default function TagsPage() {
                 variant="outline"
                 onClick={() => setIsCreateOpen(false)}
               >
-                取消
+                {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>
-                创建
+                {t('common.create')}
               </Button>
             </div>
           </form>
@@ -424,15 +426,15 @@ export default function TagsPage() {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>编辑自定义标签</DialogTitle>
+            <DialogTitle>{t('tags.editDialogTitle')}</DialogTitle>
             <DialogDescription>
-              修改标签的名称或值
+              {t('tags.editDialogDesc')}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="edit-name">
-                标签名称 <span className="text-red-500">*</span>
+                {t('tags.tagName')} <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="edit-name"
@@ -441,11 +443,11 @@ export default function TagsPage() {
                 required
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                只能包含字母、数字和下划线
+                {t('tags.tagNameHint')}
               </p>
               {reservedTags.length > 0 && (
                 <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2 mt-2">
-                  <p className="font-medium mb-1">⚠️ 以下标签名称为系统保留，不能使用：</p>
+                  <p className="font-medium mb-1">⚠️ {t('tags.reservedTagsWarning')}</p>
                   <div className="flex flex-wrap gap-1">
                     {reservedTags.map((tag) => (
                       <code key={tag} className="bg-amber-100 px-1.5 py-0.5 rounded text-amber-800">
@@ -458,7 +460,7 @@ export default function TagsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-values">
-                标签值 <span className="text-red-500">*</span>
+                {t('tags.tagValue')} <span className="text-red-500">*</span>
               </Label>
               <Textarea
                 id="edit-values"
@@ -468,7 +470,7 @@ export default function TagsPage() {
                 required
               />
               <p className="text-xs text-muted-foreground mt-1.5">
-                每行一个值。如果有多个值，发送时会随机选择一个
+                {t('tags.tagValueHint')}
               </p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
@@ -480,10 +482,10 @@ export default function TagsPage() {
                   setEditingTag(null)
                 }}
               >
-                取消
+                {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={updateMutation.isPending}>
-                保存
+                {t('common.save')}
               </Button>
             </div>
           </form>

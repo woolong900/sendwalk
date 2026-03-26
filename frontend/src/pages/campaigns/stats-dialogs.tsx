@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { CheckCircle, XCircle, UserX, Mail, Search } from 'lucide-react'
 import {
@@ -42,6 +43,7 @@ interface UnsubscribesDialogProps {
 }
 
 export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: DeliveriesDialogProps) {
+  const { t } = useTranslation()
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -74,7 +76,7 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-green-500" />
-            送达记录 - {campaignName}
+            {t('dialogs.deliveries')} - {campaignName}
           </DialogTitle>
         </DialogHeader>
 
@@ -82,7 +84,7 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="搜索邮箱地址..."
+              placeholder={t('dialogs.searchEmailPlaceholder')}
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value)
@@ -95,10 +97,10 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
 
         <div className="flex-1 overflow-auto border rounded-lg">
           {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground">加载中...</div>
+            <div className="p-8 text-center text-muted-foreground">{t('common.loading')}</div>
           ) : !data || data.data.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              {searchTerm ? '未找到匹配的送达记录' : '暂无送达记录'}
+              {searchTerm ? t('dialogs.noMatchingDeliveries') : t('dialogs.noDeliveries')}
             </div>
           ) : (
             <Table className="min-w-[900px]">
@@ -110,10 +112,10 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
               </colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="whitespace-nowrap">邮箱地址</TableHead>
-                  <TableHead className="whitespace-nowrap">SMTP 服务器</TableHead>
-                  <TableHead className="whitespace-nowrap">发件地址</TableHead>
-                  <TableHead className="whitespace-nowrap">送达时间</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('common.emailAddress')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.smtpServer')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.fromAddress')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.deliveryTime')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -148,7 +150,7 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
         {data && data.last_page > 1 && (
           <div className="flex items-center justify-between pt-4">
             <div className="text-sm text-muted-foreground">
-              第 {data.current_page} 页，共 {data.last_page} 页
+              {t('common.page')} {data.current_page} {t('common.pageOf')} {data.last_page} {t('common.pages')}
             </div>
             <div className="flex gap-2">
               <Button
@@ -157,7 +159,7 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
               >
-                首页
+                {t('common.firstPage')}
               </Button>
               <Button
                 size="sm"
@@ -165,7 +167,7 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
               >
-                上一页
+                {t('common.prevPage')}
               </Button>
               <Button
                 size="sm"
@@ -173,7 +175,7 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
                 onClick={() => setCurrentPage(p => Math.min(data.last_page, p + 1))}
                 disabled={currentPage === data.last_page}
               >
-                下一页
+                {t('common.nextPage')}
               </Button>
               <Button
                 size="sm"
@@ -181,7 +183,7 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
                 onClick={() => setCurrentPage(data.last_page)}
                 disabled={currentPage === data.last_page}
               >
-                尾页
+                {t('common.lastPage')}
               </Button>
             </div>
           </div>
@@ -192,6 +194,7 @@ export function DeliveriesDialog({ campaignId, campaignName, open, onClose }: De
 }
 
 export function BouncesDialog({ campaignId, campaignName, open, onClose }: BouncesDialogProps) {
+  const { t } = useTranslation()
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -224,7 +227,7 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <XCircle className="w-5 h-5 text-orange-500" />
-            弹回记录 - {campaignName}
+            {t('dialogs.bounces')} - {campaignName}
           </DialogTitle>
         </DialogHeader>
 
@@ -232,7 +235,7 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="搜索邮箱地址..."
+              placeholder={t('dialogs.searchEmailPlaceholder')}
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value)
@@ -245,10 +248,10 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
 
         <div className="flex-1 overflow-auto border rounded-lg">
           {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground">加载中...</div>
+            <div className="p-8 text-center text-muted-foreground">{t('common.loading')}</div>
           ) : !data || data.data.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              {searchTerm ? '未找到匹配的弹回记录' : '暂无弹回记录'}
+              {searchTerm ? t('dialogs.noMatchingBounces') : t('dialogs.noBounces')}
             </div>
           ) : (
             <Table className="min-w-[1000px]">
@@ -261,11 +264,11 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
               </colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="whitespace-nowrap">邮箱地址</TableHead>
-                  <TableHead className="whitespace-nowrap">弹回类型</TableHead>
-                  <TableHead className="whitespace-nowrap">错误代码</TableHead>
-                  <TableHead className="whitespace-nowrap">错误信息</TableHead>
-                  <TableHead className="whitespace-nowrap">弹回时间</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('common.emailAddress')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.bounceType')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.errorCode')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.errorMessage')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.bounceTime')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -283,7 +286,7 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
                           ? 'bg-red-100 text-red-700' 
                           : 'bg-yellow-100 text-yellow-700'
                       }`}>
-                        {bounce.bounce_type === 'hard' ? '硬弹回' : '软弹回'}
+                        {bounce.bounce_type === 'hard' ? t('dialogs.hardBounce') : t('dialogs.softBounce')}
                       </span>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
@@ -309,7 +312,7 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
         {data && data.last_page > 1 && (
           <div className="flex items-center justify-between pt-4">
             <div className="text-sm text-muted-foreground">
-              第 {data.current_page} 页，共 {data.last_page} 页
+              {t('common.page')} {data.current_page} {t('common.pageOf')} {data.last_page} {t('common.pages')}
             </div>
             <div className="flex gap-2">
               <Button
@@ -318,7 +321,7 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
               >
-                首页
+                {t('common.firstPage')}
               </Button>
               <Button
                 size="sm"
@@ -326,7 +329,7 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
               >
-                上一页
+                {t('common.prevPage')}
               </Button>
               <Button
                 size="sm"
@@ -334,7 +337,7 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
                 onClick={() => setCurrentPage(p => Math.min(data.last_page, p + 1))}
                 disabled={currentPage === data.last_page}
               >
-                下一页
+                {t('common.nextPage')}
               </Button>
               <Button
                 size="sm"
@@ -342,7 +345,7 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
                 onClick={() => setCurrentPage(data.last_page)}
                 disabled={currentPage === data.last_page}
               >
-                尾页
+                {t('common.lastPage')}
               </Button>
             </div>
           </div>
@@ -353,6 +356,7 @@ export function BouncesDialog({ campaignId, campaignName, open, onClose }: Bounc
 }
 
 export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: UnsubscribesDialogProps) {
+  const { t } = useTranslation()
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -385,7 +389,7 @@ export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserX className="w-5 h-5 text-blue-500" />
-            取消订阅记录 - {campaignName}
+            {t('dialogs.unsubscribes')} - {campaignName}
           </DialogTitle>
         </DialogHeader>
 
@@ -393,7 +397,7 @@ export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: 
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="搜索邮箱地址..."
+              placeholder={t('dialogs.searchEmailPlaceholder')}
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value)
@@ -406,10 +410,10 @@ export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: 
 
         <div className="flex-1 overflow-auto border rounded-lg">
           {isLoading ? (
-            <div className="p-8 text-center text-muted-foreground">加载中...</div>
+            <div className="p-8 text-center text-muted-foreground">{t('common.loading')}</div>
           ) : !data || data.data.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              {searchTerm ? '未找到匹配的取消订阅记录' : '暂无取消订阅记录'}
+              {searchTerm ? t('dialogs.noMatchingUnsubscribes') : t('dialogs.noUnsubscribes')}
             </div>
           ) : (
             <Table className="min-w-[800px]">
@@ -420,9 +424,9 @@ export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: 
               </colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="whitespace-nowrap">邮箱地址</TableHead>
-                  <TableHead className="whitespace-nowrap">所属列表</TableHead>
-                  <TableHead className="whitespace-nowrap">取消订阅时间</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('common.emailAddress')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.belongingList')}</TableHead>
+                  <TableHead className="whitespace-nowrap">{t('dialogs.unsubscribeTime')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -452,7 +456,7 @@ export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: 
         {data && data.last_page > 1 && (
           <div className="flex items-center justify-between pt-4">
             <div className="text-sm text-muted-foreground">
-              第 {data.current_page} 页，共 {data.last_page} 页
+              {t('common.page')} {data.current_page} {t('common.pageOf')} {data.last_page} {t('common.pages')}
             </div>
             <div className="flex gap-2">
               <Button
@@ -461,7 +465,7 @@ export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: 
                 onClick={() => setCurrentPage(1)}
                 disabled={currentPage === 1}
               >
-                首页
+                {t('common.firstPage')}
               </Button>
               <Button
                 size="sm"
@@ -469,7 +473,7 @@ export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: 
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
               >
-                上一页
+                {t('common.prevPage')}
               </Button>
               <Button
                 size="sm"
@@ -477,7 +481,7 @@ export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: 
                 onClick={() => setCurrentPage(p => Math.min(data.last_page, p + 1))}
                 disabled={currentPage === data.last_page}
               >
-                下一页
+                {t('common.nextPage')}
               </Button>
               <Button
                 size="sm"
@@ -485,7 +489,7 @@ export function UnsubscribesDialog({ campaignId, campaignName, open, onClose }: 
                 onClick={() => setCurrentPage(data.last_page)}
                 disabled={currentPage === data.last_page}
               >
-                尾页
+                {t('common.lastPage')}
               </Button>
             </div>
           </div>

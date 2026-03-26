@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,6 +9,7 @@ import { AlertCircle, CheckCircle, Loader2, Ban } from 'lucide-react'
 import { api } from '@/lib/api'
 
 export default function BlockAddressPage() {
+  const { t } = useTranslation()
   const [searchParams] = useSearchParams()
   const emailFromUrl = searchParams.get('email') || ''
   
@@ -27,10 +29,10 @@ export default function BlockAddressPage() {
       if (response.data.success) {
         setSuccess(true)
       } else {
-        setError(response.data.message || '操作失败，请稍后重试')
+        setError(response.data.message || t('publicPages.operationFailed'))
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || '操作失败，请稍后重试')
+      setError(err.response?.data?.message || t('publicPages.operationFailed'))
     } finally {
       setLoading(false)
     }
@@ -44,11 +46,9 @@ export default function BlockAddressPage() {
             <div className="mx-auto w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
-            <CardTitle>Email Blocked</CardTitle>
+            <CardTitle>{t('publicPages.emailBlocked')}</CardTitle>
             <CardDescription>
-              Your email address <strong className="text-slate-900">{email}</strong> has been successfully blocked.
-              <br />
-              You will no longer receive any emails from us.
+              {t('publicPages.emailBlockedDesc', { email })}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -65,9 +65,9 @@ export default function BlockAddressPage() {
               <Ban className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <CardTitle>Block Email Address</CardTitle>
+              <CardTitle>{t('publicPages.blockEmailAddress')}</CardTitle>
               <CardDescription>
-                Once blocked, you will no longer receive any emails from us
+                {t('publicPages.blockEmailDesc')}
               </CardDescription>
             </div>
           </div>
@@ -75,7 +75,7 @@ export default function BlockAddressPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address *</Label>
+              <Label htmlFor="email">{t('publicPages.emailAddressRequired')}</Label>
               <Input
                 id="email"
                 type="email"
@@ -87,7 +87,7 @@ export default function BlockAddressPage() {
               />
               {emailFromUrl && (
                 <p className="text-xs text-muted-foreground">
-                  Email address has been automatically filled from URL
+                  {t('publicPages.emailAutoFilled')}
                 </p>
               )}
             </div>
@@ -101,7 +101,7 @@ export default function BlockAddressPage() {
 
             <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
               <p className="text-sm text-amber-800">
-                <strong>Warning:</strong> This action is irreversible. Once blocked, you will not be able to receive any email notifications from us.
+                {t('publicPages.warningIrreversible')}
               </p>
             </div>
 
@@ -114,12 +114,12 @@ export default function BlockAddressPage() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Processing...
+                  {t('publicPages.processing')}
                 </>
               ) : (
                 <>
                   <Ban className="w-4 h-4 mr-2" />
-                  Confirm Block
+                  {t('publicPages.confirmBlock')}
                 </>
               )}
             </Button>
