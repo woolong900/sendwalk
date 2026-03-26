@@ -608,7 +608,7 @@
     "amount": "金额",
     "orderStatus": "订单状态",
     "orderDate": "下单时间",
-    "noOrders": "暂无订单数据，点击"同步订单"拉取数据",
+    "noOrders": "暂无订单数据，点击「同步订单」拉取数据",
     "syncOrders": "同步订单",
     "syncDialogTitle": "同步订单",
     "syncDialogDesc": "从外部系统拉取订单数据",
