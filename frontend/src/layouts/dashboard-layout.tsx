@@ -26,7 +26,7 @@ const navigation = [
   { name: '黑名单', href: '/blacklist', icon: Ban },
   { name: '邮件活动', href: '/campaigns', icon: Mail },
   { name: '邮件模板', href: '/templates', icon: FileText },
-  { name: '发送服务器', href: '/smtp-servers', icon: Server },
+  { name: '发送服务器', href: '/smtp-servers', icon: Server, adminOnly: true },
   { name: '自定义标签', href: '/tags', icon: Tag },
   { name: '发送监控', href: '/monitor', icon: Activity, adminOnly: true },
   { name: '订单管理', href: '/orders', icon: ShoppingCart, adminOnly: true },

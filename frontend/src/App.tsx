@@ -100,9 +100,9 @@ function App() {
           <Route path="templates" element={<TemplatesPage />} />
           <Route path="templates/create" element={<TemplateEditorPage />} />
           <Route path="templates/:id/edit" element={<TemplateEditorPage />} />
-          <Route path="smtp-servers" element={<SmtpServersPage />} />
           
           {/* 仅管理员可访问的页面 */}
+          <Route path="smtp-servers" element={<AdminRoute><SmtpServersPage /></AdminRoute>} />
           <Route path="monitor" element={<AdminRoute><SendMonitorPage /></AdminRoute>} />
           <Route path="orders" element={<AdminRoute><OrdersPage /></AdminRoute>} />
           <Route path="orders/analytics" element={<AdminRoute><OrderAnalyticsPage /></AdminRoute>} />
