@@ -53,7 +53,6 @@ interface SmtpServer {
   username: string
   encryption: string
   sender_emails: string | null
-  dkim_cnames: string | null
   is_default: boolean
   is_active: boolean
   rate_limit_second: number | null
@@ -92,7 +91,6 @@ export default function SettingsPage() {
     password: '',
     encryption: 'tls',
     sender_emails: '',
-    dkim_cnames: '',
     is_default: false,
     rate_limit_second: '',
     rate_limit_minute: '',
@@ -190,7 +188,6 @@ export default function SettingsPage() {
       password: '',
       encryption: 'tls',
       sender_emails: '',
-      dkim_cnames: '',
       is_default: false,
       rate_limit_second: '',
       rate_limit_minute: '',
@@ -218,7 +215,6 @@ export default function SettingsPage() {
       password: '',
       encryption: server.encryption || 'tls',
       sender_emails: server.sender_emails || '',
-      dkim_cnames: server.dkim_cnames || '',
       is_default: server.is_default,
       rate_limit_second: server.rate_limit_second?.toString() || '',
       rate_limit_minute: server.rate_limit_minute?.toString() || '',

@@ -21,7 +21,6 @@ class SmtpServer extends Model
         'encryption',
         'sender_emails',
         'sender_email_index',
-        'dkim_cnames',
         'credentials',
         'is_default',
         'is_active',
