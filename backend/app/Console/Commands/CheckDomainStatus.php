@@ -146,9 +146,13 @@ class CheckDomainStatus extends Command
             $this->info("═══════════════════════════════════════════════════════════");
             $this->line('');
             
+            // 仅检查 SMTP/SES 类型的服务器
+            // 像 cm.com 这种 API 网关类型的服务器，发件人域名由平台管理，
+            // 用户无法控制 SPF/DMARC 记录，不应在此检查
             $smtpServers = SmtpServer::where('is_active', true)
                 ->whereNotNull('sender_emails')
                 ->where('sender_emails', '!=', '')
+                ->whereNotIn('type', ['cm'])
                 ->get();
             
             if ($smtpServers->isEmpty()) {
