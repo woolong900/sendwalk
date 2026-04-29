@@ -88,13 +88,13 @@ class SmtpServerController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'type' => 'required|in:smtp,ses',
-            'host' => 'required|string',
+            'type' => 'required|in:smtp,ses,cm',
+            'host' => 'required_if:type,smtp,ses|nullable|string',
             'port' => 'required_if:type,smtp|nullable|integer',
             'username' => 'required_if:type,ses|nullable|string',
-            'password' => 'required_if:type,ses|nullable|string',
+            'password' => 'required_if:type,ses,cm|nullable|string',
             'encryption' => 'nullable|in:tls,ssl,none',
-            'sender_emails' => 'required_if:type,ses|nullable|string',
+            'sender_emails' => 'required_if:type,ses,cm|nullable|string',
             'credentials' => 'nullable|array',
             'is_default' => 'boolean',
             'rate_limit_second' => 'nullable|integer|min:1',
@@ -109,15 +109,22 @@ class SmtpServerController extends Controller
                 ->update(['is_default' => false]);
         }
 
-        // AWS SES API 不需要 port 和 encryption
-        $port = $request->type === 'ses' ? null : $request->port;
-        $encryption = $request->type === 'ses' ? null : $request->encryption;
+        // SES 和 cm.com 等 API 类型不需要 port 和 encryption
+        $isApiType = in_array($request->type, ['ses', 'cm']);
+        $port = $isApiType ? null : $request->port;
+        $encryption = $isApiType ? null : $request->encryption;
+
+        // cm.com 默认使用官方 API 端点
+        $host = $request->host;
+        if ($request->type === 'cm' && empty($host)) {
+            $host = 'https://api.cm.com/email/gateway/v1/marketing';
+        }
 
         $server = SmtpServer::create([
             'user_id' => $request->user()->id,
             'name' => $request->name,
             'type' => $request->type,
-            'host' => $request->host,
+            'host' => $host,
             'port' => $port,
             'username' => $request->username,
             'password' => $request->password,
@@ -157,7 +164,7 @@ class SmtpServerController extends Controller
 
         $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'type' => 'sometimes|required|in:smtp,ses',
+            'type' => 'sometimes|required|in:smtp,ses,cm',
             'host' => 'nullable|string',
             'port' => 'nullable|integer',
             'username' => 'nullable|string',
@@ -197,10 +204,15 @@ class SmtpServerController extends Controller
             'rate_limit_day',
         ]);
 
-        // AWS SES API 不需要 port 和 encryption
-        if ($request->has('type') && $request->type === 'ses') {
+        // SES 和 cm.com 等 API 类型不需要 port 和 encryption
+        if ($request->has('type') && in_array($request->type, ['ses', 'cm'])) {
             $updateData['port'] = null;
             $updateData['encryption'] = null;
+        }
+
+        // cm.com 默认使用官方 API 端点
+        if ($request->has('type') && $request->type === 'cm' && empty($updateData['host'] ?? null) && empty($smtpServer->host)) {
+            $updateData['host'] = 'https://api.cm.com/email/gateway/v1/marketing';
         }
 
         // 只有在提供新密码时才更新
@@ -271,10 +283,12 @@ class SmtpServerController extends Controller
             if ($smtpServer->type === 'smtp') {
                 // Use PHP's built-in SMTP socket connection for testing
                 $this->testSmtpConnection($smtpServer);
+            } elseif ($smtpServer->type === 'cm') {
+                // 通过沙盒模式调用 cm.com API 测试 token 有效性
+                $this->testCmConnection($smtpServer);
             } else {
-                // For other types (SES, SendGrid, etc.), we can't easily test without making API calls
-                // So we just check if credentials are present
-                if (empty($smtpServer->credentials)) {
+                // 其他类型（SES 等）只检查凭证是否填写
+                if (empty($smtpServer->username) && empty($smtpServer->password)) {
                     throw new \Exception('服务器凭证未配置');
                 }
             }
@@ -292,6 +306,76 @@ class SmtpServerController extends Controller
             return response()->json([
                 'message' => '连接测试失败: ' . $e->getMessage(),
             ], 422);
+        }
+    }
+
+    /**
+     * 测试 cm.com API 连接（通过沙盒模式）
+     */
+    private function testCmConnection(SmtpServer $server)
+    {
+        if (empty($server->password)) {
+            throw new \Exception('Product Token 未配置');
+        }
+
+        $endpoint = $server->host ?: 'https://api.cm.com/email/gateway/v1/marketing';
+
+        // 解析发件人列表，使用第一个作为测试发件人
+        $emails = array_filter(
+            array_map('trim', explode("\n", $server->sender_emails ?? '')),
+            fn($e) => !empty($e) && filter_var($e, FILTER_VALIDATE_EMAIL)
+        );
+
+        if (empty($emails)) {
+            throw new \Exception('请先配置至少一个发件人邮箱');
+        }
+
+        $fromEmail = reset($emails);
+
+        $payload = [
+            'from' => ['email' => $fromEmail, 'name' => 'Test'],
+            'to' => [['email' => 'test@example.com', 'name' => 'Test']],
+            'subject' => 'Connection Test',
+            'text' => 'This is a connection test in sandbox mode.',
+        ];
+
+        $ch = curl_init($endpoint);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'X-CM-PRODUCTTOKEN: ' . $server->password,
+                'Sandbox-Mode: true',
+            ],
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            throw new \Exception("无法连接到 cm.com API: {$curlError}");
+        }
+
+        if ($httpCode === 401) {
+            throw new \Exception('Product Token 缺失或无效');
+        }
+
+        if ($httpCode === 403) {
+            throw new \Exception('Product Token 无效');
+        }
+
+        if ($httpCode >= 400 && $httpCode < 500 && $httpCode !== 400) {
+            // 400 可能是因为测试邮箱无效，但 token 有效，可视为通过
+            throw new \Exception("cm.com API 返回错误 (HTTP {$httpCode}): " . substr($response, 0, 200));
+        }
+
+        if ($httpCode >= 500) {
+            throw new \Exception("cm.com 服务器错误 (HTTP {$httpCode})");
         }
     }
 

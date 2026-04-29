@@ -25,9 +25,6 @@ class EmailService
         ?string $listName = null
     ): void {
         try {
-            // Configure mail settings based on SMTP server type
-            $this->configureMailer($smtpServer);
-
             Log::debug('Sending email', [
                 'smtp_server_id' => $smtpServer->id,
                 'smtp_server_name' => $smtpServer->name,
@@ -36,6 +33,30 @@ class EmailService
                 'from' => $fromEmail,
                 'subject' => $subject,
             ]);
+
+            // cm.com 走 HTTP API，不经过 Laravel Mail
+            if ($smtpServer->type === 'cm') {
+                $this->sendViaCmApi(
+                    $smtpServer,
+                    $to,
+                    $subject,
+                    $htmlContent,
+                    $fromName,
+                    $fromEmail,
+                    $replyTo,
+                    $campaignId,
+                    $subscriberId
+                );
+
+                Log::debug('Email sent successfully via cm.com', [
+                    'smtp_server_id' => $smtpServer->id,
+                    'to' => $to,
+                ]);
+                return;
+            }
+
+            // Configure mail settings based on SMTP server type
+            $this->configureMailer($smtpServer);
 
             // Send email
             Mail::send([], [], function ($message) use ($to, $subject, $htmlContent, $fromName, $fromEmail, $replyTo, $unsubscribeUrl, $campaignId, $subscriberId, $listId, $userId, $listName) {
@@ -186,6 +207,100 @@ class EmailService
             ]);
             
             throw $e;
+        }
+    }
+
+    /**
+     * 通过 cm.com Email Gateway API 发送邮件
+     * 文档：https://developers.cm.com/messaging/docs/send-marketing-email
+     */
+    private function sendViaCmApi(
+        SmtpServer $smtpServer,
+        string $to,
+        string $subject,
+        string $htmlContent,
+        string $fromName,
+        string $fromEmail,
+        ?string $replyTo = null,
+        ?int $campaignId = null,
+        ?int $subscriberId = null
+    ): void {
+        if (empty($smtpServer->password)) {
+            throw new \Exception('cm.com Product Token 未配置');
+        }
+
+        $endpoint = $smtpServer->host ?: 'https://api.cm.com/email/gateway/v1/marketing';
+
+        $payload = [
+            'from' => [
+                'email' => $fromEmail,
+                'name' => $fromName,
+            ],
+            'to' => [
+                ['email' => $to],
+            ],
+            'subject' => $subject,
+            'html' => $htmlContent,
+        ];
+
+        if (!empty($replyTo)) {
+            $payload['replyTo'] = ['email' => $replyTo];
+        }
+
+        // 使用活动+订阅者作为客户引用，便于 cm.com 平台追踪
+        if ($campaignId && $subscriberId) {
+            $payload['customerReference'] = "campaign-{$campaignId}-sub-{$subscriberId}";
+        }
+
+        $ch = curl_init($endpoint);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'X-CM-PRODUCTTOKEN: ' . $smtpServer->password,
+            ],
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            throw new \Exception("cm.com API 请求失败: {$curlError}");
+        }
+
+        $body = json_decode($response, true);
+
+        if ($httpCode >= 200 && $httpCode < 300) {
+            // 成功响应通常包含 success: true 和 messageId
+            if (is_array($body) && isset($body['success']) && $body['success'] === false) {
+                $msg = $body['message'] ?? 'Unknown error';
+                throw new \Exception("cm.com API 返回失败: {$msg}");
+            }
+            return;
+        }
+
+        $errorMsg = is_array($body) && isset($body['message'])
+            ? $body['message']
+            : (is_array($body) && isset($body['title']) ? $body['title'] : substr((string) $response, 0, 500));
+
+        switch ($httpCode) {
+            case 400:
+                throw new \Exception("cm.com 请求参数无效: {$errorMsg}");
+            case 401:
+                throw new \Exception('cm.com Product Token 缺失');
+            case 403:
+                throw new \Exception('cm.com Product Token 无效');
+            case 404:
+                throw new \Exception('cm.com API 端点未找到');
+            case 429:
+                throw new \Exception('cm.com 速率限制超出');
+            default:
+                throw new \Exception("cm.com API 错误 (HTTP {$httpCode}): {$errorMsg}");
         }
     }
 }

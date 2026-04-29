@@ -76,6 +76,7 @@ export default function SettingsPage() {
   const serverTypes = [
     { value: 'smtp', label: t('smtpSettings.smtpServer') },
     { value: 'ses', label: t('smtpSettings.amazonSes') },
+    { value: 'cm', label: t('smtpSettings.cmCom') },
   ]
   
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -236,7 +237,7 @@ export default function SettingsPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (formData.type === 'ses' && senderEmails.length === 0) {
+    if ((formData.type === 'ses' || formData.type === 'cm') && senderEmails.length === 0) {
       toast.error(t('smtpSettings.sesRequiresSender'))
       return
     }
@@ -258,7 +259,7 @@ export default function SettingsPage() {
     e.preventDefault()
     if (!editingServer) return
     
-    if (formData.type === 'ses' && senderEmails.length === 0) {
+    if ((formData.type === 'ses' || formData.type === 'cm') && senderEmails.length === 0) {
       toast.error(t('smtpSettings.sesRequiresSender'))
       return
     }
@@ -586,6 +587,116 @@ export default function SettingsPage() {
             
             <p className="text-xs text-muted-foreground">
               {t('smtpSettings.awsSesVerifiedTip')}
+            </p>
+          </div>
+        </>
+      )}
+
+      {formData.type === 'cm' && (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="host">{t('smtpSettings.cmApiEndpoint')}</Label>
+            <Input
+              id="host"
+              value={formData.host}
+              onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+              placeholder="https://api.cm.com/email/gateway/v1/marketing"
+            />
+            <p className="text-xs text-muted-foreground">
+              {t('smtpSettings.cmApiEndpointTip')}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="password">
+              {t('smtpSettings.cmProductTokenRequired')} {isEdit && t('smtpSettings.passwordHint')}
+            </Label>
+            <Input
+              id="password"
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              placeholder="00000000-0000-0000-0000-000000000000"
+              required={!isEdit}
+            />
+            <p className="text-xs text-muted-foreground">
+              {t('smtpSettings.cmProductTokenTip')}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>
+              {t('smtpSettings.senderEmailManagement')} *
+              <span className="text-muted-foreground ml-2 text-xs font-normal">
+                {t('smtpSettings.senderEmailRequired')}
+              </span>
+            </Label>
+            
+            <div className="space-y-2">
+              {senderEmails.map((email, index) => {
+                const isPaused = pausedSenders.some(s => s.email === email)
+                const pausedInfo = pausedSenders.find(s => s.email === email)
+                
+                return (
+                  <div key={index} className="grid gap-2" style={{ gridTemplateColumns: '1fr auto' }}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Input
+                        value={email}
+                        readOnly
+                        className={`font-mono text-sm ${isPaused ? 'bg-amber-50 border-amber-300' : 'bg-green-50 border-green-300'}`}
+                      />
+                      {isPaused && (
+                        <span className="text-xs text-amber-600 whitespace-nowrap">
+                          {t('smtpSettings.paused')} ({Math.ceil((pausedInfo?.remaining_seconds || 0) / 60)}{t('smtpSettings.minutes')})
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleRemoveSender(email)}
+                      title={t('smtpSettings.deleteSender')}
+                      className="h-8"
+                    >
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      {t('smtpSettings.delete')}
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+            
+            <div className="flex gap-2">
+              <Input
+                value={newSenderEmail}
+                onChange={(e) => setNewSenderEmail(e.target.value)}
+                placeholder={t('smtpSettings.addSenderPlaceholder')}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleAddSender()
+                  }
+                }}
+                className="font-mono text-sm"
+              />
+              <Button
+                type="button"
+                onClick={handleAddSender}
+                size="sm"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                {t('smtpSettings.add')}
+              </Button>
+            </div>
+            
+            {senderEmails.length === 0 && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
+                {t('smtpSettings.cmRequiredTip')}
+              </p>
+            )}
+            
+            <p className="text-xs text-muted-foreground">
+              {t('smtpSettings.cmVerifiedTip')}
             </p>
           </div>
         </>
