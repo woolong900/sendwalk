@@ -146,42 +146,68 @@ class CheckDomainStatus extends Command
             $this->info("═══════════════════════════════════════════════════════════");
             $this->line('');
             
-            // 仅检查 SMTP/SES 类型的服务器
-            // 像 cm.com 这种 API 网关类型的服务器，发件人域名由平台管理，
-            // 用户无法控制 SPF/DMARC 记录，不应在此检查
             $smtpServers = SmtpServer::where('is_active', true)
                 ->whereNotNull('sender_emails')
                 ->where('sender_emails', '!=', '')
-                ->whereNotIn('type', ['cm'])
                 ->get();
             
             if ($smtpServers->isEmpty()) {
                 $this->warn("   ⚠️  No active SMTP servers with sender emails found");
             } else {
-                // 收集所有发件人域名（去重），并记录每个邮箱对应的服务器
-                $senderDomains = [];
+                // 收集所有发件人域名（去重），并记录每个邮箱对应的服务器及类型
+                // 不同类型的服务器使用不同的健康检查规则：
+                //   - smtp/ses：检查 SPF 记录
+                //   - cm：检查用户配置的 DKIM CNAME 记录是否指向 *.email.cm.com
+                $senderDomains = []; // domain => ['types' => [], 'servers' => [...], 'emails' => [...]]
                 $emailToServerMap = []; // email => [server_id, ...]
+                $cmDkimByDomain = []; // domain => [cname1, cname2, ...]
                 
                 foreach ($smtpServers as $server) {
                     $emails = array_filter(array_map('trim', explode("\n", $server->sender_emails)));
+                    
+                    // 提取该 cm.com 服务器配置的 DKIM CNAME 列表
+                    if ($server->type === 'cm' && !empty($server->dkim_cnames)) {
+                        $cnames = array_filter(array_map('trim', explode("\n", $server->dkim_cnames)));
+                        foreach ($cnames as $cname) {
+                            // 从 CNAME 主机名提取域名（去掉 selector 前缀）
+                            // 例如 cm123._domainkey.kmenb.com -> kmenb.com
+                            if (preg_match('/_domainkey\.(.+)$/', strtolower($cname), $m)) {
+                                $cnameDomain = $m[1];
+                                if (!isset($cmDkimByDomain[$cnameDomain])) {
+                                    $cmDkimByDomain[$cnameDomain] = [];
+                                }
+                                $cmDkimByDomain[$cnameDomain][] = strtolower($cname);
+                            }
+                        }
+                    }
                     
                     foreach ($emails as $email) {
                         if (str_contains($email, '@')) {
                             $domain = strtolower(substr($email, strpos($email, '@') + 1));
                             if (!isset($senderDomains[$domain])) {
                                 $senderDomains[$domain] = [
+                                    'types' => [],
                                     'servers' => [],
                                     'emails' => [],
                                 ];
                             }
-                            $senderDomains[$domain]['servers'][$server->id] = $server->name;
+                            if (!in_array($server->type, $senderDomains[$domain]['types'])) {
+                                $senderDomains[$domain]['types'][] = $server->type;
+                            }
+                            $senderDomains[$domain]['servers'][$server->id] = [
+                                'name' => $server->name,
+                                'type' => $server->type,
+                            ];
                             $senderDomains[$domain]['emails'][] = $email;
                             
-                            // 记录邮箱对应的服务器
+                            // 记录邮箱对应的服务器（连同类型）
                             if (!isset($emailToServerMap[$email])) {
                                 $emailToServerMap[$email] = [];
                             }
-                            $emailToServerMap[$email][] = $server->id;
+                            $emailToServerMap[$email][] = [
+                                'id' => $server->id,
+                                'type' => $server->type,
+                            ];
                         }
                     }
                 }
@@ -191,41 +217,93 @@ class CheckDomainStatus extends Command
                 
                 foreach ($senderDomains as $domain => $info) {
                     $smtpDomainStats['total']++;
-                    $serverNames = implode(', ', array_unique($info['servers']));
+                    $serverNames = implode(', ', array_unique(array_column($info['servers'], 'name')));
+                    $typeLabel = implode('/', $info['types']);
                     
                     $this->info("📋 Checking: {$domain}");
-                    $this->line("   Used by server(s): {$serverNames}");
+                    $this->line("   Used by server(s): {$serverNames} (type: {$typeLabel})");
                     
-                    $dnsResult = $this->checkDomainDns($domain);
+                    // 是否仅由 cm.com 类型服务器使用（非 cm 类型走传统 SPF 检查）
+                    $isCmOnly = count($info['types']) === 1 && $info['types'][0] === 'cm';
                     
-                    // 输出 DNS 记录状态
-                    $this->line("   DNS Records:");
-                    $this->line("     - MX:     " . ($dnsResult['mx']['found'] ? "✅ " . implode(', ', array_slice($dnsResult['mx']['records'], 0, 2)) : "❌ Not found"));
-                    $this->line("     - SPF:    " . ($dnsResult['spf']['found'] ? "✅ Found" : "⚠️  Not found"));
-                    $this->line("     - DMARC:  " . ($dnsResult['dmarc']['found'] ? "✅ Found" : "⚠️  Not found"));
-                    
-                    if ($dnsResult['healthy']) {
-                        $smtpDomainStats['healthy']++;
-                        $this->line("   Status: ✅ OK (DNS resolvable)");
-                    } else {
-                        $allUnhealthyDomains[] = [
-                            'type' => 'smtp_sender',
-                            'domain' => $domain,
-                            'servers' => $info['servers'],
-                            'emails' => $info['emails'],
-                            'error' => $dnsResult['error'],
-                            'dns' => $dnsResult,
-                        ];
-                        $this->error("   Status: ❌ FAILED - {$dnsResult['error']}");
+                    if ($isCmOnly) {
+                        // cm.com 域名：检查用户配置的 DKIM CNAME
+                        $configuredCnames = $cmDkimByDomain[$domain] ?? [];
+                        $cmResult = $this->checkCmDomain($domain, $configuredCnames);
                         
-                        // 记录该域名下所有邮箱待移除
-                        foreach ($info['emails'] as $email) {
-                            foreach ($emailToServerMap[$email] ?? [] as $serverId) {
-                                if (!isset($emailsToRemoveByServer[$serverId])) {
-                                    $emailsToRemoveByServer[$serverId] = [];
+                        $this->line("   DKIM CNAMEs configured: " . (count($configuredCnames) ?: '(none)'));
+                        foreach ($cmResult['cname_results'] as $cnameInfo) {
+                            $icon = $cnameInfo['valid'] ? '✅' : '❌';
+                            $this->line("     {$icon} {$cnameInfo['cname']} -> " . ($cnameInfo['target'] ?: $cnameInfo['error'] ?? 'not found'));
+                        }
+                        
+                        if ($cmResult['healthy']) {
+                            $smtpDomainStats['healthy']++;
+                            $this->line("   Status: ✅ OK (cm.com DKIM verified)");
+                        } else {
+                            $allUnhealthyDomains[] = [
+                                'type' => 'smtp_sender_cm',
+                                'domain' => $domain,
+                                'servers' => array_column($info['servers'], 'name'),
+                                'emails' => $info['emails'],
+                                'error' => $cmResult['error'],
+                                'cname_results' => $cmResult['cname_results'],
+                            ];
+                            $this->error("   Status: ❌ FAILED - {$cmResult['error']}");
+                            
+                            // 仅在用户已配置 DKIM CNAME 但验证失败时才记录待移除
+                            // 没配置 DKIM CNAME 不删除发件人邮箱（避免误删）
+                            if (!empty($configuredCnames)) {
+                                foreach ($info['emails'] as $email) {
+                                    foreach ($emailToServerMap[$email] ?? [] as $serverInfo) {
+                                        if ($serverInfo['type'] === 'cm') {
+                                            $serverId = $serverInfo['id'];
+                                            if (!isset($emailsToRemoveByServer[$serverId])) {
+                                                $emailsToRemoveByServer[$serverId] = [];
+                                            }
+                                            if (!in_array($email, $emailsToRemoveByServer[$serverId])) {
+                                                $emailsToRemoveByServer[$serverId][] = $email;
+                                            }
+                                        }
+                                    }
                                 }
-                                if (!in_array($email, $emailsToRemoveByServer[$serverId])) {
-                                    $emailsToRemoveByServer[$serverId][] = $email;
+                            }
+                        }
+                    } else {
+                        // 非 cm.com 域名：原有 SPF 检查逻辑
+                        $dnsResult = $this->checkDomainDns($domain);
+                        
+                        $this->line("   DNS Records:");
+                        $this->line("     - MX:     " . ($dnsResult['mx']['found'] ? "✅ " . implode(', ', array_slice($dnsResult['mx']['records'], 0, 2)) : "❌ Not found"));
+                        $this->line("     - SPF:    " . ($dnsResult['spf']['found'] ? "✅ Found" : "⚠️  Not found"));
+                        $this->line("     - DMARC:  " . ($dnsResult['dmarc']['found'] ? "✅ Found" : "⚠️  Not found"));
+                        
+                        if ($dnsResult['healthy']) {
+                            $smtpDomainStats['healthy']++;
+                            $this->line("   Status: ✅ OK (DNS resolvable)");
+                        } else {
+                            $allUnhealthyDomains[] = [
+                                'type' => 'smtp_sender',
+                                'domain' => $domain,
+                                'servers' => array_column($info['servers'], 'name'),
+                                'emails' => $info['emails'],
+                                'error' => $dnsResult['error'],
+                                'dns' => $dnsResult,
+                            ];
+                            $this->error("   Status: ❌ FAILED - {$dnsResult['error']}");
+                            
+                            // 仅删除非 cm 服务器的邮箱（cm 服务器域名不通过 SPF 验证）
+                            foreach ($info['emails'] as $email) {
+                                foreach ($emailToServerMap[$email] ?? [] as $serverInfo) {
+                                    if ($serverInfo['type'] !== 'cm') {
+                                        $serverId = $serverInfo['id'];
+                                        if (!isset($emailsToRemoveByServer[$serverId])) {
+                                            $emailsToRemoveByServer[$serverId] = [];
+                                        }
+                                        if (!in_array($email, $emailsToRemoveByServer[$serverId])) {
+                                            $emailsToRemoveByServer[$serverId][] = $email;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -455,6 +533,87 @@ class CheckDomainStatus extends Command
             $result['healthy'] = true;
         } else {
             $result['error'] = 'No SPF record found - domain not configured for email sending';
+        }
+
+        return $result;
+    }
+
+    /**
+     * 检测 cm.com 发件人域名健康状态（基于 DKIM CNAME 配置）
+     * 
+     * 验证规则：
+     * 1. 域名本身必须可解析（A/NS 记录存在）
+     * 2. 如果用户配置了 DKIM CNAME，每个 CNAME 必须存在且指向 *.email.cm.com
+     * 3. 如果用户未配置 DKIM CNAME，仅检查域名能否解析（不删除发件人）
+     */
+    private function checkCmDomain(string $domain, array $configuredCnames): array
+    {
+        $result = [
+            'healthy' => false,
+            'error' => null,
+            'cname_results' => [],
+        ];
+
+        // 域名必须能解析（A 或 NS 记录）
+        $aRecords = @dns_get_record($domain, DNS_A);
+        $nsRecords = @dns_get_record($domain, DNS_NS);
+        if (empty($aRecords) && empty($nsRecords)) {
+            $result['error'] = "Domain {$domain} not resolvable (no A/NS records)";
+            return $result;
+        }
+
+        // 用户未配置 DKIM CNAME：宽容处理，认为健康（避免误删发件人）
+        if (empty($configuredCnames)) {
+            $result['healthy'] = true;
+            return $result;
+        }
+
+        // 验证每个配置的 DKIM CNAME
+        $allValid = true;
+        foreach ($configuredCnames as $cname) {
+            $check = $this->checkCmDkimCname($cname);
+            $result['cname_results'][] = $check;
+            if (!$check['valid']) {
+                $allValid = false;
+            }
+        }
+
+        if ($allValid) {
+            $result['healthy'] = true;
+        } else {
+            $invalidCount = count(array_filter($result['cname_results'], fn($r) => !$r['valid']));
+            $result['error'] = "{$invalidCount} DKIM CNAME(s) misconfigured";
+        }
+
+        return $result;
+    }
+
+    /**
+     * 验证单个 cm.com DKIM CNAME 记录
+     * 规则：CNAME 必须存在，且目标包含 ".email.cm.com"
+     */
+    private function checkCmDkimCname(string $cname): array
+    {
+        $result = [
+            'cname' => $cname,
+            'valid' => false,
+            'target' => null,
+            'error' => null,
+        ];
+
+        $records = @dns_get_record($cname, DNS_CNAME);
+        if (empty($records)) {
+            $result['error'] = 'CNAME record not found';
+            return $result;
+        }
+
+        $target = $records[0]['target'] ?? '';
+        $result['target'] = $target;
+
+        if (stripos($target, '.email.cm.com') !== false || stripos($target, 'email.cm.com.') !== false) {
+            $result['valid'] = true;
+        } else {
+            $result['error'] = 'target does not point to email.cm.com';
         }
 
         return $result;

@@ -773,6 +773,8 @@
     "cmProductTokenTip": "在 cm.com Email App 设置页面的「集成」部分获取",
     "cmRequiredTip": "⚠️ cm.com 至少需要配置一个发件人邮箱",
     "cmVerifiedTip": "💡 提示：必须是在 cm.com 中已验证的发件人域名下的邮箱",
+    "cmDkimCnames": "DKIM CNAME 验证（可选）",
+    "cmDkimCnamesTip": "💡 用于域名健康检查。每行填写一条 cm.com 平台分配的 DKIM CNAME 主机名，例如：cm{token}._domainkey.yourdomain.com\n填写后，系统会定期校验该 CNAME 是否正确指向 *.email.cm.com\n留空则不进行 DKIM 校验（仅检查域名能否解析）",
     "rateLimit": "速率限制",
     "perSecondLimit": "每秒限制",
     "perMinuteLimit": "每分钟限制",

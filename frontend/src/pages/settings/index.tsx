@@ -53,6 +53,7 @@ interface SmtpServer {
   username: string
   encryption: string
   sender_emails: string | null
+  dkim_cnames: string | null
   is_default: boolean
   is_active: boolean
   rate_limit_second: number | null
@@ -91,6 +92,7 @@ export default function SettingsPage() {
     password: '',
     encryption: 'tls',
     sender_emails: '',
+    dkim_cnames: '',
     is_default: false,
     rate_limit_second: '',
     rate_limit_minute: '',
@@ -188,6 +190,7 @@ export default function SettingsPage() {
       password: '',
       encryption: 'tls',
       sender_emails: '',
+      dkim_cnames: '',
       is_default: false,
       rate_limit_second: '',
       rate_limit_minute: '',
@@ -215,6 +218,7 @@ export default function SettingsPage() {
       password: '',
       encryption: server.encryption || 'tls',
       sender_emails: server.sender_emails || '',
+      dkim_cnames: server.dkim_cnames || '',
       is_default: server.is_default,
       rate_limit_second: server.rate_limit_second?.toString() || '',
       rate_limit_minute: server.rate_limit_minute?.toString() || '',
@@ -697,6 +701,21 @@ export default function SettingsPage() {
             
             <p className="text-xs text-muted-foreground">
               {t('smtpSettings.cmVerifiedTip')}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="dkim_cnames">{t('smtpSettings.cmDkimCnames')}</Label>
+            <textarea
+              id="dkim_cnames"
+              value={formData.dkim_cnames}
+              onChange={(e) => setFormData({ ...formData, dkim_cnames: e.target.value })}
+              placeholder={'cm140ae8ad1ae5b442fa9e49b5a7bd27f78._domainkey.kmenb.com\ncm240ae8ad1ae5b442fa9e49b5a7bd27f79._domainkey.example.com'}
+              rows={4}
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <p className="text-xs text-muted-foreground whitespace-pre-line">
+              {t('smtpSettings.cmDkimCnamesTip')}
             </p>
           </div>
         </>
