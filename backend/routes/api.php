@@ -78,6 +78,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('blacklist/{blacklist}', [\App\Http\Controllers\Api\BlacklistController::class, 'destroy']);
     Route::post('blacklist/batch-delete', [\App\Http\Controllers\Api\BlacklistController::class, 'batchDestroy']);
 
+    // Domain Blacklist
+    Route::get('domain-blacklist', [\App\Http\Controllers\Api\DomainBlacklistController::class, 'index']);
+    Route::post('domain-blacklist', [\App\Http\Controllers\Api\DomainBlacklistController::class, 'store']);
+    Route::post('domain-blacklist/batch', [\App\Http\Controllers\Api\DomainBlacklistController::class, 'batchStore']);
+    Route::post('domain-blacklist/check', [\App\Http\Controllers\Api\DomainBlacklistController::class, 'check']);
+    Route::delete('domain-blacklist/{domainBlacklist}', [\App\Http\Controllers\Api\DomainBlacklistController::class, 'destroy']);
+    Route::post('domain-blacklist/batch-delete', [\App\Http\Controllers\Api\DomainBlacklistController::class, 'batchDestroy']);
+
     // Campaigns
     Route::apiResource('campaigns', CampaignController::class);
     Route::post('campaigns/{campaign}/send', [CampaignController::class, 'send']);

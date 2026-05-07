@@ -87,6 +87,39 @@ class SendCampaignEmail implements ShouldQueue
                 return;
             }
 
+            // 黑名单最终检查（同时覆盖邮箱黑名单和域名黑名单）
+            // 防止任务入队后才被加入黑名单的邮箱被误发
+            if (\App\Models\Blacklist::isBlacklisted($this->campaign->user_id, $this->subscriber->email)) {
+                Log::info('Task skipped: Email/domain in blacklist', [
+                    'reason' => 'blacklisted',
+                    'campaign_id' => $this->campaign->id,
+                    'campaign_name' => $this->campaign->name,
+                    'subscriber_id' => $this->subscriber->id,
+                    'subscriber_email' => $this->subscriber->email,
+                ]);
+
+                // 同步更新订阅者状态为 blacklisted
+                if ($this->subscriber->status !== 'blacklisted') {
+                    $this->subscriber->update(['status' => 'blacklisted']);
+                }
+
+                // 标记发送记录为已跳过（避免后续重复尝试）
+                if ($existingSend) {
+                    $existingSend->update([
+                        'status' => 'skipped',
+                        'error_message' => 'Email or domain is blacklisted',
+                    ]);
+                } else {
+                    CampaignSend::create([
+                        'campaign_id' => $this->campaign->id,
+                        'subscriber_id' => $this->subscriber->id,
+                        'status' => 'skipped',
+                        'error_message' => 'Email or domain is blacklisted',
+                    ]);
+                }
+                return;
+            }
+
             // Get SMTP server (use campaign's server or fallback to default)
             $smtpServer = null;
             

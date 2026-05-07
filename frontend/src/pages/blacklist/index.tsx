@@ -31,9 +31,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/lib/api'
 import { maskEmail } from '@/lib/utils'
 import { useConfirm } from '@/hooks/use-confirm'
+import DomainBlacklistTab from './domain-tab'
 
 interface BlacklistEntry {
   id: number
@@ -340,15 +342,22 @@ export default function BlacklistPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold">{t('blacklist.title')}</h1>
-          <p className="text-muted-foreground mt-1">
-            {t('blacklist.subtitle')}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Dialog open={isBatchUploadOpen} onOpenChange={setIsBatchUploadOpen}>
+      <div>
+        <h1 className="text-xl md:text-2xl font-bold">{t('blacklist.title')}</h1>
+        <p className="text-muted-foreground mt-1">
+          {t('blacklist.subtitle')}
+        </p>
+      </div>
+
+      <Tabs defaultValue="email" className="w-full">
+        <TabsList>
+          <TabsTrigger value="email">{t('blacklist.emailTab')}</TabsTrigger>
+          <TabsTrigger value="domain">{t('blacklist.domainTab')}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="email" className="space-y-6 mt-4">
+          <div className="flex items-center justify-end gap-2">
+            <Dialog open={isBatchUploadOpen} onOpenChange={setIsBatchUploadOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Upload className="w-4 h-4 mr-2" />
@@ -539,7 +548,6 @@ export default function BlacklistPage() {
             </DialogContent>
           </Dialog>
         </div>
-      </div>
 
       <Card>
         <CardHeader>
@@ -833,6 +841,12 @@ export default function BlacklistPage() {
           )}
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="domain" className="mt-4">
+          <DomainBlacklistTab />
+        </TabsContent>
+      </Tabs>
 
       <ConfirmDialog />
     </div>

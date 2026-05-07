@@ -25,12 +25,25 @@ class Blacklist extends Model
 
     /**
      * Check if an email is in the blacklist for a specific user
+     * 同时检查：
+     * 1. 邮箱是否在邮箱黑名单中
+     * 2. 邮箱所在的域名是否在域名黑名单中
      */
     public static function isBlacklisted(int $userId, string $email): bool
     {
-        return self::where('user_id', $userId)
-            ->where('email', strtolower(trim($email)))
+        $email = strtolower(trim($email));
+
+        // 邮箱黑名单检查
+        $inEmailBlacklist = self::where('user_id', $userId)
+            ->where('email', $email)
             ->exists();
+
+        if ($inEmailBlacklist) {
+            return true;
+        }
+
+        // 域名黑名单检查
+        return DomainBlacklist::isDomainBlacklisted($userId, $email);
     }
 
     /**
