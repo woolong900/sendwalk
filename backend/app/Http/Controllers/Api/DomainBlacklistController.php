@@ -72,7 +72,6 @@ class DomainBlacklistController extends Controller
         return response()->json([
             'message' => '已添加到域名黑名单',
             'data' => $result['entry'],
-            'subscribers_updated' => $result['subscribers_updated'],
         ], 201);
     }
 
@@ -93,7 +92,6 @@ class DomainBlacklistController extends Controller
         $added = 0;
         $alreadyExists = 0;
         $invalid = 0;
-        $totalSubscribersUpdated = 0;
 
         foreach ($request->domains as $rawDomain) {
             $domain = DomainBlacklist::normalizeDomain($rawDomain);
@@ -115,8 +113,6 @@ class DomainBlacklistController extends Controller
             } else {
                 $alreadyExists++;
             }
-
-            $totalSubscribersUpdated += $result['subscribers_updated'] ?? 0;
         }
 
         return response()->json([
@@ -124,7 +120,6 @@ class DomainBlacklistController extends Controller
             'added' => $added,
             'already_exists' => $alreadyExists,
             'invalid' => $invalid,
-            'subscribers_updated' => $totalSubscribersUpdated,
         ]);
     }
 

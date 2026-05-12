@@ -24,25 +24,33 @@ class Blacklist extends Model
     }
 
     /**
-     * Check if an email is in the blacklist for a specific user
-     * 同时检查：
-     * 1. 邮箱是否在邮箱黑名单中
-     * 2. 邮箱所在的域名是否在域名黑名单中
+     * 检查邮箱是否在「邮箱黑名单」中
+     *
+     * 仅用于"邮箱级别"的黑名单（被退订/被投诉等不可逆事实），
+     * 用于导入/添加订阅者时拒收。不包含域名黑名单（域名黑名单是过滤器）。
      */
     public static function isBlacklisted(int $userId, string $email): bool
     {
+        return self::where('user_id', $userId)
+            ->where('email', strtolower(trim($email)))
+            ->exists();
+    }
+
+    /**
+     * 检查邮箱在发送时是否应被拦截（邮箱黑名单 OR 域名黑名单）
+     *
+     * 用于实际发送链路的最终校验（创建任务、Job 执行）。
+     * 区别于 isBlacklisted：导入时不应该用此方法，否则域名黑名单
+     * 会阻止用户导入历史数据。
+     */
+    public static function isBlockedFromSending(int $userId, string $email): bool
+    {
         $email = strtolower(trim($email));
 
-        // 邮箱黑名单检查
-        $inEmailBlacklist = self::where('user_id', $userId)
-            ->where('email', $email)
-            ->exists();
-
-        if ($inEmailBlacklist) {
+        if (self::isBlacklisted($userId, $email)) {
             return true;
         }
 
-        // 域名黑名单检查
         return DomainBlacklist::isDomainBlacklisted($userId, $email);
     }
 

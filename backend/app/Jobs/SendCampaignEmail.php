@@ -89,7 +89,10 @@ class SendCampaignEmail implements ShouldQueue
 
             // 黑名单最终检查（同时覆盖邮箱黑名单和域名黑名单）
             // 防止任务入队后才被加入黑名单的邮箱被误发
-            if (\App\Models\Blacklist::isBlacklisted($this->campaign->user_id, $this->subscriber->email)) {
+            // 注意：此处仅作过滤拦截，不修改订阅者数据
+            //   - 邮箱黑名单：addBatch/store 时已经把订阅者改为 blacklisted，无需重复
+            //   - 域名黑名单：作为「过滤器」语义，不应破坏订阅者数据，否则移除黑名单后无法恢复
+            if (\App\Models\Blacklist::isBlockedFromSending($this->campaign->user_id, $this->subscriber->email)) {
                 Log::info('Task skipped: Email/domain in blacklist', [
                     'reason' => 'blacklisted',
                     'campaign_id' => $this->campaign->id,
@@ -97,11 +100,6 @@ class SendCampaignEmail implements ShouldQueue
                     'subscriber_id' => $this->subscriber->id,
                     'subscriber_email' => $this->subscriber->email,
                 ]);
-
-                // 同步更新订阅者状态为 blacklisted
-                if ($this->subscriber->status !== 'blacklisted') {
-                    $this->subscriber->update(['status' => 'blacklisted']);
-                }
 
                 // 标记发送记录为已跳过（避免后续重复尝试）
                 if ($existingSend) {

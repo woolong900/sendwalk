@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Campaign;
+use App\Models\DomainBlacklist;
 use App\Models\Subscriber;
 use App\Services\QueueDistributionService;
 use Illuminate\Console\Command;
@@ -73,7 +74,13 @@ class ProcessScheduledCampaigns extends Command
                 $totalTasksCreated = 0;
                 $totalRecipients = 0;
                 $distributionService = new QueueDistributionService();
-                
+
+                // 获取该用户的域名黑名单（一次性加载，避免重复查询）
+                $blacklistedDomains = DomainBlacklist::getBlacklistedDomains($campaign->user_id);
+                if (!empty($blacklistedDomains)) {
+                    $this->info("  🚫 已屏蔽域名: " . implode(', ', $blacklistedDomains));
+                }
+
                 foreach ($listIds as $listIndex => $listId) {
                     $this->info("  📝 处理列表 #{$listId} (" . ($listIndex + 1) . "/" . count($listIds) . ")");
                     
@@ -84,12 +91,23 @@ class ProcessScheduledCampaigns extends Command
                     while (true) {
                         // 使用游标分页查询活跃订阅者（基于 ID）
                         // 优势：即使处理过程中有数据变化，也不会漏掉或重复处理记录
-                        $listSubscribers = Subscriber::select(['id', 'email', 'first_name', 'last_name', 'custom_fields'])
+                        $query = Subscriber::select(['id', 'email', 'first_name', 'last_name', 'custom_fields'])
                             ->whereHas('lists', function ($query) use ($listId) {
                                 $query->where('lists.id', $listId)
-                      ->where('list_subscriber.status', 'active');
+                                    ->where('list_subscriber.status', 'active');
                             })
-                            ->where('subscribers.id', '>', $lastId)
+                            ->where('subscribers.id', '>', $lastId);
+
+                        // 排除域名黑名单中的邮箱（域名黑名单作为发送过滤器，不修改订阅者数据）
+                        if (!empty($blacklistedDomains)) {
+                            $query->where(function ($q) use ($blacklistedDomains) {
+                                foreach ($blacklistedDomains as $domain) {
+                                    $q->where('subscribers.email', 'not like', "%@{$domain}");
+                                }
+                            });
+                        }
+
+                        $listSubscribers = $query
                             ->orderBy('subscribers.id', 'asc')
                             ->take($batchSize)
                             ->get();

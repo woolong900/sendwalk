@@ -86,14 +86,9 @@ export default function DomainBlacklistTab() {
     mutationFn: async (data: typeof addFormData) => {
       return api.post('/domain-blacklist', data)
     },
-    onSuccess: (response) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['domain-blacklist'] })
-      const updated = response.data?.subscribers_updated ?? 0
-      toast.success(
-        updated > 0
-          ? t('domainBlacklist.addSuccessWithUpdate', { count: updated })
-          : t('domainBlacklist.addSuccess')
-      )
+      toast.success(t('domainBlacklist.addSuccess'))
       setIsAddOpen(false)
       setAddFormData({ domain: '', reason: '' })
     },
@@ -109,16 +104,12 @@ export default function DomainBlacklistTab() {
     },
     onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['domain-blacklist'] })
-      const { added, already_exists, invalid, subscribers_updated } = response.data
+      const { added, already_exists, invalid } = response.data
       const messages = []
       if (added > 0) messages.push(`${t('common.new')} ${added}`)
       if (already_exists > 0) messages.push(`${t('common.alreadyExists')} ${already_exists}`)
       if (invalid > 0) messages.push(`${t('common.invalid')} ${invalid}`)
-      const summary = messages.join(', ')
-      const subscriberInfo = subscribers_updated > 0
-        ? `, ${t('blacklist.subscribersUpdated')} ${subscribers_updated}`
-        : ''
-      toast.success(`${summary}${subscriberInfo}`)
+      toast.success(messages.join(', ') || t('domainBlacklist.addSuccess'))
       setIsBatchAddOpen(false)
       setBatchFormData({ domains: '', reason: '' })
     },

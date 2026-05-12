@@ -63,7 +63,12 @@ class DomainBlacklist extends Model
     }
 
     /**
-     * 添加域名到黑名单，并更新该域名下所有订阅者状态
+     * 添加域名到黑名单
+     *
+     * 设计：域名黑名单是「过滤器」语义，不修改订阅者数据。
+     * - 加入：只插记录，不动 subscribers 表
+     * - 发送：在创建任务和发送任务时进行过滤
+     * - 移除：下次发送自动恢复，无需任何额外操作
      */
     public static function addDomain(int $userId, string $domain, ?string $reason = null): array
     {
@@ -81,42 +86,19 @@ class DomainBlacklist extends Model
             ['reason' => $reason]
         );
 
-        // 把该域名下所有订阅者状态改为 blacklisted
-        $updatedCount = self::blacklistSubscribersByDomain($userId, $domain);
-
         return [
             'created' => $entry->wasRecentlyCreated,
             'entry' => $entry,
-            'subscribers_updated' => $updatedCount,
         ];
     }
 
     /**
-     * 把某个域名下所有订阅者状态置为 blacklisted
+     * 获取某个用户的所有黑名单域名（数组）
      */
-    public static function blacklistSubscribersByDomain(int $userId, string $domain): int
+    public static function getBlacklistedDomains(int $userId): array
     {
-        $domain = self::normalizeDomain($domain);
-
-        // 查询该域名下所有订阅者
-        $subscriberIds = Subscriber::where('email', 'like', "%@{$domain}")
-            ->pluck('id');
-
-        if ($subscriberIds->isEmpty()) {
-            return 0;
-        }
-
-        // 更新订阅者状态
-        $updated = Subscriber::whereIn('id', $subscriberIds)
-            ->where('status', '!=', 'blacklisted')
-            ->update(['status' => 'blacklisted']);
-
-        // 更新订阅者-列表关系状态
-        \DB::table('list_subscriber')
-            ->whereIn('subscriber_id', $subscriberIds)
-            ->where('status', '!=', 'blacklisted')
-            ->update(['status' => 'blacklisted']);
-
-        return $updated;
+        return self::where('user_id', $userId)
+            ->pluck('domain')
+            ->toArray();
     }
 }
