@@ -16,6 +16,7 @@ import {
   ShoppingCart,
   BarChart3,
   Globe,
+  Users,
 } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,7 @@ const navigation = [
   { nameKey: 'nav.blacklist', href: '/blacklist', icon: Ban },
   { nameKey: 'nav.campaigns', href: '/campaigns', icon: Mail },
   { nameKey: 'nav.templates', href: '/templates', icon: FileText },
+  { nameKey: 'nav.users', href: '/users', icon: Users, adminOnly: true },
   { nameKey: 'nav.smtpServers', href: '/smtp-servers', icon: Server, adminOnly: true },
   { nameKey: 'nav.tags', href: '/tags', icon: Tag },
   { nameKey: 'nav.monitor', href: '/monitor', icon: Activity, adminOnly: true },

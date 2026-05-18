@@ -18,7 +18,7 @@ class ProcessScheduledCampaigns extends Command
         // 查找到时间的定时活动
         $campaigns = Campaign::where('status', 'scheduled')
             ->where('scheduled_at', '<=', now())
-            ->with(['lists', 'smtpServer'])
+            ->with(['lists', 'smtpServer', 'user'])
             ->get();
 
         if ($campaigns->isEmpty()) {
@@ -30,6 +30,19 @@ class ProcessScheduledCampaigns extends Command
 
         foreach ($campaigns as $campaign) {
             $this->info("处理活动: {$campaign->name}");
+
+            $campaignUser = $campaign->user;
+            if (!$campaignUser || !$campaignUser->isActive()) {
+                $campaign->update(['status' => 'failed']);
+                $this->warn("  ⚠️  用户不可用或已封禁，活动已标记为失败");
+                continue;
+            }
+
+            if (!$campaignUser->hasSendQuota()) {
+                $campaign->update(['status' => 'failed']);
+                $this->warn("  ⚠️  用户发送额度不足，活动已标记为失败");
+                continue;
+            }
 
             // ✅ 使用原子性更新防止并发：只有成功将 scheduled 改为 sending 的进程才能继续
             $affected = \DB::table('campaigns')
@@ -74,6 +87,8 @@ class ProcessScheduledCampaigns extends Command
                 $totalTasksCreated = 0;
                 $totalRecipients = 0;
                 $distributionService = new QueueDistributionService();
+                $remainingQuota = $campaignUser->remaining_quota;
+                $stopForQuota = false;
 
                 // 获取该用户的域名黑名单（一次性加载，避免重复查询）
                 $blacklistedDomains = DomainBlacklist::getBlacklistedDomains($campaign->user_id);
@@ -82,6 +97,10 @@ class ProcessScheduledCampaigns extends Command
                 }
 
                 foreach ($listIds as $listIndex => $listId) {
+                    if ($stopForQuota) {
+                        break;
+                    }
+
                     $this->info("  📝 处理列表 #{$listId} (" . ($listIndex + 1) . "/" . count($listIds) . ")");
                     
                     $listTasksCreated = 0;
@@ -115,6 +134,18 @@ class ProcessScheduledCampaigns extends Command
                         if ($listSubscribers->isEmpty()) {
                             break; // 该列表处理完毕
                         }
+
+                        if ($remainingQuota !== null) {
+                            if ($remainingQuota <= 0) {
+                                $stopForQuota = true;
+                                break;
+                            }
+
+                            if ($listSubscribers->count() > $remainingQuota) {
+                                $listSubscribers = $listSubscribers->take($remainingQuota);
+                                $stopForQuota = true;
+                            }
+                        }
                         
                         // 更新游标位置
                         $lastId = $listSubscribers->last()->id;
@@ -133,6 +164,9 @@ class ProcessScheduledCampaigns extends Command
                         $result = $distributionService->distributeEvenly($campaign, $subscribersWithList);
                         $listTasksCreated += count($subscribersWithList);
                         $totalTasksCreated += count($subscribersWithList);
+                        if ($remainingQuota !== null) {
+                            $remainingQuota -= count($subscribersWithList);
+                        }
                         
                         $this->info("     ✓ 批次 {$batchNumber}: 创建 " . count($subscribersWithList) . " 个任务 (游标: ID > {$lastId})");
                         

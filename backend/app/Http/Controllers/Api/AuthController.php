@@ -47,6 +47,14 @@ class AuthController extends Controller
         }
 
         $user = Auth::user();
+        if ($user->status === 'banned') {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => ['账号已被封禁，请联系管理员'],
+            ]);
+        }
+
         $token = $user->createToken('api-token')->plainTextToken;
 
         return response()->json([

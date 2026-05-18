@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\TagController;
 use App\Http\Controllers\Api\TemplateController;
 use App\Http\Controllers\UnsubscribeController;
 use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\UserManagementController;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,7 +46,7 @@ Route::get('unsubscribe', [UnsubscribeController::class, 'show']);
 Route::post('unsubscribe', [UnsubscribeController::class, 'unsubscribe']);
 
 // Protected routes
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'active.user'])->group(function () {
     // Auth
     Route::prefix('auth')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
@@ -57,6 +58,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('dashboard/scheduler/start', [DashboardController::class, 'startScheduler']);
     Route::post('dashboard/scheduler/stop', [DashboardController::class, 'stopScheduler']);
     Route::post('dashboard/queue/clear', [DashboardController::class, 'clearQueue']);
+
+    // User Management
+    Route::get('users', [UserManagementController::class, 'index']);
+    Route::put('users/{user}', [UserManagementController::class, 'update']);
 
     // Lists
     Route::apiResource('lists', ListController::class);

@@ -7,6 +7,10 @@ interface User {
   email: string
   avatar?: string
   role: 'admin' | 'user'
+  send_quota?: number | null
+  sent_quota_used?: number
+  remaining_quota?: number | null
+  status?: 'active' | 'banned'
 }
 
 interface AuthState {

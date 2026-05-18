@@ -108,6 +108,7 @@
     "blacklist": "黑名单",
     "campaigns": "邮件活动",
     "templates": "邮件模板",
+    "users": "用户管理",
     "smtpServers": "发送服务器",
     "tags": "自定义标签",
     "monitor": "发送监控",

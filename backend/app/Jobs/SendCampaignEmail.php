@@ -232,6 +232,26 @@ class SendCampaignEmail implements ShouldQueue
                 );
             }
 
+            $campaignUser = \App\Models\User::find($this->campaign->user_id);
+            if (!$campaignUser || !$campaignUser->consumeSendQuota()) {
+                Log::warning('Task skipped: User quota unavailable', [
+                    'reason' => 'user_quota_unavailable',
+                    'campaign_id' => $this->campaign->id,
+                    'campaign_name' => $this->campaign->name,
+                    'subscriber_id' => $this->subscriber->id,
+                    'subscriber_email' => $this->subscriber->email,
+                    'user_id' => $this->campaign->user_id,
+                ]);
+
+                $send->update([
+                    'status' => 'skipped',
+                    'error_message' => 'User is banned or send quota has been exhausted',
+                ]);
+
+                $this->checkAndMarkCampaignComplete();
+                return;
+            }
+
             // Replace personalization tags in subject
             $subject = $this->replacePersonalizationTags(
                 $this->campaign->subject,

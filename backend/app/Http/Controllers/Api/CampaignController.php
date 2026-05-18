@@ -205,6 +205,12 @@ class CampaignController extends Controller
             return response()->json(['message' => '无权访问'], 403);
         }
 
+        if (!$request->user()->hasSendQuota()) {
+            return response()->json([
+                'message' => '发送额度不足，请联系管理员增加额度',
+            ], 422);
+        }
+
         // 只有正在发送或已完成的活动不能修改
         if (in_array($campaign->status, ['sending', 'completed', 'failed'])) {
             return response()->json([
@@ -231,6 +237,12 @@ class CampaignController extends Controller
     {
         if ($campaign->user_id !== $request->user()->id) {
             return response()->json(['message' => '无权访问'], 403);
+        }
+
+        if (!$request->user()->hasSendQuota()) {
+            return response()->json([
+                'message' => '发送额度不足，请联系管理员增加额度',
+            ], 422);
         }
 
         // 只有正在发送或已完成的活动不能修改

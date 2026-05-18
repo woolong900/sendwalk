@@ -108,6 +108,7 @@
     "blacklist": "Blacklist",
     "campaigns": "Campaigns",
     "templates": "Templates",
+    "users": "Users",
     "smtpServers": "SMTP Servers",
     "tags": "Custom Tags",
     "monitor": "Send Monitor",

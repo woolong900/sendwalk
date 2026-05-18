@@ -24,6 +24,7 @@ import SmtpServersPage from '@/pages/settings'
 import SendMonitorPage from '@/pages/monitor'
 import OrdersPage from '@/pages/orders'
 import OrderAnalyticsPage from '@/pages/orders/analytics'
+import UsersPage from '@/pages/users'
 
 // Public Pages
 import UnsubscribePage from '@/pages/unsubscribe'
@@ -103,6 +104,7 @@ function App() {
           
           {/* 仅管理员可访问的页面 */}
           <Route path="smtp-servers" element={<AdminRoute><SmtpServersPage /></AdminRoute>} />
+          <Route path="users" element={<AdminRoute><UsersPage /></AdminRoute>} />
           <Route path="monitor" element={<AdminRoute><SendMonitorPage /></AdminRoute>} />
           <Route path="orders" element={<AdminRoute><OrdersPage /></AdminRoute>} />
           <Route path="orders/analytics" element={<AdminRoute><OrderAnalyticsPage /></AdminRoute>} />
