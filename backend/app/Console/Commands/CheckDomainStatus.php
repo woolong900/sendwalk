@@ -5,7 +5,6 @@ namespace App\Console\Commands;
 use App\Models\Tag;
 use App\Models\SmtpServer;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class CheckDomainStatus extends Command
@@ -82,7 +81,7 @@ class CheckDomainStatus extends Command
         
         if (!$skipTag && !$directDomains) {
             $this->info("═══════════════════════════════════════════════════════════");
-            $this->info("📡 PART 1: Checking Tag Domains (HTTP/HTTPS)");
+            $this->info("📡 PART 1: Checking Tag Domains (DNS A/AAAA/CNAME)");
             $this->info("═══════════════════════════════════════════════════════════");
             $this->info("   Tag name: {$tagName}");
             $this->line('');
@@ -327,17 +326,21 @@ class CheckDomainStatus extends Command
     }
 
     /**
-     * 检测域名 HTTP/HTTPS 状态（用于 Tag 中的网站域名）
+     * 检测域名 DNS 解析状态（用于 Tag 中的网站域名）
+     *
+     * 策略：只要域名能解析（存在 A / AAAA / CNAME 任一记录）就视为健康。
+     * 这样可以避免 HTTP 探测中 WAF、SSL 错误、5xx、超时等导致的大量误判。
+     * 失败时自动重试，避免 DNS 服务器临时抖动误删数据。
+     *
+     * 兼容 $timeout 参数签名（保留以兼容老调用），实际仅用于 DNS 阶段日志。
      */
     private function checkDomainHttp(string $domain, int $timeout): array
     {
-        $domain = trim($domain);
-        
-        if (!preg_match('/^https?:\/\//', $domain)) {
-            $url = 'https://' . $domain;
-        } else {
-            $url = $domain;
-        }
+        // 标准化：去掉协议前缀和路径，只保留主机名
+        $host = trim($domain);
+        $host = preg_replace('#^https?://#i', '', $host);
+        $host = preg_replace('#/.*$#', '', $host);
+        $host = rtrim($host, '.');
 
         $result = [
             'healthy' => false,
@@ -348,49 +351,47 @@ class CheckDomainStatus extends Command
             'error' => null,
         ];
 
+        if ($host === '') {
+            $result['error'] = 'Empty domain';
+            return $result;
+        }
+
         $startTime = microtime(true);
+        $foundRecord = null;
+        $lastError = null;
 
-        try {
-            $response = Http::timeout($timeout)
-                ->withOptions([
-                    'verify' => true,
-                    'allow_redirects' => [
-                        'max' => 5,
-                        'strict' => false,
-                        'referer' => true,
-                        'protocols' => ['http', 'https'],
-                    ],
-                ])
-                ->get($url);
+        // 重试 3 次（间隔 1s），抵抗 DNS 偶发抖动；任一次拿到记录立即返回 healthy
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            foreach ([DNS_A => 'A', DNS_AAAA => 'AAAA', DNS_CNAME => 'CNAME'] as $type => $label) {
+                $records = @dns_get_record($host, $type);
 
-            $endTime = microtime(true);
-            $responseTime = round(($endTime - $startTime) * 1000);
+                if ($records === false) {
+                    $lastError = "DNS query failed ({$label})";
+                    continue;
+                }
 
-            $result['status_code'] = $response->status();
-            $result['response_time'] = $responseTime;
-            $result['ssl_valid'] = true;
+                if (!empty($records)) {
+                    $first = $records[0];
+                    $foundRecord = $label . ': ' . ($first['ip'] ?? $first['ipv6'] ?? $first['target'] ?? 'found');
+                    break 2;
+                }
+            }
+            // 没拿到任何记录，稍等再试
+            if ($attempt < 3) {
+                sleep(1);
+            }
+        }
+
+        $endTime = microtime(true);
+        $result['response_time'] = round(($endTime - $startTime) * 1000);
+
+        if ($foundRecord !== null) {
+            $result['healthy'] = true;
             $result['reachable'] = true;
-
-            if ($response->successful() || $response->redirect()) {
-                $result['healthy'] = true;
-            } elseif ($response->status() >= 400 && $response->status() < 500) {
-                $result['healthy'] = true;
-                $result['error'] = "HTTP {$response->status()} (reachable)";
-            } else {
-                $result['error'] = "HTTP {$response->status()}";
-            }
-
-        } catch (\Illuminate\Http\Client\ConnectionException $e) {
-            $result['error'] = 'Connection failed: ' . $this->simplifyError($e->getMessage());
-        } catch (\Exception $e) {
-            $errorMessage = $e->getMessage();
-            
-            if (str_contains($errorMessage, 'SSL') || str_contains($errorMessage, 'certificate')) {
-                $result['ssl_valid'] = false;
-                $result['error'] = 'SSL certificate error';
-            } else {
-                $result['error'] = $this->simplifyError($errorMessage);
-            }
+            $result['status_code'] = 'DNS';
+            $result['error'] = $foundRecord; // 把找到的记录写到 error 字段，输出时作为状态描述
+        } else {
+            $result['error'] = $lastError ?: 'No A/AAAA/CNAME records found';
         }
 
         return $result;
