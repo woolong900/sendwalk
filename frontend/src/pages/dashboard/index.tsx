@@ -65,14 +65,13 @@ export default function DashboardPage() {
     refetchInterval: 5000, // 每5秒自动刷新
   })
 
-  // 今日域名发信量独立请求（涉及 GROUP BY 较慢，后端 30s 缓存，前端 30s 刷新）
-  const { data: todayDomainData } = useQuery<{ data: DomainSendStat[] }>({
+  // 今日域名发信量独立请求（后端 Redis 预聚合，秒级响应）
+  const { data: todayDomainStats = [] } = useQuery<DomainSendStat[]>({
     queryKey: ['dashboard-today-domain-stats'],
-    queryFn: () => fetcher('/dashboard/today-domain-stats'),
+    queryFn: () => fetcher<DomainSendStat[]>('/dashboard/today-domain-stats'),
     refetchInterval: 30000,
     staleTime: 25000,
   })
-  const todayDomainStats: DomainSendStat[] = todayDomainData?.data || []
   
   // 清空队列
   const clearQueueMutation = useMutation({
