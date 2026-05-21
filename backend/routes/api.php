@@ -127,6 +127,11 @@ Route::middleware(['auth:sanctum', 'active.user'])->group(function () {
     Route::post('smtp-servers/{smtpServer}/duplicate', [SmtpServerController::class, 'duplicate']);
     Route::get('smtp-servers/{smtpServer}/rate-limit-status', [SmtpServerController::class, 'getRateLimitStatus']);
 
+    // 域名预热配置
+    Route::get('smtp-servers/{smtpServer}/warmups', [\App\Http\Controllers\Api\DomainWarmupController::class, 'index']);
+    Route::put('smtp-servers/{smtpServer}/warmups/{domain}', [\App\Http\Controllers\Api\DomainWarmupController::class, 'update'])
+        ->where('domain', '[a-zA-Z0-9.-]+');
+
     // Tags
     Route::apiResource('tags', TagController::class);
     Route::post('tags/{tag}/test', [TagController::class, 'test']);

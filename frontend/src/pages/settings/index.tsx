@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Plus, Server, Trash2, Edit, Check, X, Zap, Copy } from 'lucide-react'
+import { Plus, Server, Trash2, Edit, Check, X, Zap, Copy, Flame } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select'
 import { api } from '@/lib/api'
 import { useConfirm } from '@/hooks/use-confirm'
+import WarmupDialog from './warmup-dialog'
 
 interface RateLimitPeriod {
   limit: number | null
@@ -102,6 +103,9 @@ export default function SettingsPage() {
   const [senderEmails, setSenderEmails] = useState<string[]>([])
   const [newSenderEmail, setNewSenderEmail] = useState('')
   const [pausedSenders, setPausedSenders] = useState<PausedSender[]>([])
+
+  // 域名预热 Dialog
+  const [warmupServer, setWarmupServer] = useState<{ id: number; name: string } | null>(null)
 
   const queryClient = useQueryClient()
 
@@ -904,6 +908,18 @@ export default function SettingsPage() {
                         <Zap className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                         {t('smtpSettings.test')}
                       </Button>
+                      {server.type !== 'cm' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setWarmupServer({ id: server.id, name: server.name })}
+                          className="text-xs md:text-sm text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                          title={t('warmup.title')}
+                        >
+                          <Flame className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                          {t('warmup.title')}
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -1056,6 +1072,15 @@ export default function SettingsPage() {
             {renderServerForm(true)}
           </DialogContent>
         </Dialog>
+
+        {warmupServer && (
+          <WarmupDialog
+            open={!!warmupServer}
+            onOpenChange={(open) => { if (!open) setWarmupServer(null) }}
+            serverId={warmupServer.id}
+            serverName={warmupServer.name}
+          />
+        )}
 
         <ConfirmDialog />
       </div>

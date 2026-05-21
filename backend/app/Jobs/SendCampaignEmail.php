@@ -27,7 +27,11 @@ class SendCampaignEmail implements ShouldQueue
 
     // Store determined from_email for this task
     private ?string $fromEmail = null;
-    
+
+    // 预占的预热配额信息：['smtp_server_id' => int, 'domain' => string, 'count' => int]
+    // 发送失败时由 catch 回滚 Redis 计数
+    private ?array $warmupReserved = null;
+
     // 模型实例（在 handle 中从 ID 加载）
     private ?Campaign $campaign = null;
     private ?Subscriber $subscriber = null;
@@ -203,12 +207,16 @@ class SendCampaignEmail implements ShouldQueue
                 $send->update(['status' => 'pending']);
             }
 
-            // Determine from_email: use campaign's or randomly select from server's pool
-            $this->fromEmail = $this->campaign->from_email;
-            if (empty($this->fromEmail)) {
-                $this->fromEmail = $this->getRandomSenderEmail($smtpServer);
-            }
-            
+            // Determine from_email + 预热配额（原子预占，多 worker 并发安全）
+            //
+            // 策略：
+            //   1. 活动指定了 from_email → 用它；该域名预热超额 → 推迟到明天
+            //   2. 未指定 → 在 server 的 sender_emails 池中找一个「未超预热上限」的域名
+            //   3. 全部超额 → 推迟到明天（worker 休眠到次日 0 点）
+            //
+            // 预占成功后 $warmupReserved 会记录回滚信息，发送失败时由 catch 回滚计数
+            $this->fromEmail = $this->resolveSenderEmail($smtpServer);
+
             // Check if this sender is paused
             if ($smtpServer->isSenderPaused($this->fromEmail)) {
                 $waitSeconds = $smtpServer->getSenderPauseRemainingTime($this->fromEmail) ?? 60;
@@ -354,6 +362,9 @@ class SendCampaignEmail implements ShouldQueue
         } catch (\App\Exceptions\RateLimitException $e) {
             // 速率限制异常，直接重新抛出，由 ProcessCampaignQueue 处理
             // 不创建 SendLog，不标记为失败
+            // 回滚预热配额（如果发送前已预占，需要还回去）
+            $this->rollbackWarmupReservation();
+
             Log::info('Task delayed due to rate limit, will retry later', [
                 'reason' => 'rate_limit_exception_caught',
                 'campaign_id' => $this->campaign->id,
@@ -370,7 +381,10 @@ class SendCampaignEmail implements ShouldQueue
             
         } catch (\Exception $e) {
             $errorMessage = $e->getMessage();
-            
+
+            // 发送失败 → 回滚已预占的预热配额（避免今天额度被错误占用）
+            $this->rollbackWarmupReservation();
+
             // 🚨 检测 "Excessive message rate" 错误并自动暂停该发件人
             if (isset($smtpServer) && isset($this->fromEmail) && $this->isRateLimitError($errorMessage)) {
                 $smtpServer->pauseSender($this->fromEmail, 5, 'Excessive message rate detected');
@@ -556,9 +570,167 @@ class SendCampaignEmail implements ShouldQueue
     }
 
     /**
+     * 解析最终的 from_email，并完成预热配额预占。
+     *
+     * - campaign 指定了 from_email：用它；该域名开启预热且今日超额 → 抛 RateLimitException 推迟到次日
+     * - 未指定：从 server 的 sender_emails 中选择「未开启预热」或「开启预热但今日还有余量」的邮箱
+     *           若所有候选都已超额 → 抛 RateLimitException
+     *
+     * 成功预占后会记录到 $this->warmupReserved，供 catch 回滚使用
+     */
+    private function resolveSenderEmail(SmtpServer $smtpServer): string
+    {
+        // ---- 情况 1：campaign 显式指定 from_email ----
+        if (!empty($this->campaign->from_email)) {
+            $fromEmail = $this->campaign->from_email;
+            $domain = \App\Models\DomainWarmup::extractDomain($fromEmail);
+
+            if ($domain) {
+                $warmup = \App\Models\DomainWarmup::where('smtp_server_id', $smtpServer->id)
+                    ->where('domain', $domain)
+                    ->first();
+
+                if ($warmup && $warmup->enabled) {
+                    if (!$warmup->tryConsume(1)) {
+                        $waitSeconds = $this->secondsUntilNextDay();
+                        Log::warning('Domain warmup limit reached for fixed from_email, delaying to next day', [
+                            'reason' => 'warmup_limit_reached_fixed',
+                            'campaign_id' => $this->campaign->id,
+                            'smtp_server_id' => $smtpServer->id,
+                            'from_email' => $fromEmail,
+                            'domain' => $domain,
+                            'today_limit' => $warmup->getTodayLimit(),
+                            'today_sent' => $warmup->getTodaySentCount(),
+                            'wait_seconds' => $waitSeconds,
+                        ]);
+                        throw new \App\Exceptions\RateLimitException(
+                            "Domain {$domain} reached today's warmup limit",
+                            $waitSeconds
+                        );
+                    }
+                    // 预占成功，记录以便 catch 回滚
+                    $this->warmupReserved = [
+                        'smtp_server_id' => $smtpServer->id,
+                        'domain' => $domain,
+                        'count' => 1,
+                    ];
+                }
+            }
+
+            return $fromEmail;
+        }
+
+        // ---- 情况 2：从 server.sender_emails 池中选 ----
+        return \DB::transaction(function () use ($smtpServer) {
+            $server = SmtpServer::lockForUpdate()->find($smtpServer->id);
+
+            if (empty($server->sender_emails)) {
+                throw new \Exception('Campaign from_email is empty and SMTP server has no sender emails configured');
+            }
+
+            $emails = array_values(array_filter(
+                array_map('trim', explode("\n", $server->sender_emails)),
+                fn ($email) => !empty($email) && filter_var($email, FILTER_VALIDATE_EMAIL)
+            ));
+
+            if (empty($emails)) {
+                throw new \Exception('SMTP server sender_emails contains no valid email addresses');
+            }
+
+            // 一次性加载该服务器下所有 enabled 的预热配置
+            $warmups = \App\Models\DomainWarmup::where('smtp_server_id', $server->id)
+                ->where('enabled', true)
+                ->get()
+                ->keyBy('domain');
+
+            $total = count($emails);
+            $startIndex = $server->sender_email_index % $total;
+
+            // 从当前 round-robin 位置开始扫一圈
+            for ($i = 0; $i < $total; $i++) {
+                $idx = ($startIndex + $i) % $total;
+                $candidate = $emails[$idx];
+                $domain = \App\Models\DomainWarmup::extractDomain($candidate);
+                if ($domain === null) {
+                    continue;
+                }
+
+                $warmup = $warmups->get($domain);
+
+                if (!$warmup) {
+                    // 该域名未配置预热 → 直接可用，不消费配额
+                    $server->update(['sender_email_index' => $idx + 1]);
+                    return $candidate;
+                }
+
+                // 该域名开启了预热，尝试原子预占
+                if ($warmup->tryConsume(1)) {
+                    $this->warmupReserved = [
+                        'smtp_server_id' => $server->id,
+                        'domain' => $domain,
+                        'count' => 1,
+                    ];
+                    $server->update(['sender_email_index' => $idx + 1]);
+                    return $candidate;
+                }
+            }
+
+            // 所有候选都已超额 → 推迟到次日
+            $waitSeconds = $this->secondsUntilNextDay();
+            Log::warning('All warmup-enabled domains reached limit, delaying to next day', [
+                'reason' => 'all_warmup_limits_reached',
+                'campaign_id' => $this->campaign->id,
+                'smtp_server_id' => $server->id,
+                'wait_seconds' => $waitSeconds,
+            ]);
+            throw new \App\Exceptions\RateLimitException(
+                "All sender domains on server #{$server->id} reached today's warmup limit",
+                $waitSeconds
+            );
+        });
+    }
+
+    /**
+     * 当前时刻距离次日 0 点（系统时区）的秒数，最少 60s 防止 worker 空跑
+     */
+    private function secondsUntilNextDay(): int
+    {
+        $next = now()->copy()->addDay()->startOfDay();
+        return max(60, $next->diffInSeconds(now()));
+    }
+
+    /**
+     * 回滚预热配额（发送失败时调用，避免占用今日额度）
+     */
+    private function rollbackWarmupReservation(): void
+    {
+        if (!$this->warmupReserved) {
+            return;
+        }
+        try {
+            $warmup = \App\Models\DomainWarmup::where('smtp_server_id', $this->warmupReserved['smtp_server_id'])
+                ->where('domain', $this->warmupReserved['domain'])
+                ->first();
+            if ($warmup) {
+                $key = $warmup->todayCounterKey();
+                \Illuminate\Support\Facades\Redis::decrby($key, $this->warmupReserved['count']);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Failed to rollback warmup reservation', [
+                'error' => $e->getMessage(),
+                'reservation' => $this->warmupReserved,
+            ]);
+        } finally {
+            $this->warmupReserved = null;
+        }
+    }
+
+    /**
      * Get next sender email from SMTP server's sender_emails pool using round-robin
      * If pool is empty, throw an exception
      * This method always reads fresh data from database to handle real-time changes
+     *
+     * @deprecated 已被 resolveSenderEmail 替代（支持预热限流）
      */
     private function getRandomSenderEmail(SmtpServer $smtpServer): string
     {
