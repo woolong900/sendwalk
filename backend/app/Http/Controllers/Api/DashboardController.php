@@ -52,6 +52,20 @@ class DashboardController extends Controller
     }
 
     /**
+     * 从邮箱中提取小写域名
+     */
+    private static function extractDomain(string $email): ?string
+    {
+        $email = strtolower(trim($email));
+        $pos = strpos($email, '@');
+        if ($pos === false) {
+            return null;
+        }
+        $domain = substr($email, $pos + 1);
+        return $domain !== '' ? $domain : null;
+    }
+
+    /**
      * 当日按发件人域名分组的发信量统计（独立接口）
      *
      * 注意：此查询涉及 send_logs 表上的 GROUP BY，在大表上较慢，
@@ -76,39 +90,58 @@ class DashboardController extends Controller
 
             try {
                 // 给该查询限定 10 秒上限，防止慢查询堆积拖垮 MySQL
-                // MySQL 8 / 5.7+ 支持 SET STATEMENT MAX_EXECUTION_TIME
                 DB::statement('SET SESSION MAX_EXECUTION_TIME=10000');
 
-                // 用 BETWEEN 区间帮助优化器走 created_at 索引
+                // 关键优化：GROUP BY from_email（精确字段）能走覆盖索引
+                // idx_campaign_time_from_email (campaign_id, created_at, from_email(64))
+                // 比 GROUP BY SUBSTRING_INDEX(...) 快几个数量级
+                // 一个用户的 from_email 通常只有几十个，结果集很小
                 $rows = DB::table('send_logs')
                     ->whereIn('campaign_id', $campaignIds)
                     ->whereBetween('created_at', [$today, $tomorrow])
                     ->whereNotNull('from_email')
+                    ->where('from_email', '!=', '')
                     ->selectRaw("
-                        LOWER(SUBSTRING_INDEX(from_email, '@', -1)) AS domain,
+                        from_email,
                         SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent,
                         SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
                     ")
-                    ->groupBy('domain')
-                    ->orderByDesc('sent')
-                    ->limit(50)
+                    ->groupBy('from_email')
                     ->get();
 
-                return $rows->map(fn ($r) => [
-                    'domain' => $r->domain,
-                    'sent' => (int) $r->sent,
-                    'failed' => (int) $r->failed,
-                    'total' => (int) $r->sent + (int) $r->failed,
-                ])->all();
+                // PHP 端按域名再聚合一次（行数极小，O(N) 几乎瞬时）
+                $byDomain = [];
+                foreach ($rows as $r) {
+                    $domain = self::extractDomain($r->from_email);
+                    if ($domain === null) {
+                        continue;
+                    }
+                    if (!isset($byDomain[$domain])) {
+                        $byDomain[$domain] = ['sent' => 0, 'failed' => 0];
+                    }
+                    $byDomain[$domain]['sent'] += (int) $r->sent;
+                    $byDomain[$domain]['failed'] += (int) $r->failed;
+                }
+
+                $result = [];
+                foreach ($byDomain as $domain => $cnt) {
+                    $result[] = [
+                        'domain' => $domain,
+                        'sent' => $cnt['sent'],
+                        'failed' => $cnt['failed'],
+                        'total' => $cnt['sent'] + $cnt['failed'],
+                    ];
+                }
+                // 按 sent 倒序，截取前 50
+                usort($result, fn ($a, $b) => $b['sent'] <=> $a['sent']);
+                return array_slice($result, 0, 50);
             } catch (\Throwable $e) {
-                // 查询超时或失败 → 记录日志后返回空数组，避免拖死整个仪表盘
                 \Log::warning('getTodayDomainStats failed/timed out', [
                     'user_id' => $userId,
                     'error' => $e->getMessage(),
                 ]);
                 return [];
             } finally {
-                // 还原 session 默认值
                 try { DB::statement('SET SESSION MAX_EXECUTION_TIME=0'); } catch (\Throwable $e) {}
             }
         });
