@@ -354,6 +354,11 @@ class SendCampaignEmail implements ShouldQueue
                 'completed_at' => now(),
             ]);
             
+            // 仪表盘按域名预聚合（Redis HINCRBY，O(1)）
+            if ($this->fromEmail) {
+                \App\Services\DomainSendStats::incrSent($this->campaign->user_id, $this->fromEmail);
+            }
+
             // 检查是否所有任务都已完成（基于 CampaignSend 表）
             $this->checkAndMarkCampaignComplete();
 
@@ -439,12 +444,13 @@ class SendCampaignEmail implements ShouldQueue
             $this->checkAndMarkCampaignComplete();
 
             // Create send log for failed delivery
+            $failedFromEmail = $this->fromEmail ?? $this->campaign->from_email;
             SendLog::create([
                 'campaign_id' => $this->campaign->id,
                 'subscriber_id' => $this->subscriber->id,
                 'smtp_server_id' => $smtpServer->id ?? null,
                 'campaign_name' => $this->campaign->name,
-                'from_email' => $this->fromEmail ?? $this->campaign->from_email,  // 记录实际发件人邮箱
+                'from_email' => $failedFromEmail,
                 'smtp_server_name' => $smtpServer->name ?? 'Unknown',
                 'email' => $this->subscriber->email,
                 'status' => 'failed',
@@ -452,6 +458,11 @@ class SendCampaignEmail implements ShouldQueue
                 'started_at' => $startTime,
                 'completed_at' => now(),
             ]);
+
+            // 仪表盘按域名预聚合（Redis HINCRBY，O(1)）
+            if ($failedFromEmail) {
+                \App\Services\DomainSendStats::incrFailed($this->campaign->user_id, $failedFromEmail);
+            }
 
             // 🔥 处理退信：自动检测并加入黑名单
             try {

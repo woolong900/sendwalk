@@ -52,100 +52,17 @@ class DashboardController extends Controller
     }
 
     /**
-     * 从邮箱中提取小写域名
-     */
-    private static function extractDomain(string $email): ?string
-    {
-        $email = strtolower(trim($email));
-        $pos = strpos($email, '@');
-        if ($pos === false) {
-            return null;
-        }
-        $domain = substr($email, $pos + 1);
-        return $domain !== '' ? $domain : null;
-    }
-
-    /**
      * 当日按发件人域名分组的发信量统计（独立接口）
      *
-     * 注意：此查询涉及 send_logs 表上的 GROUP BY，在大表上较慢，
-     * 因此 1) 独立接口避免拖慢主仪表盘；2) 加 30 秒 Cache::remember 防抖。
+     * 数据源：Redis Hash（在 SendCampaignEmail 发送时 HINCRBY 预聚合）
+     * 完全不查 send_logs 大表，O(1) 响应时间。
      *
-     * 数据源：send_logs.from_email（在 SendCampaignEmail 中记录实际发件人）
-     * 时间窗口：今日 00:00 至当前时刻
+     * @see \App\Services\DomainSendStats
      */
     public function todayDomainStats(Request $request)
     {
         $userId = $request->user()->id;
-        $cacheKey = "dashboard:today_domain_stats:{$userId}:" . Carbon::today()->toDateString();
-
-        $data = \Illuminate\Support\Facades\Cache::remember($cacheKey, 30, function () use ($userId) {
-            $campaignIds = Campaign::where('user_id', $userId)->pluck('id')->toArray();
-            if (empty($campaignIds)) {
-                return [];
-            }
-
-            $today = Carbon::today();
-            $tomorrow = $today->copy()->addDay();
-
-            try {
-                // 给该查询限定 10 秒上限，防止慢查询堆积拖垮 MySQL
-                DB::statement('SET SESSION MAX_EXECUTION_TIME=10000');
-
-                // 关键优化：GROUP BY from_email（精确字段）能走覆盖索引
-                // idx_campaign_time_from_email (campaign_id, created_at, from_email(64))
-                // 比 GROUP BY SUBSTRING_INDEX(...) 快几个数量级
-                // 一个用户的 from_email 通常只有几十个，结果集很小
-                $rows = DB::table('send_logs')
-                    ->whereIn('campaign_id', $campaignIds)
-                    ->whereBetween('created_at', [$today, $tomorrow])
-                    ->whereNotNull('from_email')
-                    ->where('from_email', '!=', '')
-                    ->selectRaw("
-                        from_email,
-                        SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent,
-                        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
-                    ")
-                    ->groupBy('from_email')
-                    ->get();
-
-                // PHP 端按域名再聚合一次（行数极小，O(N) 几乎瞬时）
-                $byDomain = [];
-                foreach ($rows as $r) {
-                    $domain = self::extractDomain($r->from_email);
-                    if ($domain === null) {
-                        continue;
-                    }
-                    if (!isset($byDomain[$domain])) {
-                        $byDomain[$domain] = ['sent' => 0, 'failed' => 0];
-                    }
-                    $byDomain[$domain]['sent'] += (int) $r->sent;
-                    $byDomain[$domain]['failed'] += (int) $r->failed;
-                }
-
-                $result = [];
-                foreach ($byDomain as $domain => $cnt) {
-                    $result[] = [
-                        'domain' => $domain,
-                        'sent' => $cnt['sent'],
-                        'failed' => $cnt['failed'],
-                        'total' => $cnt['sent'] + $cnt['failed'],
-                    ];
-                }
-                // 按 sent 倒序，截取前 50
-                usort($result, fn ($a, $b) => $b['sent'] <=> $a['sent']);
-                return array_slice($result, 0, 50);
-            } catch (\Throwable $e) {
-                \Log::warning('getTodayDomainStats failed/timed out', [
-                    'user_id' => $userId,
-                    'error' => $e->getMessage(),
-                ]);
-                return [];
-            } finally {
-                try { DB::statement('SET SESSION MAX_EXECUTION_TIME=0'); } catch (\Throwable $e) {}
-            }
-        });
-
+        $data = \App\Services\DomainSendStats::getToday($userId, 50);
         return response()->json(['data' => $data]);
     }
     
