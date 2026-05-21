@@ -74,27 +74,43 @@ class DashboardController extends Controller
             $today = Carbon::today();
             $tomorrow = $today->copy()->addDay();
 
-            // 用 BETWEEN 区间帮助优化器走 created_at 索引
-            $rows = DB::table('send_logs')
-                ->whereIn('campaign_id', $campaignIds)
-                ->whereBetween('created_at', [$today, $tomorrow])
-                ->whereNotNull('from_email')
-                ->selectRaw("
-                    LOWER(SUBSTRING_INDEX(from_email, '@', -1)) AS domain,
-                    SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent,
-                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
-                ")
-                ->groupBy('domain')
-                ->orderByDesc('sent')
-                ->limit(50)
-                ->get();
+            try {
+                // 给该查询限定 10 秒上限，防止慢查询堆积拖垮 MySQL
+                // MySQL 8 / 5.7+ 支持 SET STATEMENT MAX_EXECUTION_TIME
+                DB::statement('SET SESSION MAX_EXECUTION_TIME=10000');
 
-            return $rows->map(fn ($r) => [
-                'domain' => $r->domain,
-                'sent' => (int) $r->sent,
-                'failed' => (int) $r->failed,
-                'total' => (int) $r->sent + (int) $r->failed,
-            ])->all();
+                // 用 BETWEEN 区间帮助优化器走 created_at 索引
+                $rows = DB::table('send_logs')
+                    ->whereIn('campaign_id', $campaignIds)
+                    ->whereBetween('created_at', [$today, $tomorrow])
+                    ->whereNotNull('from_email')
+                    ->selectRaw("
+                        LOWER(SUBSTRING_INDEX(from_email, '@', -1)) AS domain,
+                        SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent,
+                        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
+                    ")
+                    ->groupBy('domain')
+                    ->orderByDesc('sent')
+                    ->limit(50)
+                    ->get();
+
+                return $rows->map(fn ($r) => [
+                    'domain' => $r->domain,
+                    'sent' => (int) $r->sent,
+                    'failed' => (int) $r->failed,
+                    'total' => (int) $r->sent + (int) $r->failed,
+                ])->all();
+            } catch (\Throwable $e) {
+                // 查询超时或失败 → 记录日志后返回空数组，避免拖死整个仪表盘
+                \Log::warning('getTodayDomainStats failed/timed out', [
+                    'user_id' => $userId,
+                    'error' => $e->getMessage(),
+                ]);
+                return [];
+            } finally {
+                // 还原 session 默认值
+                try { DB::statement('SET SESSION MAX_EXECUTION_TIME=0'); } catch (\Throwable $e) {}
+            }
         });
 
         return response()->json(['data' => $data]);
