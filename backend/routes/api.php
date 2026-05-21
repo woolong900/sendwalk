@@ -55,6 +55,7 @@ Route::middleware(['auth:sanctum', 'active.user'])->group(function () {
 
     // Dashboard
     Route::get('dashboard/stats', [DashboardController::class, 'stats']);
+    Route::get('dashboard/today-domain-stats', [DashboardController::class, 'todayDomainStats']);
     Route::post('dashboard/scheduler/start', [DashboardController::class, 'startScheduler']);
     Route::post('dashboard/scheduler/stop', [DashboardController::class, 'stopScheduler']);
     Route::post('dashboard/queue/clear', [DashboardController::class, 'clearQueue']);

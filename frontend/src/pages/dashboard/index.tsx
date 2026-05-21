@@ -46,7 +46,6 @@ interface DashboardStats {
   scheduler_running: boolean
   campaign_status_stats: CampaignStatusStats
   smtp_server_stats: SmtpServerStats
-  today_domain_stats: DomainSendStat[]
   send_stats: {
     '1min': SendStats
     '10min': SendStats
@@ -65,6 +64,15 @@ export default function DashboardPage() {
     queryFn: () => fetcher('/dashboard/stats'),
     refetchInterval: 5000, // 每5秒自动刷新
   })
+
+  // 今日域名发信量独立请求（涉及 GROUP BY 较慢，后端 30s 缓存，前端 30s 刷新）
+  const { data: todayDomainData } = useQuery<{ data: DomainSendStat[] }>({
+    queryKey: ['dashboard-today-domain-stats'],
+    queryFn: () => fetcher('/dashboard/today-domain-stats'),
+    refetchInterval: 30000,
+    staleTime: 25000,
+  })
+  const todayDomainStats: DomainSendStat[] = todayDomainData?.data || []
   
   // 清空队列
   const clearQueueMutation = useMutation({
@@ -414,23 +422,23 @@ export default function DashboardPage() {
               </CardTitle>
               <CardDescription>{t('dashboard.todayDomainStatsDesc')}</CardDescription>
             </div>
-            {stats?.today_domain_stats && stats.today_domain_stats.length > 0 && (
+            {todayDomainStats.length > 0 && (
               <div className="text-sm text-muted-foreground">
-                {t('dashboard.totalDomains', { count: stats.today_domain_stats.length })}
+                {t('dashboard.totalDomains', { count: todayDomainStats.length })}
               </div>
             )}
           </div>
         </CardHeader>
         <CardContent>
-          {!stats?.today_domain_stats || stats.today_domain_stats.length === 0 ? (
+          {todayDomainStats.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
               {t('dashboard.noTodaySendData')}
             </div>
           ) : (
             <div className="space-y-2">
               {(() => {
-                const maxTotal = Math.max(...stats.today_domain_stats.map((d) => d.total), 1)
-                return stats.today_domain_stats.map((d) => {
+                const maxTotal = Math.max(...todayDomainStats.map((d) => d.total), 1)
+                return todayDomainStats.map((d) => {
                   const successRate = d.total > 0 ? (d.sent / d.total) * 100 : 0
                   const widthPct = (d.total / maxTotal) * 100
                   return (

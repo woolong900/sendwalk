@@ -45,7 +45,6 @@ class DashboardController extends Controller
                     'draft' => $campaignStats->draft_count ?? 0,
                 ],
                 'smtp_server_stats' => $this->getSmtpServerStatsOptimized($userId),
-                'today_domain_stats' => $this->getTodayDomainStats($userId),
                 'worker_count' => $this->getWorkerCount(),
                 'scheduler_running' => $this->getSchedulerStatus(),
             ],
@@ -53,49 +52,52 @@ class DashboardController extends Controller
     }
 
     /**
-     * 当日按发件人域名分组的发信量统计
+     * 当日按发件人域名分组的发信量统计（独立接口）
+     *
+     * 注意：此查询涉及 send_logs 表上的 GROUP BY，在大表上较慢，
+     * 因此 1) 独立接口避免拖慢主仪表盘；2) 加 30 秒 Cache::remember 防抖。
      *
      * 数据源：send_logs.from_email（在 SendCampaignEmail 中记录实际发件人）
      * 时间窗口：今日 00:00 至当前时刻
-     *
-     * 性能：
-     * - 先通过 user_id 拿到 campaign_ids，再用 IN 过滤 send_logs
-     * - 利用复合索引 idx_campaign_status_created
-     * - 内存中按域名聚合（SUBSTRING_INDEX 在大表上做 GROUP BY 慢，
-     *   PHP 端聚合更快且能利用现有索引）
-     *
-     * @return array<int, array{domain:string, sent:int, failed:int, total:int}>
      */
-    private function getTodayDomainStats($userId): array
+    public function todayDomainStats(Request $request)
     {
-        $campaignIds = Campaign::where('user_id', $userId)->pluck('id')->toArray();
-        if (empty($campaignIds)) {
-            return [];
-        }
+        $userId = $request->user()->id;
+        $cacheKey = "dashboard:today_domain_stats:{$userId}:" . Carbon::today()->toDateString();
 
-        $today = Carbon::today();
+        $data = \Illuminate\Support\Facades\Cache::remember($cacheKey, 30, function () use ($userId) {
+            $campaignIds = Campaign::where('user_id', $userId)->pluck('id')->toArray();
+            if (empty($campaignIds)) {
+                return [];
+            }
 
-        // 仅拉取 from_email + status 两列，避免大字段传输
-        $rows = DB::table('send_logs')
-            ->whereIn('campaign_id', $campaignIds)
-            ->where('created_at', '>=', $today)
-            ->whereNotNull('from_email')
-            ->selectRaw("
-                LOWER(SUBSTRING_INDEX(from_email, '@', -1)) AS domain,
-                SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent,
-                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
-            ")
-            ->groupBy('domain')
-            ->orderByDesc('sent')
-            ->limit(50) // 上限 50 个域名，避免极端情况下输出过大
-            ->get();
+            $today = Carbon::today();
+            $tomorrow = $today->copy()->addDay();
 
-        return $rows->map(fn ($r) => [
-            'domain' => $r->domain,
-            'sent' => (int) $r->sent,
-            'failed' => (int) $r->failed,
-            'total' => (int) $r->sent + (int) $r->failed,
-        ])->all();
+            // 用 BETWEEN 区间帮助优化器走 created_at 索引
+            $rows = DB::table('send_logs')
+                ->whereIn('campaign_id', $campaignIds)
+                ->whereBetween('created_at', [$today, $tomorrow])
+                ->whereNotNull('from_email')
+                ->selectRaw("
+                    LOWER(SUBSTRING_INDEX(from_email, '@', -1)) AS domain,
+                    SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed
+                ")
+                ->groupBy('domain')
+                ->orderByDesc('sent')
+                ->limit(50)
+                ->get();
+
+            return $rows->map(fn ($r) => [
+                'domain' => $r->domain,
+                'sent' => (int) $r->sent,
+                'failed' => (int) $r->failed,
+                'total' => (int) $r->sent + (int) $r->failed,
+            ])->all();
+        });
+
+        return response()->json(['data' => $data]);
     }
     
     // 此方法已被优化，合并到主查询中
