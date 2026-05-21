@@ -100,7 +100,8 @@
     "imported": "已导入",
     "skipped": "跳过",
     "completed": "已完成",
-    "failed": "失败"
+    "failed": "失败",
+    "sent": "已发送"
   },
   "nav": {
     "dashboard": "仪表盘",
@@ -167,7 +168,11 @@
     "oneHour": "1小时",
     "oneDay": "1天",
     "successRate": "成功率",
-    "autoRunning": "自动运行中"
+    "autoRunning": "自动运行中",
+    "todayDomainStats": "今日域名发信量",
+    "todayDomainStatsDesc": "按发件人邮箱域名统计今日（00:00 起）的实际发送量与失败数",
+    "totalDomains": "共 {{count}} 个域名",
+    "noTodaySendData": "今日还未发送任何邮件"
   },
   "lists": {
     "title": "邮件列表",

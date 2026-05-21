@@ -100,7 +100,8 @@
     "imported": "Imported",
     "skipped": "Skipped",
     "completed": "Completed",
-    "failed": "Failed"
+    "failed": "Failed",
+    "sent": "Sent"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -167,7 +168,11 @@
     "oneHour": "1 hour",
     "oneDay": "1 day",
     "successRate": "Success Rate",
-    "autoRunning": "Auto Running"
+    "autoRunning": "Auto Running",
+    "todayDomainStats": "Today's Sends by Domain",
+    "todayDomainStatsDesc": "Today's actual sends and failures grouped by sender email domain (since 00:00)",
+    "totalDomains": "{{count}} domain(s)",
+    "noTodaySendData": "No emails sent yet today"
   },
   "lists": {
     "title": "Mailing Lists",

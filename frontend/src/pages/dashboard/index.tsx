@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { CheckCircle, XCircle, Clock, Layers, Activity, Zap, PlayCircle, Calendar, FileText, Power, PowerOff, Trash2 } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Layers, Activity, Zap, PlayCircle, Calendar, FileText, Power, PowerOff, Trash2, Globe } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { fetcher, api } from '@/lib/api'
 import { formatNumber } from '@/lib/utils'
@@ -29,6 +29,13 @@ interface SmtpServerStats {
   inactive: number
 }
 
+interface DomainSendStat {
+  domain: string
+  sent: number
+  failed: number
+  total: number
+}
+
 interface DashboardStats {
   total_subscribers: number
   total_campaigns: number
@@ -39,6 +46,7 @@ interface DashboardStats {
   scheduler_running: boolean
   campaign_status_stats: CampaignStatusStats
   smtp_server_stats: SmtpServerStats
+  today_domain_stats: DomainSendStat[]
   send_stats: {
     '1min': SendStats
     '10min': SendStats
@@ -392,6 +400,82 @@ export default function DashboardPage() {
               )
             })}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 今日域名发信量 */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-blue-600" />
+                {t('dashboard.todayDomainStats')}
+              </CardTitle>
+              <CardDescription>{t('dashboard.todayDomainStatsDesc')}</CardDescription>
+            </div>
+            {stats?.today_domain_stats && stats.today_domain_stats.length > 0 && (
+              <div className="text-sm text-muted-foreground">
+                {t('dashboard.totalDomains', { count: stats.today_domain_stats.length })}
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {!stats?.today_domain_stats || stats.today_domain_stats.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              {t('dashboard.noTodaySendData')}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(() => {
+                const maxTotal = Math.max(...stats.today_domain_stats.map((d) => d.total), 1)
+                return stats.today_domain_stats.map((d) => {
+                  const successRate = d.total > 0 ? (d.sent / d.total) * 100 : 0
+                  const widthPct = (d.total / maxTotal) * 100
+                  return (
+                    <div
+                      key={d.domain}
+                      className="grid grid-cols-12 gap-3 items-center p-2 rounded hover:bg-muted/40 transition-colors"
+                    >
+                      {/* 域名 */}
+                      <div className="col-span-12 md:col-span-3 font-mono text-sm truncate" title={d.domain}>
+                        {d.domain}
+                      </div>
+                      {/* 进度条（相对最高值） */}
+                      <div className="col-span-8 md:col-span-5">
+                        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                          <div
+                            className="bg-blue-500 h-2 rounded-full transition-all"
+                            style={{ width: `${widthPct}%` }}
+                          />
+                        </div>
+                      </div>
+                      {/* 统计数字 */}
+                      <div className="col-span-4 md:col-span-4 flex items-center justify-end gap-3 text-xs md:text-sm whitespace-nowrap">
+                        <span className="flex items-center gap-1 text-green-600" title={t('common.sent')}>
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          {formatNumber(d.sent)}
+                        </span>
+                        {d.failed > 0 && (
+                          <span className="flex items-center gap-1 text-red-600" title={t('common.failed')}>
+                            <XCircle className="w-3.5 h-3.5" />
+                            {formatNumber(d.failed)}
+                          </span>
+                        )}
+                        <span className="text-muted-foreground text-xs">
+                          {successRate.toFixed(1)}%
+                        </span>
+                        <span className="font-semibold min-w-[3rem] text-right">
+                          {formatNumber(d.total)}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })
+              })()}
+            </div>
+          )}
         </CardContent>
       </Card>
 
