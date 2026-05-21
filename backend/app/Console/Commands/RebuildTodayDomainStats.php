@@ -45,32 +45,46 @@ class RebuildTodayDomainStats extends Command
             $rowCount = 0;
             $byDomain = []; // 内存累加：[domain => ['sent' => N, 'failed' => N]]
 
-            // 用 cursor 流式扫描，避免一次性加载几十万行到内存
-            // 走 idx_campaign_time_from_email 索引
-            DB::table('send_logs')
-                ->select('from_email', 'status')
-                ->whereIn('campaign_id', $campaignIds)
-                ->whereBetween('created_at', [$date, $tomorrow])
-                ->whereNotNull('from_email')
-                ->where('from_email', '!=', '')
-                ->orderBy('id')
-                ->chunkById($chunk, function ($rows) use (&$byDomain, &$rowCount) {
-                    foreach ($rows as $row) {
-                        $domain = DomainSendStats::extractDomain($row->from_email);
-                        if ($domain === null) {
-                            continue;
-                        }
-                        if (!isset($byDomain[$domain])) {
-                            $byDomain[$domain] = ['sent' => 0, 'failed' => 0];
-                        }
-                        if ($row->status === 'sent') {
-                            $byDomain[$domain]['sent']++;
-                        } elseif ($row->status === 'failed') {
-                            $byDomain[$domain]['failed']++;
-                        }
-                        $rowCount++;
+            // 用 PDO unbuffered cursor 流式读取，避免 chunkById 在大 IN 列表下
+            // 反复扫主键索引的性能塌方。这里只用 created_at 范围过滤，
+            // 让优化器自由选择 (created_at) 或 idx_campaign_time_from_email 索引。
+            // 由于一个用户的 campaign_ids 可能很多，先批量分组减少 IN 长度。
+            $campaignChunks = array_chunk($campaignIds, 50);
+            $bar = $this->output->createProgressBar(count($campaignChunks));
+            $bar->setFormat(' user ' . $userId . ' [%bar%] %current%/%max% chunks  rows=%message%');
+            $bar->setMessage((string) $rowCount);
+            $bar->start();
+
+            foreach ($campaignChunks as $cids) {
+                // 按 created_at 范围 + IN(50 个 id) 查询，命中索引快
+                $cursor = DB::table('send_logs')
+                    ->select('from_email', 'status')
+                    ->whereBetween('created_at', [$date, $tomorrow])
+                    ->whereIn('campaign_id', $cids)
+                    ->whereNotNull('from_email')
+                    ->where('from_email', '!=', '')
+                    ->cursor();
+
+                foreach ($cursor as $row) {
+                    $domain = DomainSendStats::extractDomain($row->from_email);
+                    if ($domain === null) {
+                        continue;
                     }
-                });
+                    if (!isset($byDomain[$domain])) {
+                        $byDomain[$domain] = ['sent' => 0, 'failed' => 0];
+                    }
+                    if ($row->status === 'sent') {
+                        $byDomain[$domain]['sent']++;
+                    } elseif ($row->status === 'failed') {
+                        $byDomain[$domain]['failed']++;
+                    }
+                    $rowCount++;
+                }
+                $bar->setMessage((string) $rowCount);
+                $bar->advance();
+            }
+            $bar->finish();
+            $this->newLine();
 
             if (empty($byDomain)) {
                 $this->line("  user {$userId}: 无数据");
