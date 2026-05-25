@@ -88,13 +88,13 @@ class SmtpServerController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'type' => 'required|in:smtp,ses,cm',
+            'type' => 'required|in:smtp,ses,cm,sendgrid',
             'host' => 'required_if:type,smtp,ses|nullable|string',
             'port' => 'required_if:type,smtp|nullable|integer',
             'username' => 'required_if:type,ses|nullable|string',
-            'password' => 'required_if:type,ses,cm|nullable|string',
+            'password' => 'required_if:type,ses,cm,sendgrid|nullable|string',
             'encryption' => 'nullable|in:tls,ssl,none',
-            'sender_emails' => 'required_if:type,ses,cm|nullable|string',
+            'sender_emails' => 'required_if:type,ses,cm,sendgrid|nullable|string',
             'credentials' => 'nullable|array',
             'is_default' => 'boolean',
             'rate_limit_second' => 'nullable|integer|min:1',
@@ -109,15 +109,18 @@ class SmtpServerController extends Controller
                 ->update(['is_default' => false]);
         }
 
-        // SES 和 cm.com 等 API 类型不需要 port 和 encryption
-        $isApiType = in_array($request->type, ['ses', 'cm']);
+        // SES / cm.com / SendGrid 等 API 类型不需要 port 和 encryption
+        $isApiType = in_array($request->type, ['ses', 'cm', 'sendgrid']);
         $port = $isApiType ? null : $request->port;
         $encryption = $isApiType ? null : $request->encryption;
 
-        // cm.com 默认使用官方 API 端点
+        // cm.com / SendGrid 默认使用官方 API 端点
         $host = $request->host;
         if ($request->type === 'cm' && empty($host)) {
             $host = 'https://api.cm.com/email/gateway/v1/marketing';
+        }
+        if ($request->type === 'sendgrid' && empty($host)) {
+            $host = 'https://api.sendgrid.com/v3/mail/send';
         }
 
         $server = SmtpServer::create([
@@ -164,7 +167,7 @@ class SmtpServerController extends Controller
 
         $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'type' => 'sometimes|required|in:smtp,ses,cm',
+            'type' => 'sometimes|required|in:smtp,ses,cm,sendgrid',
             'host' => 'nullable|string',
             'port' => 'nullable|integer',
             'username' => 'nullable|string',
@@ -204,15 +207,18 @@ class SmtpServerController extends Controller
             'rate_limit_day',
         ]);
 
-        // SES 和 cm.com 等 API 类型不需要 port 和 encryption
-        if ($request->has('type') && in_array($request->type, ['ses', 'cm'])) {
+        // SES / cm.com / SendGrid 等 API 类型不需要 port 和 encryption
+        if ($request->has('type') && in_array($request->type, ['ses', 'cm', 'sendgrid'])) {
             $updateData['port'] = null;
             $updateData['encryption'] = null;
         }
 
-        // cm.com 默认使用官方 API 端点
+        // cm.com / SendGrid 默认使用官方 API 端点
         if ($request->has('type') && $request->type === 'cm' && empty($updateData['host'] ?? null) && empty($smtpServer->host)) {
             $updateData['host'] = 'https://api.cm.com/email/gateway/v1/marketing';
+        }
+        if ($request->has('type') && $request->type === 'sendgrid' && empty($updateData['host'] ?? null) && empty($smtpServer->host)) {
+            $updateData['host'] = 'https://api.sendgrid.com/v3/mail/send';
         }
 
         // 只有在提供新密码时才更新
@@ -286,6 +292,9 @@ class SmtpServerController extends Controller
             } elseif ($smtpServer->type === 'cm') {
                 // 通过沙盒模式调用 cm.com API 测试 token 有效性
                 $this->testCmConnection($smtpServer);
+            } elseif ($smtpServer->type === 'sendgrid') {
+                // 通过 /v3/scopes 端点验证 API Key 有效性
+                $this->testSendGridConnection($smtpServer);
             } else {
                 // 其他类型（SES 等）只检查凭证是否填写
                 if (empty($smtpServer->username) && empty($smtpServer->password)) {
@@ -377,6 +386,54 @@ class SmtpServerController extends Controller
         if ($httpCode >= 500) {
             throw new \Exception("cm.com 服务器错误 (HTTP {$httpCode})");
         }
+    }
+
+    /**
+     * 测试 SendGrid API Key 是否有效
+     * 通过 GET /v3/scopes 验证（不会真实发邮件）
+     */
+    private function testSendGridConnection(SmtpServer $server)
+    {
+        if (empty($server->password)) {
+            throw new \Exception('SendGrid API Key 未配置');
+        }
+
+        $ch = curl_init('https://api.sendgrid.com/v3/scopes');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $server->password,
+                'Accept: application/json',
+            ],
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            throw new \Exception("无法连接到 SendGrid API: {$curlError}");
+        }
+
+        if ($httpCode === 401) {
+            throw new \Exception('API Key 缺失或无效');
+        }
+
+        if ($httpCode === 403) {
+            throw new \Exception('API Key 无效（权限不足）');
+        }
+
+        if ($httpCode >= 400 && $httpCode < 500) {
+            throw new \Exception("SendGrid API 返回错误 (HTTP {$httpCode}): " . substr($response, 0, 200));
+        }
+
+        if ($httpCode >= 500) {
+            throw new \Exception("SendGrid 服务器错误 (HTTP {$httpCode})");
+        }
+
+        // 200 + scopes 列表 = 验证成功
     }
 
     private function testSmtpConnection(SmtpServer $server)

@@ -152,7 +152,7 @@ class CheckDomainStatus extends Command
             $smtpServers = SmtpServer::where('is_active', true)
                 ->whereNotNull('sender_emails')
                 ->where('sender_emails', '!=', '')
-                ->whereNotIn('type', ['cm'])
+                ->whereNotIn('type', ['cm', 'sendgrid'])
                 ->get();
             
             if ($smtpServers->isEmpty()) {

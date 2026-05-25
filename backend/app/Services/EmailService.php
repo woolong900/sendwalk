@@ -55,6 +55,31 @@ class EmailService
                 return;
             }
 
+            // SendGrid 走 HTTP API，不经过 Laravel Mail
+            if ($smtpServer->type === 'sendgrid') {
+                $this->sendViaSendGridApi(
+                    $smtpServer,
+                    $to,
+                    $subject,
+                    $htmlContent,
+                    $fromName,
+                    $fromEmail,
+                    $replyTo,
+                    $unsubscribeUrl,
+                    $campaignId,
+                    $subscriberId,
+                    $listId,
+                    $userId,
+                    $listName
+                );
+
+                Log::debug('Email sent successfully via SendGrid', [
+                    'smtp_server_id' => $smtpServer->id,
+                    'to' => $to,
+                ]);
+                return;
+            }
+
             // Configure mail settings based on SMTP server type
             $this->configureMailer($smtpServer);
 
@@ -301,6 +326,150 @@ class EmailService
                 throw new \Exception('cm.com 速率限制超出');
             default:
                 throw new \Exception("cm.com API 错误 (HTTP {$httpCode}): {$errorMsg}");
+        }
+    }
+
+    /**
+     * 通过 SendGrid Web API v3 发送邮件
+     * 文档：https://docs.sendgrid.com/api-reference/mail-send/mail-send
+     *
+     * Auth: Authorization: Bearer {API_KEY}
+     * Endpoint: https://api.sendgrid.com/v3/mail/send
+     * 成功返回 HTTP 202 Accepted
+     */
+    private function sendViaSendGridApi(
+        SmtpServer $smtpServer,
+        string $to,
+        string $subject,
+        string $htmlContent,
+        string $fromName,
+        string $fromEmail,
+        ?string $replyTo = null,
+        ?string $unsubscribeUrl = null,
+        ?int $campaignId = null,
+        ?int $subscriberId = null,
+        ?int $listId = null,
+        ?int $userId = null,
+        ?string $listName = null
+    ): void {
+        if (empty($smtpServer->password)) {
+            throw new \Exception('SendGrid API Key 未配置');
+        }
+
+        $endpoint = $smtpServer->host ?: 'https://api.sendgrid.com/v3/mail/send';
+
+        // 构建自定义 headers（与 SMTP 路径对齐：List-Id, Feedback-ID, List-Unsubscribe, X-Report-Abuse, X-EBS）
+        $headers = [];
+
+        if ($listId) {
+            $listIdentifier = "list-{$listId}." . parse_url(config('app.url'), PHP_URL_HOST);
+            $headers['List-Id'] = $listName
+                ? "{$listName} <{$listIdentifier}>"
+                : "<{$listIdentifier}>";
+        }
+
+        if ($campaignId && $listId && $userId) {
+            $headers['Feedback-ID'] = "campaign-{$campaignId}:bulk:list-{$listId}:user-{$userId}";
+        }
+
+        if ($unsubscribeUrl) {
+            $headers['List-Unsubscribe'] = "<{$unsubscribeUrl}>";
+            $headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+        }
+
+        if ($campaignId && $subscriberId) {
+            $headers['X-Report-Abuse'] = rtrim(config('app.frontend_url', ''), '/') . "/abuse/report/{$campaignId}/{$subscriberId}";
+        }
+
+        if ($to) {
+            $headers['X-EBS'] = rtrim(config('app.frontend_url', ''), '/') . "/abuse/block?email=" . urlencode($to);
+        }
+
+        // 始终带上 Precedence: Bulk
+        $headers['Precedence'] = 'Bulk';
+
+        $payload = [
+            'personalizations' => [[
+                'to' => [['email' => $to]],
+                'subject' => $subject,
+            ]],
+            'from' => [
+                'email' => $fromEmail,
+                'name' => $fromName,
+            ],
+            'content' => [
+                ['type' => 'text/html', 'value' => $htmlContent],
+            ],
+            'headers' => $headers,
+            'mail_settings' => [
+                // 关闭 SendGrid 的链接追踪重写（避免改链接），开关由用户在 SendGrid 后台决定
+                // 这里不强制，保持默认
+            ],
+        ];
+
+        if (!empty($replyTo)) {
+            $payload['reply_to'] = ['email' => $replyTo];
+        }
+
+        // 用 custom_args 让 SendGrid event webhook 能追溯到具体活动/订阅者
+        if ($campaignId && $subscriberId) {
+            $payload['custom_args'] = [
+                'campaign_id' => (string) $campaignId,
+                'subscriber_id' => (string) $subscriberId,
+            ];
+        }
+
+        $ch = curl_init($endpoint);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Authorization: Bearer ' . $smtpServer->password,
+            ],
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            throw new \Exception("SendGrid API 请求失败: {$curlError}");
+        }
+
+        // 成功：202 Accepted（SendGrid 标准成功响应，body 通常为空）
+        if ($httpCode === 202) {
+            return;
+        }
+
+        // 失败：解析 errors 数组返回的错误信息
+        $body = json_decode($response, true);
+        $errorMsg = 'Unknown error';
+        if (is_array($body) && !empty($body['errors']) && is_array($body['errors'])) {
+            $errorMsg = implode('; ', array_map(
+                fn ($e) => is_array($e) ? ($e['message'] ?? json_encode($e)) : (string) $e,
+                $body['errors']
+            ));
+        } elseif (is_string($response) && $response !== '') {
+            $errorMsg = substr($response, 0, 500);
+        }
+
+        switch ($httpCode) {
+            case 400:
+                throw new \Exception("SendGrid 请求参数无效: {$errorMsg}");
+            case 401:
+                throw new \Exception('SendGrid API Key 缺失或无效');
+            case 403:
+                throw new \Exception("SendGrid 拒绝请求（发件人域名未验证或权限不足）: {$errorMsg}");
+            case 413:
+                throw new \Exception('SendGrid 邮件体过大');
+            case 429:
+                throw new \Exception('SendGrid 速率限制超出');
+            default:
+                throw new \Exception("SendGrid API 错误 (HTTP {$httpCode}): {$errorMsg}");
         }
     }
 }
