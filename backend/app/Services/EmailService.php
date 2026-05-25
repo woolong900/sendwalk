@@ -400,12 +400,14 @@ class EmailService
             'content' => [
                 ['type' => 'text/html', 'value' => $htmlContent],
             ],
-            'headers' => $headers,
-            'mail_settings' => [
-                // 关闭 SendGrid 的链接追踪重写（避免改链接），开关由用户在 SendGrid 后台决定
-                // 这里不强制，保持默认
-            ],
         ];
+
+        // 注意：SendGrid 的 headers / custom_args / mail_settings 等字段都要求 JSON object {}，
+        // 不能传空数组（PHP json_encode 会把空数组编码成 []，触发 "Expected: object, given: array" 错误）。
+        // 因此只在非空时加入，并显式 cast 成 object 防御。
+        if (!empty($headers)) {
+            $payload['headers'] = (object) $headers;
+        }
 
         if (!empty($replyTo)) {
             $payload['reply_to'] = ['email' => $replyTo];
@@ -413,7 +415,7 @@ class EmailService
 
         // 用 custom_args 让 SendGrid event webhook 能追溯到具体活动/订阅者
         if ($campaignId && $subscriberId) {
-            $payload['custom_args'] = [
+            $payload['custom_args'] = (object) [
                 'campaign_id' => (string) $campaignId,
                 'subscriber_id' => (string) $subscriberId,
             ];
