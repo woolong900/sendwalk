@@ -210,51 +210,29 @@ class SendMonitorController extends Controller
      */
     public function getQueueStatus(Request $request)
     {
-        // “执行中”以活动状态为准。单个任务的 reserved_at 生命周期很短，
-        // 仅使用 reserved_at 统计会导致页面在发送期间频繁显示为 0。
+        // Get all campaigns that are currently sending
         $sendingCampaigns = Campaign::where('status', 'sending')
             ->with('smtpServer')
             ->get();
-
-        $queueNames = $sendingCampaigns
-            ->map(fn ($campaign) => "campaign_{$campaign->id}")
-            ->values();
-
-        // 一次查询同时统计等待和已领取任务，避免逐活动查询 jobs 表。
-        $jobStats = $queueNames->isEmpty()
-            ? collect()
-            : DB::table('jobs')
-                ->whereIn('queue', $queueNames)
-                ->selectRaw('
-                    queue,
-                    SUM(CASE WHEN reserved_at IS NULL THEN 1 ELSE 0 END) as waiting,
-                    SUM(CASE WHEN reserved_at IS NOT NULL THEN 1 ELSE 0 END) as processing,
-                    COUNT(*) as total
-                ')
-                ->groupBy('queue')
-                ->get()
-                ->keyBy('queue');
-
+        
         $queues = [];
         
         foreach ($sendingCampaigns as $campaign) {
             $queueName = "campaign_{$campaign->id}";
             
             try {
-                $stats = $jobStats->get($queueName);
-                $waiting = (int) ($stats->waiting ?? 0);
-                $processing = (int) ($stats->processing ?? 0);
-
+                // Get queue size from jobs table
+                $pending = \DB::table('jobs')
+                    ->where('queue', $queueName)
+                    ->whereNull('reserved_at')
+                    ->count();
+                
                 $queues[] = [
                     'campaign_id' => $campaign->id,
                     'campaign_name' => $campaign->name,
                     'queue_name' => $queueName,
-                    // 保留 pending 字段，兼容旧版前端。
-                    'pending' => $waiting,
-                    'waiting' => $waiting,
-                    'processing' => $processing,
-                    'total' => $waiting + $processing,
-                    'is_running' => true,
+                    'pending' => $pending,
+                    'total' => $pending,
                     'smtp_server_id' => $campaign->smtp_server_id,
                     'smtp_server_name' => $campaign->smtpServer->name ?? 'Unknown',
                     'total_recipients' => $campaign->total_recipients,
@@ -266,25 +244,15 @@ class SendMonitorController extends Controller
                     'campaign_name' => $campaign->name,
                     'queue_name' => $queueName,
                     'pending' => 0,
-                    'waiting' => 0,
-                    'processing' => 0,
                     'total' => 0,
-                    'is_running' => true,
                     'error' => $e->getMessage(),
                 ];
             }
         }
-
-        $summary = [
-            'waiting' => array_sum(array_column($queues, 'waiting')),
-            'processing' => array_sum(array_column($queues, 'processing')),
-            'running_campaigns' => $sendingCampaigns->count(),
-            'total' => array_sum(array_column($queues, 'total')),
-        ];
         
         return response()->json([
             'data' => $queues,
-            'summary' => $summary,
         ]);
     }
 }
+
