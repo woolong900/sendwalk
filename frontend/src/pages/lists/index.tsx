@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Edit, Trash2, Users, Search, ListFilter, Clock, Zap, Settings2, X } from 'lucide-react'
+import { Plus, Edit, Trash2, Users, Search, ListFilter, Clock, Zap, Settings2, X, Download, Loader } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -39,6 +39,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { api } from '@/lib/api'
+import { exportListSubscribers } from '@/lib/export'
 import { formatDateTime } from '@/lib/utils'
 import { useConfirm } from '@/hooks/use-confirm'
 
@@ -107,6 +108,7 @@ export default function ListsPage() {
   const [editingList, setEditingList] = useState<MailingList | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
+  const [exportingListId, setExportingListId] = useState<number | null>(null)
   
   // 表单数据
   const [formData, setFormData] = useState({
@@ -249,6 +251,22 @@ export default function ListsPage() {
     })
     if (confirmed) {
       deleteMutation.mutate(list.id)
+    }
+  }
+
+  // 导出列表联系人
+  const handleExport = async (list: MailingList) => {
+    if (exportingListId) return
+
+    setExportingListId(list.id)
+    try {
+      await exportListSubscribers(list.id, list.name)
+      toast.success(t('subscribers.exportSuccess'))
+    } catch (error) {
+      // 失败提示由全局响应拦截器统一处理
+      console.error('Export list subscribers failed:', error)
+    } finally {
+      setExportingListId(null)
     }
   }
 
@@ -596,6 +614,20 @@ export default function ListsPage() {
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end -space-x-px">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleExport(list)}
+                          disabled={exportingListId !== null}
+                          title={t('subscribers.exportSubscribers')}
+                          className="px-1.5"
+                        >
+                          {exportingListId === list.id ? (
+                            <Loader className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"

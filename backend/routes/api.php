@@ -67,6 +67,7 @@ Route::middleware(['auth:sanctum', 'active.user'])->group(function () {
     // Lists
     Route::apiResource('lists', ListController::class);
     Route::post('lists/{list}/import', [ListController::class, 'import']);
+    Route::get('lists/{list}/export', [ListController::class, 'export']);
     Route::post('lists/preview-auto', [ListController::class, 'previewAutoList']);
 
     // Subscribers
@@ -172,4 +173,3 @@ Route::get('abuse/report/{campaignId}/{subscriberId}', [\App\Http\Controllers\Ap
 Route::post('abuse/report/{campaignId}/{subscriberId}', [\App\Http\Controllers\Api\AbuseController::class, 'reportAbuse']);
 Route::get('abuse/block', [\App\Http\Controllers\Api\AbuseController::class, 'blockAddress']);
 Route::post('abuse/block', [\App\Http\Controllers\Api\AbuseController::class, 'blockAddress']);
-

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, Mail, Trash2, Upload, CheckCircle, List, RefreshCw, Loader, Zap } from 'lucide-react'
+import { Plus, Search, Mail, Trash2, Upload, CheckCircle, List, RefreshCw, Loader, Zap, Download } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { api } from '@/lib/api'
+import { exportListSubscribers } from '@/lib/export'
 import { formatDateTime, maskEmail } from '@/lib/utils'
 import { useConfirm } from '@/hooks/use-confirm'
 
@@ -96,6 +97,7 @@ export default function SubscribersPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [importResult, setImportResult] = useState<{
     imported: number
     skipped: number
@@ -269,6 +271,25 @@ export default function SubscribersPage() {
     }
   }
 
+  // 导出当前列表联系人（跟随当前搜索/状态筛选条件）
+  const handleExport = async () => {
+    if (!listId || isExporting) return
+
+    setIsExporting(true)
+    try {
+      await exportListSubscribers(parseInt(listId), mailingList?.name || '', {
+        search: searchTerm,
+        status: statusFilter,
+      })
+      toast.success(t('subscribers.exportSuccess'))
+    } catch (error) {
+      // 失败提示由全局响应拦截器统一处理
+      console.error('Export subscribers failed:', error)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const getStatusBadge = (status: string) => {
     const variants: { [key: string]: 'default' | 'secondary' | 'destructive' } = {
       active: 'default',
@@ -333,6 +354,14 @@ export default function SubscribersPage() {
             title={t('common.refresh')}
           >
             <RefreshCw className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" onClick={handleExport} disabled={isExporting}>
+            {isExporting ? (
+              <Loader className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
+            {t('subscribers.exportSubscribers')}
           </Button>
           <Button variant="outline" onClick={() => setIsImportOpen(true)}>
             <Upload className="w-4 h-4 mr-2" />

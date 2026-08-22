@@ -7,6 +7,8 @@ use App\Jobs\SyncAutoListSubscribers;
 use App\Models\MailingList;
 use App\Models\Subscriber;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ListController extends Controller
 {
@@ -199,6 +201,95 @@ class ListController extends Controller
     }
 
     /**
+     * 导出列表中的联系人（CSV）
+     * 支持与前端列表页一致的搜索和状态筛选
+     */
+    public function export(Request $request, MailingList $list)
+    {
+        if ($list->user_id !== $request->user()->id) {
+            return response()->json(['message' => '无权访问'], 403);
+        }
+
+        $request->validate([
+            'status' => 'nullable|in:pending,active,unsubscribed,bounced,complained,blacklisted',
+            'search' => 'nullable|string|max:255',
+        ]);
+
+        $status = $request->query('status');
+        $search = trim((string) $request->query('search', ''));
+
+        $query = DB::table('list_subscriber')
+            ->join('subscribers', 'list_subscriber.subscriber_id', '=', 'subscribers.id')
+            ->where('list_subscriber.list_id', $list->id)
+            ->whereNull('subscribers.deleted_at')
+            ->select([
+                'subscribers.email',
+                'subscribers.first_name',
+                'subscribers.last_name',
+                'subscribers.status as subscriber_status',
+                'list_subscriber.status as list_status',
+                'list_subscriber.subscribed_at',
+                'list_subscriber.unsubscribed_at',
+                'subscribers.created_at',
+            ])
+            ->orderBy('list_subscriber.subscriber_id', 'desc');
+
+        if ($status) {
+            $query->where('list_subscriber.status', $status);
+        }
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('subscribers.email', 'like', "%{$search}%")
+                    ->orWhere('subscribers.first_name', 'like', "%{$search}%")
+                    ->orWhere('subscribers.last_name', 'like', "%{$search}%");
+            });
+        }
+
+        $slug = Str::slug($list->name) ?: "list-{$list->id}";
+        $filename = $slug . '-subscribers-' . now()->format('Ymd-His') . '.csv';
+
+        return response()->streamDownload(function () use ($query) {
+            $out = fopen('php://output', 'w');
+
+            // 写入 UTF-8 BOM，避免 Excel 打开中文乱码
+            fwrite($out, "\xEF\xBB\xBF");
+
+            fputcsv($out, [
+                'email',
+                'first_name',
+                'last_name',
+                'status',
+                'list_status',
+                'subscribed_at',
+                'unsubscribed_at',
+                'created_at',
+            ]);
+
+            // 分块查询，避免大列表导出时内存溢出
+            $query->chunk(1000, function ($subscribers) use ($out) {
+                foreach ($subscribers as $subscriber) {
+                    fputcsv($out, [
+                        $subscriber->email,
+                        $subscriber->first_name,
+                        $subscriber->last_name,
+                        $subscriber->subscriber_status,
+                        $subscriber->list_status,
+                        $subscriber->subscribed_at,
+                        $subscriber->unsubscribed_at,
+                        $subscriber->created_at,
+                    ]);
+                }
+            });
+
+            fclose($out);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-store',
+        ]);
+    }
+
+    /**
      * 预览自动列表匹配的订阅者数量
      */
     public function previewAutoList(Request $request)
@@ -224,4 +315,3 @@ class ListController extends Controller
         ]);
     }
 }
-
