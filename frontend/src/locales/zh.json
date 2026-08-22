@@ -224,6 +224,7 @@
     "importSubscribers": "批量导入",
     "importSubscribersDesc": "导入订阅者到列表",
     "exportSubscribers": "导出联系人",
+    "exporting": "导出中",
     "exportSuccess": "导出成功",
     "exportFailed": "导出失败",
     "email": "邮箱",

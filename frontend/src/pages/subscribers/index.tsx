@@ -98,6 +98,7 @@ export default function SubscribersPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [exportLoaded, setExportLoaded] = useState(0)
   const [importResult, setImportResult] = useState<{
     imported: number
     skipped: number
@@ -276,11 +277,17 @@ export default function SubscribersPage() {
     if (!listId || isExporting) return
 
     setIsExporting(true)
+    setExportLoaded(0)
     try {
-      await exportListSubscribers(parseInt(listId), mailingList?.name || '', {
-        search: searchTerm,
-        status: statusFilter,
-      })
+      await exportListSubscribers(
+        parseInt(listId),
+        mailingList?.name || '',
+        {
+          search: searchTerm,
+          status: statusFilter,
+        },
+        (loaded) => setExportLoaded(loaded)
+      )
       toast.success(t('subscribers.exportSuccess'))
     } catch (error) {
       // 失败提示由全局响应拦截器统一处理
@@ -361,7 +368,9 @@ export default function SubscribersPage() {
             ) : (
               <Download className="w-4 h-4 mr-2" />
             )}
-            {t('subscribers.exportSubscribers')}
+            {isExporting
+              ? `${t('subscribers.exporting')} ${(exportLoaded / 1048576).toFixed(1)} MB`
+              : t('subscribers.exportSubscribers')}
           </Button>
           <Button variant="outline" onClick={() => setIsImportOpen(true)}>
             <Upload className="w-4 h-4 mr-2" />

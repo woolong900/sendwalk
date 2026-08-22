@@ -224,6 +224,7 @@
     "importSubscribers": "Bulk Import",
     "importSubscribersDesc": "Import subscribers to list",
     "exportSubscribers": "Export Contacts",
+    "exporting": "Exporting",
     "exportSuccess": "Export successful",
     "exportFailed": "Export failed",
     "email": "Email",

@@ -223,6 +223,8 @@ class ListController extends Controller
             ->where('list_subscriber.list_id', $list->id)
             ->whereNull('subscribers.deleted_at')
             ->select([
+                // 游标分页依赖此列（结果集中键名为 subscriber_id）
+                'list_subscriber.subscriber_id',
                 'subscribers.email',
                 'subscribers.first_name',
                 'subscribers.last_name',
@@ -231,8 +233,7 @@ class ListController extends Controller
                 'list_subscriber.subscribed_at',
                 'list_subscriber.unsubscribed_at',
                 'subscribers.created_at',
-            ])
-            ->orderBy('list_subscriber.subscriber_id', 'desc');
+            ]);
 
         if ($status) {
             $query->where('list_subscriber.status', $status);
@@ -250,6 +251,9 @@ class ListController extends Controller
         $filename = $slug . '-subscribers-' . now()->format('Ymd-His') . '.csv';
 
         return response()->streamDownload(function () use ($query) {
+            // 大列表导出可能耗时较长，取消 PHP 执行时间限制
+            set_time_limit(0);
+
             $out = fopen('php://output', 'w');
 
             // 写入 UTF-8 BOM，避免 Excel 打开中文乱码
@@ -266,26 +270,34 @@ class ListController extends Controller
                 'created_at',
             ]);
 
-            // 分块查询，避免大列表导出时内存溢出
-            $query->chunk(1000, function ($subscribers) use ($out) {
-                foreach ($subscribers as $subscriber) {
-                    fputcsv($out, [
-                        $subscriber->email,
-                        $subscriber->first_name,
-                        $subscriber->last_name,
-                        $subscriber->subscriber_status,
-                        $subscriber->list_status,
-                        $subscriber->subscribed_at,
-                        $subscriber->unsubscribed_at,
-                        $subscriber->created_at,
-                    ]);
-                }
-            });
+            // 使用游标分页（WHERE subscriber_id > ?），走 (list_id, subscriber_id) 索引
+            // 注意：不能用 chunk()（offset 翻页），50 万行时每页都要重复排序，复杂度 O(n²)
+            $query->chunkById(
+                2000,
+                function ($subscribers) use ($out) {
+                    foreach ($subscribers as $subscriber) {
+                        fputcsv($out, [
+                            $subscriber->email,
+                            $subscriber->first_name,
+                            $subscriber->last_name,
+                            $subscriber->subscriber_status,
+                            $subscriber->list_status,
+                            $subscriber->subscribed_at,
+                            $subscriber->unsubscribed_at,
+                            $subscriber->created_at,
+                        ]);
+                    }
+                },
+                'list_subscriber.subscriber_id',
+                'subscriber_id'
+            );
 
             fclose($out);
         }, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Cache-Control' => 'no-store',
+            // 关闭 Nginx FastCGI 缓冲，边生成边下发，避免浏览器长时间无响应
+            'X-Accel-Buffering' => 'no',
         ]);
     }
 

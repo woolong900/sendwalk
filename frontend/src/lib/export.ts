@@ -7,7 +7,8 @@ import { api } from '@/lib/api'
 export async function exportListSubscribers(
   listId: number,
   listName: string,
-  filters: { search?: string; status?: string } = {}
+  filters: { search?: string; status?: string } = {},
+  onProgress?: (loadedBytes: number) => void
 ): Promise<void> {
   const params: Record<string, string> = {}
   if (filters.search) params.search = filters.search
@@ -16,6 +17,9 @@ export async function exportListSubscribers(
   const response = await api.get(`/lists/${listId}/export`, {
     params,
     responseType: 'blob',
+    onDownloadProgress: (progressEvent) => {
+      onProgress?.(progressEvent.loaded)
+    },
   })
 
   const url = window.URL.createObjectURL(response.data)
