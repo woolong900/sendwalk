@@ -30,6 +30,7 @@ import UsersPage from '@/pages/users'
 import UnsubscribePage from '@/pages/unsubscribe'
 import ReportAbusePage from '@/pages/public/report-abuse'
 import BlockAddressPage from '@/pages/public/block-address'
+import DomainValuesPage from '@/pages/public/domain-values'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -71,6 +72,7 @@ function App() {
         <Route path="/unsubscribe" element={<UnsubscribePage />} />
         <Route path="/abuse/report/:campaignId/:subscriberId" element={<ReportAbusePage />} />
         <Route path="/abuse/block" element={<BlockAddressPage />} />
+        <Route path="/domain-values" element={<DomainValuesPage />} />
 
         {/* Auth Routes */}
         <Route path="/auth" element={<AuthLayout />}>

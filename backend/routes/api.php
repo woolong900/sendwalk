@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\TemplateController;
 use App\Http\Controllers\UnsubscribeController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\UserManagementController;
+use App\Http\Controllers\Api\PublicDomainTagController;
 
 /*
 |--------------------------------------------------------------------------
@@ -32,6 +33,9 @@ Route::get('health', function () {
         'timestamp' => now()->toIso8601String(),
     ]);
 });
+
+// Public DOMAIN tag values (no authentication required)
+Route::get('public/domain-values', [PublicDomainTagController::class, 'show']);
 
 // Public routes
 Route::prefix('auth')->group(function () {
