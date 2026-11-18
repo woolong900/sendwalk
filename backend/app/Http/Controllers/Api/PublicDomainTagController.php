@@ -17,20 +17,7 @@ class PublicDomainTagController extends Controller
      */
     public function show(): JsonResponse
     {
-        $user = User::query()
-            ->where('email', config('public-domain-tag.user_email'))
-            ->first();
-
-        if (!$user) {
-            return response()->json([
-                'message' => 'DOMAIN 标签暂不可用',
-            ], 404);
-        }
-
-        $tag = Tag::query()
-            ->where('user_id', $user->id)
-            ->whereRaw('UPPER(name) = ?', ['DOMAIN'])
-            ->first();
+        $tag = $this->findDomainTag();
 
         if (!$tag) {
             return response()->json([
@@ -45,5 +32,39 @@ class PublicDomainTagController extends Controller
                 'updated_at' => $tag->updated_at?->toIso8601String(),
             ],
         ]);
+    }
+
+    /**
+     * Return only the public DOMAIN values as a JSON list.
+     */
+    public function domains(): JsonResponse
+    {
+        $tag = $this->findDomainTag();
+
+        if (!$tag) {
+            return response()->json([
+                'message' => 'DOMAIN 标签暂不可用',
+            ], 404);
+        }
+
+        return response()->json([
+            'domains' => array_values($tag->getValuesArray()),
+        ]);
+    }
+
+    private function findDomainTag(): ?Tag
+    {
+        $user = User::query()
+            ->where('email', config('public-domain-tag.user_email'))
+            ->first();
+
+        if (!$user) {
+            return null;
+        }
+
+        return Tag::query()
+            ->where('user_id', $user->id)
+            ->whereRaw('UPPER(name) = ?', ['DOMAIN'])
+            ->first();
     }
 }
