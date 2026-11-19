@@ -37,6 +37,7 @@ Route::get('health', function () {
 // Public DOMAIN tag values (no authentication required)
 Route::get('public/domain-values', [PublicDomainTagController::class, 'show']);
 Route::get('public/domains', [PublicDomainTagController::class, 'domains']);
+Route::get('public/subjects', [PublicDomainTagController::class, 'subjects']);
 
 // Public routes
 Route::prefix('auth')->group(function () {

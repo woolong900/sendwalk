@@ -12,6 +12,10 @@ interface DomainsResponse {
   domains: string[]
 }
 
+interface SubjectsResponse {
+  subjects: string[]
+}
+
 interface GeneratedHtml {
   html: string
   domain: string
@@ -59,26 +63,37 @@ function generateHtml(storeNumber: string, domains: string[]): GeneratedHtml {
 export default function DomainLinkBuilderPage() {
   const [storeNumber, setStoreNumber] = useState('')
   const [domains, setDomains] = useState<string[]>([])
+  const [subjects, setSubjects] = useState<string[]>([])
   const [result, setResult] = useState<GeneratedHtml | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [subjectCopied, setSubjectCopied] = useState(false)
+  const [lastSubject, setLastSubject] = useState('')
 
-  const loadDomains = async () => {
+  const loadResources = async () => {
     setLoading(true)
     setError('')
 
     try {
-      const response = await api.get<DomainsResponse>('/public/domains')
-      const normalized = response.data.domains
+      const [domainsResponse, subjectsResponse] = await Promise.all([
+        api.get<DomainsResponse>('/public/domains'),
+        api.get<SubjectsResponse>('/public/subjects'),
+      ])
+      const normalized = domainsResponse.data.domains
         .map(normalizeDomain)
         .filter((domain): domain is string => Boolean(domain))
+
+      const normalizedSubjects = subjectsResponse.data.subjects
+        .map((subject) => subject.trim())
+        .filter(Boolean)
 
       if (normalized.length === 0) {
         throw new Error('DOMAIN 列表为空')
       }
 
       setDomains([...new Set(normalized)])
+      setSubjects([...new Set(normalizedSubjects)])
     } catch (requestError: any) {
       setError(requestError.response?.data?.message || requestError.message || 'DOMAIN 列表加载失败')
     } finally {
@@ -87,7 +102,7 @@ export default function DomainLinkBuilderPage() {
   }
 
   useEffect(() => {
-    loadDomains()
+    loadResources()
   }, [])
 
   const handleGenerate = () => {
@@ -122,6 +137,25 @@ export default function DomainLinkBuilderPage() {
       window.setTimeout(() => setCopied(false), 2000)
     } catch {
       setError('复制失败，请选中文本后手动复制')
+    }
+  }
+
+  const handleCopySubject = async () => {
+    if (subjects.length === 0) {
+      setError('没有可用的 SUBJECT，请先刷新列表')
+      return
+    }
+
+    const subject = chooseRandom(subjects)
+
+    try {
+      await navigator.clipboard.writeText(subject)
+      setError('')
+      setLastSubject(subject)
+      setSubjectCopied(true)
+      window.setTimeout(() => setSubjectCopied(false), 2000)
+    } catch {
+      setError('标题复制失败，请稍后重试')
     }
   }
 
@@ -163,11 +197,11 @@ export default function DomainLinkBuilderPage() {
                 />
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={loadDomains}
+                  onClick={loadResources}
                   disabled={loading}
                   className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
                 >
@@ -178,12 +212,28 @@ export default function DomainLinkBuilderPage() {
                   <Dice5 className="mr-2 h-4 w-4" />
                   随机生成
                 </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleCopySubject}
+                  disabled={loading || subjects.length === 0}
+                  title={`从 ${subjects.length} 个 SUBJECT 中随机复制`}
+                >
+                  {subjectCopied ? <Check className="mr-2 h-4 w-4" /> : <Clipboard className="mr-2 h-4 w-4" />}
+                  {subjectCopied ? '标题已复制' : '复制标题'}
+                </Button>
               </div>
             </div>
 
             {error && (
               <div className="rounded-lg border border-red-900/60 bg-red-950/30 px-4 py-3 text-sm text-red-200">
                 {error}
+              </div>
+            )}
+
+            {lastSubject && (
+              <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-400">
+                最近复制标题：<span className="text-slate-200">{lastSubject}</span>
               </div>
             )}
 

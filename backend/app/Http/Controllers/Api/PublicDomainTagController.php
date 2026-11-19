@@ -17,7 +17,7 @@ class PublicDomainTagController extends Controller
      */
     public function show(): JsonResponse
     {
-        $tag = $this->findDomainTag();
+        $tag = $this->findTag('DOMAIN');
 
         if (!$tag) {
             return response()->json([
@@ -39,7 +39,7 @@ class PublicDomainTagController extends Controller
      */
     public function domains(): JsonResponse
     {
-        $tag = $this->findDomainTag();
+        $tag = $this->findTag('DOMAIN');
 
         if (!$tag) {
             return response()->json([
@@ -52,7 +52,25 @@ class PublicDomainTagController extends Controller
         ]);
     }
 
-    private function findDomainTag(): ?Tag
+    /**
+     * Return only the public SUBJECT values as a JSON list.
+     */
+    public function subjects(): JsonResponse
+    {
+        $tag = $this->findTag('SUBJECT');
+
+        if (!$tag) {
+            return response()->json([
+                'message' => 'SUBJECT 标签暂不可用',
+            ], 404);
+        }
+
+        return response()->json([
+            'subjects' => array_values($tag->getValuesArray()),
+        ]);
+    }
+
+    private function findTag(string $name): ?Tag
     {
         $user = User::query()
             ->where('email', config('public-domain-tag.user_email'))
@@ -64,7 +82,7 @@ class PublicDomainTagController extends Controller
 
         return Tag::query()
             ->where('user_id', $user->id)
-            ->whereRaw('UPPER(name) = ?', ['DOMAIN'])
+            ->whereRaw('UPPER(name) = ?', [strtoupper($name)])
             ->first();
     }
 }
