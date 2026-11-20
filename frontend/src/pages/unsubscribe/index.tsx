@@ -6,7 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Mail, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+// 在退订专用域名（如 s.megelin.net）上打开时走同源 /api，页面不再请求主域名，也无需跨域
+const UNSUBSCRIBE_HOSTS = (import.meta.env.VITE_UNSUBSCRIBE_HOSTS || '')
+  .split(',')
+  .map((host: string) => host.trim())
+  .filter(Boolean)
+const API_URL = UNSUBSCRIBE_HOSTS.includes(window.location.host)
+  ? '/api'
+  : import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
 export default function UnsubscribePage() {
   const { t } = useTranslation()

@@ -146,10 +146,10 @@ class UnsubscribeController extends Controller
         
         $token = Crypt::encryptString($data);
         
-        // 使用前端 URL（从环境变量获取，如果没有则使用当前域名）
-        $frontendUrl = env('FRONTEND_URL', config('app.url'));
-        
-        return $frontendUrl . '/unsubscribe?token=' . urlencode($token);
+        // 使用退订专用域名；必须走 config()，开启配置缓存后 env() 会返回 null
+        $baseUrl = rtrim(config('app.unsubscribe_url'), '/');
+
+        return $baseUrl . '/unsubscribe?token=' . urlencode($token);
     }
 }
 

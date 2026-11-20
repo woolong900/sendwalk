@@ -503,7 +503,7 @@ class CampaignController extends Controller
         // 如果完全没有订阅者，使用默认值
         if (!$subscriber) {
             return response()->json([
-                'unsubscribe_url' => url('/unsubscribe?token=no_subscribers'),
+                'unsubscribe_url' => rtrim(config('app.unsubscribe_url'), '/') . '/unsubscribe?token=no_subscribers',
                 'subscriber_email' => 'no-subscriber@example.com',
             ]);
         }
